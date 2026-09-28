@@ -5,113 +5,135 @@ import {
     Color,
     ContainerHandler,
     Entity,
-    FILLMODE_FILL_WINDOW,
-    LightComponentSystem,
+    FILLMODE_NONE,
     RESOLUTION_AUTO,
+    LightComponentSystem,
     RenderComponentSystem,
     TextureHandler,
-    createGraphicsDevice,
-    BoundingBox,
+    createGraphicsDevice
 } from 'playcanvas';
 
-import type { ContainerResource } from 'playcanvas';
-
+import { cameraPresets } from './app/camera-presets.ts';
+import { createLifetime } from './app/lifetime.ts';
+import { createSceneCoordinator } from './app/scene-controller.ts';
+import { createCameraController, createCameraControls } from './camera/index.ts';
+import { loadHouse } from './house/house.ts';
+import { createModelPreview } from './model-preview/index.ts';
+import { createSiteController, createSiteControls } from './site-definition/index.ts';
+import { createPanel } from './ui/panel.ts';
 import './style.css';
-
-const canvas = document.getElementById('application-canvas') as HTMLCanvasElement;
-
-const device = await createGraphicsDevice(canvas);
-device.maxPixelRatio = Math.min(window.devicePixelRatio, 2);
-
-const createOptions = new AppOptions();
-createOptions.graphicsDevice = device;
-createOptions.componentSystems = [RenderComponentSystem, CameraComponentSystem, LightComponentSystem];
-createOptions.resourceHandlers = [TextureHandler, ContainerHandler];
-
-const app = new AppBase(canvas);
-app.init(createOptions);
-app.start();
-
-// Set the canvas to fill the window and automatically change resolution to be the same as the canvas size
-app.setCanvasFillMode(FILLMODE_FILL_WINDOW);
-app.setCanvasResolution(RESOLUTION_AUTO);
-
-// Ensure canvas is resized when window changes size
-const resize = () => app.resizeCanvas();
-window.addEventListener('resize', resize);
-app.on('destroy', () => {
-    window.removeEventListener('resize', resize);
-});
-
-
-// Create camera entity
-const camera = new Entity('camera');
-camera.addComponent('camera', {
-    clearColor: new Color(0.5, 0.6, 0.9)
-});
-camera.setPosition(0, 0, 3);
-app.root.addChild(camera);
-
-// Create directional light entity
-const light = new Entity('light');
-light.addComponent('light');
-light.setEulerAngles(45, 0, 0);
-app.root.addChild(light);
-
-
-// load glb house model
-// 给没有被直射光照到的表面一点基础亮度
-app.scene.ambientLight = new Color(0.35, 0.35, 0.35);
-
-app.assets.loadFromUrl('/models/house.glb', 'container', (err, asset) => {
-    if (err || !asset) {
-        console.error('failed to load house model:', err);
+const canvas = document.querySelector<HTMLCanvasElement>('#application-canvas')!;
+const viewport = document.querySelector<HTMLElement>('#viewport')!;
+const status = document.querySelector<HTMLElement>('#status')!;
+const panel = createPanel(document.querySelector<HTMLElement>('#panel')!);
+const lifetime = createLifetime();
+let disposed = false;
+async function start() {
+    const device = await createGraphicsDevice(canvas);
+    if (lifetime.signal.aborted) {
+        device.destroy();
         return;
     }
-
-    // 资源是模型数据；实例化后才是可以加入场景的对象
-    const resource = asset.resource as ContainerResource;
-    const house = resource.instantiateRenderEntity();
-
-    house.name = 'House';
-    app.root.addChild(house);
-
-    let bounds: BoundingBox | undefined;
-
-    house.forEach((entity) => {
-        if (!(entity instanceof Entity) || !entity.render) return;
-
-        for (const mesh of entity.render.meshInstances) {
-            if (!bounds) {
-                bounds = mesh.aabb.clone();
-            } else {
-                bounds.add(mesh.aabb);
-            }
-        }
+    device.maxPixelRatio = Math.min(window.devicePixelRatio, 2);
+    const options = new AppOptions();
+    options.graphicsDevice = device;
+    options.componentSystems = [RenderComponentSystem, CameraComponentSystem, LightComponentSystem];
+    options.resourceHandlers = [TextureHandler, ContainerHandler];
+    const app = new AppBase(canvas);
+    app.init(options);
+    app.setCanvasFillMode(FILLMODE_NONE, viewport.clientWidth, viewport.clientHeight);
+    app.setCanvasResolution(RESOLUTION_AUTO);
+    lifetime.add(() => app.destroy());
+    if (disposed) {
+        app.destroy();
+        return;
+    }
+    app.scene.ambientLight = new Color(0.65, 0.65, 0.65);
+    const light = new Entity('Daylight');
+    light.addComponent('light', { type: 'directional', intensity: 1.25 });
+    light.setEulerAngles(50, -30, 0);
+    app.root.addChild(light);
+    const house = await loadHouse(app, lifetime.signal);
+    lifetime.add(house.destroy);
+    if (disposed) {
+        house.destroy();
+        return;
+    }
+    const camera = createCameraController(app, cameraPresets, {
+        duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 0.8
     });
-
-    if (!bounds || !camera.camera) return;
-    const center = bounds.center;
-    const radius = Math.max(bounds.halfExtents.length(), 0.01);
-
-    // 同时考虑横屏和竖屏，留出一些边距
-    const verticalFov = camera.camera.fov * Math.PI / 180;
-    const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1);
-    const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
-    const distance = radius / Math.sin(Math.min(verticalFov, horizontalFov) / 2);
-
-    const direction = new Entity(); // 不需要加入场景；这里只是避免手算方向也可用 Vec3
-    direction.destroy();
-
-    camera.setPosition(
-        center.x + distance,
-        center.y + distance * 0.6,
-        center.z + distance
+    lifetime.add(() => camera.destroy());
+    const site = createSiteController(app, house.footprint, document.querySelector<HTMLElement>('#measurements')!);
+    lifetime.add(() => site.destroy());
+    const coordinator = createSceneCoordinator(site, camera, house.bounds);
+    lifetime.add(camera.onMove(coordinator.refresh));
+    const dimensionControls = createSiteControls(
+        panel.dimensions,
+        panel.summary,
+        site.getState().dimensions,
+        (value) => {
+            const errors = coordinator.setDimensions(value);
+            if (!Object.keys(errors).length) dimensionControls.update(site.getLayout());
+            return errors;
+        }
     );
-
-    camera.camera.nearClip = Math.max(radius / 1000, 0.001);
-    camera.camera.farClip = distance * 4 + radius;
-    camera.lookAt(center);
-
-    console.log('Fariy House Added: ', house);
+    lifetime.add(() => dimensionControls.destroy());
+    const viewControls = createCameraControls(panel.views, cameraPresets, (id) => {
+        coordinator.setView(id);
+        document.querySelector('#projection-label')!.textContent =
+            cameraPresets.find((p) => p.id === id)!.projection === 'perspective' ? 'Perspective' : 'Orthographic';
+        viewControls.update(id);
+        document.querySelector('#active-view')!.textContent = `${cameraPresets.find((p) => p.id === id)!.label} view`;
+    });
+    lifetime.add(() => viewControls.destroy());
+    const resize = () => {
+        const width = viewport.clientWidth,
+            height = viewport.clientHeight;
+        if (!width || !height) return;
+        app.resizeCanvas(width, height);
+        coordinator.resize({ width, height });
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(viewport);
+    lifetime.add(() => observer.disconnect());
+    dimensionControls.update(site.getLayout());
+    viewControls.update(camera.getState().activePresetId);
+    resize();
+    const preview = createModelPreview(app, house.entity, house.bounds);
+    lifetime.add(() => preview.destroy());
+    void preview.ready
+        .then((url) => {
+            if (!disposed && url) panel.showModelPreview(url);
+        })
+        .catch((error) => {
+            if (!disposed) {
+                console.warn('Model preview could not be generated', error);
+                panel.previewFailed();
+            }
+        });
+    app.start();
+    panel.enable();
+    status.hidden = true;
+    requestAnimationFrame(() => {
+        if (!disposed) coordinator.refresh();
+    });
+}
+void start().catch((error) => {
+    if (disposed) return;
+    lifetime.dispose();
+    console.error(error);
+    status.classList.add('error');
+    status.replaceChildren();
+    const message = document.createElement('p');
+    message.textContent = error instanceof Error ? error.message : 'The scene could not start.';
+    const button = document.createElement('button');
+    button.textContent = 'Reload scene';
+    button.onclick = () => location.reload();
+    status.append(message, button);
 });
+if (import.meta.hot)
+    import.meta.hot.dispose(() => {
+        disposed = true;
+        lifetime.dispose();
+        panel.destroy();
+    });
