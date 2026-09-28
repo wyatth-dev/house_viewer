@@ -3,7 +3,7 @@
  * Width confirmed by the user: 43 m (2026-09-28). Raw coordinates are millimeters.
  */
 export const houseConfig = {
-    url: '/models/house.glb',
+    url: '/models/house-edit.glb',
     actualWidthMeters: 43,
     sourceFootprint: { minX: -43000, maxX: 0, minZ: -57000, maxZ: 0 },
     groundY: 0,
