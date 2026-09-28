@@ -2,9 +2,7 @@ import {
     AppBase,
     AppOptions,
     CameraComponentSystem,
-    Color,
     ContainerHandler,
-    Entity,
     FILLMODE_NONE,
     RESOLUTION_AUTO,
     LightComponentSystem,
@@ -18,7 +16,9 @@ import { createLifetime } from './app/lifetime.ts';
 import { createSceneCoordinator } from './app/scene-controller.ts';
 import { createCameraController, createCameraControls } from './camera/index.ts';
 import { loadHouse } from './house/house.ts';
+import { createLandscape, landscapeLayout } from './landscape/index.ts';
 import { createModelPreview } from './model-preview/index.ts';
+import { createRendering, daylightConfig } from './rendering/index.ts';
 import { createSiteController, createSiteControls } from './site-definition/index.ts';
 import { createPanel } from './ui/panel.ts';
 import './style.css';
@@ -48,24 +48,34 @@ async function start() {
         app.destroy();
         return;
     }
-    app.scene.ambientLight = new Color(0.65, 0.65, 0.65);
-    const light = new Entity('Daylight');
-    light.addComponent('light', { type: 'directional', intensity: 1.25 });
-    light.setEulerAngles(50, -30, 0);
-    app.root.addChild(light);
     const house = await loadHouse(app, lifetime.signal);
     lifetime.add(house.destroy);
     if (disposed) {
         house.destroy();
         return;
     }
+    const rendering = createRendering(app);
+    lifetime.add(() => rendering.destroy());
     const camera = createCameraController(app, cameraPresets, {
+        ...daylightConfig.camera,
         duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 0.8
     });
     lifetime.add(() => camera.destroy());
     const site = createSiteController(app, house.footprint, document.querySelector<HTMLElement>('#measurements')!);
     lifetime.add(() => site.destroy());
-    const coordinator = createSceneCoordinator(site, camera, house.bounds);
+    rendering.updateBounds({
+        min: { ...site.getBounds().min },
+        max: { ...site.getBounds().max, y: house.bounds.max.y }
+    });
+    const landscape = createLandscape(app);
+    lifetime.add(() => landscape.destroy());
+    landscape.updateBounds(site.getBounds());
+    const coordinator = createSceneCoordinator(
+        site,
+        camera,
+        house.bounds,
+        () => landscapeLayout(site.getBounds()).bounds
+    );
     lifetime.add(camera.onMove(coordinator.refresh));
     const dimensionControls = createSiteControls(
         panel.dimensions,
@@ -73,7 +83,14 @@ async function start() {
         site.getState().dimensions,
         (value) => {
             const errors = coordinator.setDimensions(value);
-            if (!Object.keys(errors).length) dimensionControls.update(site.getLayout());
+            if (!Object.keys(errors).length) {
+                dimensionControls.update(site.getLayout());
+                landscape.updateBounds(site.getBounds());
+                rendering.updateBounds({
+                    min: { ...site.getBounds().min },
+                    max: { ...site.getBounds().max, y: house.bounds.max.y }
+                });
+            }
             return errors;
         }
     );

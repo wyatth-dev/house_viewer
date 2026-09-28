@@ -56,6 +56,7 @@ src/
   geometry/         # Neutral transport types
   house/            # GLB loading and verified model calibration
   model-preview/    # One-shot axonometric rendering and cached thumbnail lifecycle
+  rendering/        # Procedural daylight environment, surroundings, and sunlight shadows
   site-definition/  # Dimensions, layout, ground, measurements, dimension controls
   ui/               # Shared panel shell
   main.ts           # Engine bootstrap and wiring
@@ -83,3 +84,19 @@ Tests use Node's native test runner and TypeScript stripping, with no extra test
 This stage defines the site only. It does not save edits, modify the house mesh, support sloped terrain or irregular boundaries, place furniture, or provide orbit controls. Measurement lines are drawn over geometry so they stay legible; they are explanatory overlays, not visibility/occlusion measurements. Ground colors are configured in `src/site-definition/ground.ts`. Remote Google Fonts enhance typography; system sans-serif fonts remain usable offline.
 
 See [the implementation plan](docs/plans/2026-09-28-house-scene-configuration.md) and [execution notes](docs/plans/2026-09-28-house-scene-configuration-progress.md).
+
+## Daylight environment
+
+`src/rendering/config.ts` controls the sunny preset. A locally generated sky panorama supplies the background and filtered environment lighting; no downloaded HDR asset is included. One warm directional light casts filtered shadows. A muted textured plane extends beneath and around the editable site. Existing house and yard materials are retained, but their displayed brightness changes under the new lighting and ACES tone mapping.
+
+The app passes generic scene bounds to the rendering module to update surroundings and shadow coverage. Camera far clipping is extended to keep the background visible during view transitions, without enlarging the bounds used to frame the house. Sky/lighting textures are generated once and released on disposal; shadows render in real time. This first preset does not include photographic scenery, detailed grass geometry, or animated weather.
+
+## Exterior PBR materials
+
+The surroundings now use a locally hosted short green grass material (ambientCG Grass001) outside the editable property. A validated manifest drives the independent `src/materials/` loader; the terrain renderer owns the mesh and repetition treatment. The default 1K profile downloads approximately 4.53 MiB and uses approximately 16 MiB of texture memory including mipmaps. A 2K profile is available through `src/rendering/config.ts`.
+
+See [the material import workflow](docs/materials/import-workflow.md) for texture conventions, physical scale, source licenses, source imports, validation and known limits. Run `npm run materials:check` to verify all packaged texture hashes and metadata.
+
+## Landscape context prototype
+
+`src/landscape/` adds four lightweight procedural trees and a 6 m road parallel to the front facade, outside the front-yard boundary. They follow property edits. Trees share two meshes and two materials, with approximately 23k triangles total; only two trees cast shadows. No additional model download is required. Camera framing includes bounded context around the property. The road and tree appearance are prototypes; target-device frame time has not yet been benchmarked.

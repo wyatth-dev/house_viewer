@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Downloaded source textures; normalized web assets are versioned.
+.material-cache/
+
+# Python material import tooling
+__pycache__/

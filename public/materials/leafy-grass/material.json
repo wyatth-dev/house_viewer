@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "leafy-grass",
+  "label": "Leafy Grass",
+  "source": {
+    "provider": "Poly Haven",
+    "assetId": "leafy_grass",
+    "url": "https://polyhaven.com/a/leafy_grass",
+    "author": "Charlotte Baglioni",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "retrievedAt": "2026-09-28"
+  },
+  "tileMeters": [
+    2,
+    2
+  ],
+  "normalConvention": "OpenGL",
+  "profiles": {
+    "1k": {
+      "maps": {
+        "baseColor": {
+          "file": "1k/baseColor.webp",
+          "width": 1024,
+          "height": 1024,
+          "colorSpace": "srgb",
+          "bytes": 465678,
+          "sha256": "4ac6858f1e49967b5ef2e000d57d705260d44bf651f15d9d2a2fa99cc271e450"
+        },
+        "normal": {
+          "file": "1k/normal.webp",
+          "width": 1024,
+          "height": 1024,
+          "colorSpace": "linear",
+          "bytes": 2521504,
+          "sha256": "aa17ac6b1589d75f620396d604cc85d8540a8d43ee336f05bedadcf9d9711e41"
+        },
+        "orm": {
+          "file": "1k/orm.webp",
+          "width": 1024,
+          "height": 1024,
+          "colorSpace": "linear",
+          "bytes": 1319848,
+          "sha256": "48aadb1920fac355bad0ac259280c2580643a0f71c94b2a4af714125e293c00f"
+        }
+      },
+      "downloadBytes": 4307030,
+      "estimatedGpuBytes": 16777216
+    },
+    "2k": {
+      "maps": {
+        "baseColor": {
+          "file": "2k/baseColor.webp",
+          "width": 2048,
+          "height": 2048,
+          "colorSpace": "srgb",
+          "bytes": 1815816,
+          "sha256": "a9c1d558138aa05af985c99246c9dbea8177e29eb5ee3e1fc536b23295b9c1e7"
+        },
+        "normal": {
+          "file": "2k/normal.webp",
+          "width": 2048,
+          "height": 2048,
+          "colorSpace": "linear",
+          "bytes": 10612182,
+          "sha256": "f19c33ddeb65384b25843f18028dfa713046b4aeb96cf6227bab7edc33d110e2"
+        },
+        "orm": {
+          "file": "2k/orm.webp",
+          "width": 2048,
+          "height": 2048,
+          "colorSpace": "linear",
+          "bytes": 5530814,
+          "sha256": "25e327111a94bc84d4c4ee8fd19d0705184db812ec9bcfb1a3d20c58edbfaed4"
+        }
+      },
+      "downloadBytes": 17958812,
+      "estimatedGpuBytes": 67108864
+    }
+  }
+}

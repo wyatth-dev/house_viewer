@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "leafy-grass",
+  "label": "Leafy Grass",
+  "source": {
+    "provider": "Poly Haven",
+    "assetId": "leafy_grass",
+    "url": "https://polyhaven.com/a/leafy_grass",
+    "author": "Charlotte Baglioni",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://polyhaven.com/license",
+    "retrievedAt": "2026-09-28"
+  },
+  "tileMeters": [
+    2,
+    2
+  ],
+  "normalConvention": "OpenGL",
+  "profiles": {
+    "1k": 1024,
+    "2k": 2048
+  },
+  "maps": {
+    "baseColor": {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/leafy_grass/leafy_grass_diff_2k.png",
+      "sha256": "9ae7994a36a7aedf5fe65dac49d5e096e9a8ff1d8a8e8ccb28df0c9c3a7a2d34"
+    },
+    "normal": {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/leafy_grass/leafy_grass_nor_gl_2k.png",
+      "sha256": "476a34f2f60186f51644c3b9560d7659531a033f993b01f274f939e447f3de25"
+    },
+    "orm": {
+      "url": "https://dl.polyhaven.org/file/ph-assets/Textures/png/2k/leafy_grass/leafy_grass_arm_2k.png",
+      "sha256": "ae94a44475b5793ca72cc8f9ad26f0ccd03bc5f72b0992e5070a38f923ea0bf9"
+    }
+  }
+}

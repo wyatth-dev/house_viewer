@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "id": "short-grass",
+  "label": "Short Green Grass",
+  "source": {
+    "provider": "ambientCG",
+    "assetId": "Grass001",
+    "url": "https://ambientcg.com/a/Grass001",
+    "author": "ambientCG",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://docs.ambientcg.com/license/",
+    "retrievedAt": "2026-09-28"
+  },
+  "tileMeters": [
+    1.4,
+    1.4
+  ],
+  "normalConvention": "OpenGL",
+  "profiles": {
+    "1k": 1024,
+    "2k": 2048
+  },
+  "archive": {
+    "url": "https://ambientcg.com/get?file=Grass001_2K-PNG.zip",
+    "sha256": "d6fd8aad96d39e582f234b4a3d668f5dc9f660fa0cf7b7e7e62f8cfdd623418f"
+  },
+  "maps": {
+    "baseColor": {
+      "entry": "Grass001_2K-PNG_Color.png"
+    },
+    "normal": {
+      "entry": "Grass001_2K-PNG_NormalGL.png"
+    },
+    "orm": {
+      "occlusion": "Grass001_2K-PNG_AmbientOcclusion.png",
+      "roughness": "Grass001_2K-PNG_Roughness.png",
+      "metallic": 0
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "id": "short-grass",
+  "label": "Short Green Grass",
+  "source": {
+    "provider": "ambientCG",
+    "assetId": "Grass001",
+    "url": "https://ambientcg.com/a/Grass001",
+    "author": "ambientCG",
+    "license": "CC0-1.0",
+    "licenseUrl": "https://docs.ambientcg.com/license/",
+    "retrievedAt": "2026-09-28"
+  },
+  "tileMeters": [
+    1.4,
+    1.4
+  ],
+  "normalConvention": "OpenGL",
+  "profiles": {
+    "1k": {
+      "maps": {
+        "baseColor": {
+          "file": "1k/baseColor.webp",
+          "width": 1024,
+          "height": 1024,
+          "colorSpace": "srgb",
+          "bytes": 382386,
+          "sha256": "e54e3c7d2172545ab800c4148a37b28adb57176bad9346f126c870e4dc5f2558"
+        },
+        "normal": {
+          "file": "1k/normal.webp",
+          "width": 1024,
+          "height": 1024,
+          "colorSpace": "linear",
+          "bytes": 2648758,
+          "sha256": "e072477aee7eb34fbea12473b11c93256b2bea9e4e176efe785b8b3573d9f5d2"
+        },
+        "orm": {
+          "file": "1k/orm.webp",
+          "width": 1024,
+          "height": 1024,
+          "colorSpace": "linear",
+          "bytes": 1715938,
+          "sha256": "cad11d03d0b323dc44e5eaa37054b33247cfb12d276e8b55759cc08991edd125"
+        }
+      },
+      "downloadBytes": 4747082,
+      "estimatedGpuBytes": 16777216
+    },
+    "2k": {
+      "maps": {
+        "baseColor": {
+          "file": "2k/baseColor.webp",
+          "width": 2048,
+          "height": 2048,
+          "colorSpace": "srgb",
+          "bytes": 1198198,
+          "sha256": "82820ff62a66927c5a23c91c1c345050114e0e9b580af19217131e95070a0af6"
+        },
+        "normal": {
+          "file": "2k/normal.webp",
+          "width": 2048,
+          "height": 2048,
+          "colorSpace": "linear",
+          "bytes": 10334072,
+          "sha256": "13e52eebd2d2196531c721e4502a83fbfdf7bb25bb23a62fd912803df7279437"
+        },
+        "orm": {
+          "file": "2k/orm.webp",
+          "width": 2048,
+          "height": 2048,
+          "colorSpace": "linear",
+          "bytes": 6298338,
+          "sha256": "01bccfc93243b8edb3164811f62721b4bcdc47e535a6975838b73055a343012a"
+        }
+      },
+      "downloadBytes": 17830608,
+      "estimatedGpuBytes": 67108864
+    }
+  }
+}

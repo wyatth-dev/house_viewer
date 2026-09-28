@@ -10,7 +10,7 @@ import type { CameraController, CameraPreset } from './types.ts';
 export function createCameraController(
     app: AppBase,
     presets: CameraPreset[],
-    options: { duration?: number } = {}
+    options: { duration?: number; minimumFarClip?: number; maximumNearClip?: number; toneMapping?: number } = {}
 ): CameraController {
     if (!presets.length || new Set(presets.map((p) => p.id)).size !== presets.length)
         throw new Error('Camera presets must have unique IDs');
@@ -29,6 +29,7 @@ export function createCameraController(
             fov: preset.fov ?? 45,
             clearColor: new Color(0.91, 0.925, 0.91)
         });
+        if (options.toneMapping !== undefined) entity.camera!.toneMapping = options.toneMapping;
         entity.enabled = preset.id === active;
         app.root.addChild(entity);
         cameras.set(preset.id, entity);
@@ -41,11 +42,11 @@ export function createCameraController(
         entity.setPosition(frame.position.x, frame.position.y, frame.position.z);
         entity.lookAt(frame.center.x, frame.center.y, frame.center.z);
         camera.orthoHeight = frame.halfHeight;
-        camera.nearClip = frame.near;
-        camera.farClip = frame.far;
+        camera.nearClip = Math.min(frame.near, options.maximumNearClip ?? Infinity);
+        camera.farClip = Math.max(frame.far, options.minimumFarClip ?? 0);
         camera.calculateProjection = custom
             ? (matrix) => {
-                  matrix.data.set(projectionMatrix(frame, viewport));
+                  matrix.data.set(projectionMatrix({ ...frame, near: camera.nearClip, far: camera.farClip }, viewport));
               }
             : defaultProjection;
     };

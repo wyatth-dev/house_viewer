@@ -1,7 +1,12 @@
 import type { CameraController } from '../camera/index.ts';
 import type { Bounds3, Viewport } from '../geometry/types.ts';
 import type { Dimensions, SiteController } from '../site-definition/index.ts';
-export function createSceneCoordinator(site: SiteController, camera: CameraController, house: Bounds3) {
+export function createSceneCoordinator(
+    site: SiteController,
+    camera: CameraController,
+    house: Bounds3,
+    contextBounds?: () => Bounds3
+) {
     let viewport: Viewport = { width: 1, height: 1 };
     const refresh = () => site.refreshLabels(camera.project);
     const fit = () => {
@@ -18,6 +23,12 @@ export function createSceneCoordinator(site: SiteController, camera: CameraContr
                 z: Math.max(house.max.z, ground.max.z)
             }
         };
+        const context = contextBounds?.();
+        if (context)
+            for (const axis of ['x', 'y', 'z'] as const) {
+                bounds.min[axis] = Math.min(bounds.min[axis], context.min[axis]);
+                bounds.max[axis] = Math.max(bounds.max[axis], context.max[axis]);
+            }
         camera.fit(bounds, viewport);
         refresh();
     };
