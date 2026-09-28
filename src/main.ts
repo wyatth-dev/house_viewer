@@ -10,8 +10,11 @@ import {
     RESOLUTION_AUTO,
     RenderComponentSystem,
     TextureHandler,
-    createGraphicsDevice
+    createGraphicsDevice,
+    BoundingBox,
 } from 'playcanvas';
+
+import type { ContainerResource } from 'playcanvas';
 
 import './style.css';
 
@@ -40,12 +43,6 @@ app.on('destroy', () => {
     window.removeEventListener('resize', resize);
 });
 
-// Create box entity
-const box = new Entity('cube');
-box.addComponent('render', {
-    type: 'box'
-});
-app.root.addChild(box);
 
 // Create camera entity
 const camera = new Entity('camera');
@@ -61,5 +58,60 @@ light.addComponent('light');
 light.setEulerAngles(45, 0, 0);
 app.root.addChild(light);
 
-// Rotate the box according to the delta time since the last frame
-app.on('update', (dt: number) => box.rotate(10 * dt, 20 * dt, 30 * dt));
+
+// load glb house model
+// 给没有被直射光照到的表面一点基础亮度
+app.scene.ambientLight = new Color(0.35, 0.35, 0.35);
+
+app.assets.loadFromUrl('/models/house.glb', 'container', (err, asset) => {
+    if (err || !asset) {
+        console.error('failed to load house model:', err);
+        return;
+    }
+
+    // 资源是模型数据；实例化后才是可以加入场景的对象
+    const resource = asset.resource as ContainerResource;
+    const house = resource.instantiateRenderEntity();
+
+    house.name = 'House';
+    app.root.addChild(house);
+
+    let bounds: BoundingBox | undefined;
+
+    house.forEach((entity) => {
+        if (!(entity instanceof Entity) || !entity.render) return;
+
+        for (const mesh of entity.render.meshInstances) {
+            if (!bounds) {
+                bounds = mesh.aabb.clone();
+            } else {
+                bounds.add(mesh.aabb);
+            }
+        }
+    });
+
+    if (!bounds || !camera.camera) return;
+    const center = bounds.center;
+    const radius = Math.max(bounds.halfExtents.length(), 0.01);
+
+    // 同时考虑横屏和竖屏，留出一些边距
+    const verticalFov = camera.camera.fov * Math.PI / 180;
+    const aspect = canvas.clientWidth / Math.max(canvas.clientHeight, 1);
+    const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * aspect);
+    const distance = radius / Math.sin(Math.min(verticalFov, horizontalFov) / 2);
+
+    const direction = new Entity(); // 不需要加入场景；这里只是避免手算方向也可用 Vec3
+    direction.destroy();
+
+    camera.setPosition(
+        center.x + distance,
+        center.y + distance * 0.6,
+        center.z + distance
+    );
+
+    camera.camera.nearClip = Math.max(radius / 1000, 0.001);
+    camera.camera.farClip = distance * 4 + radius;
+    camera.lookAt(center);
+
+    console.log('Fariy House Added: ', house);
+});
