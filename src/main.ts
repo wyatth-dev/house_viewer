@@ -11,6 +11,8 @@ import {
     createGraphicsDevice
 } from 'playcanvas';
 
+import { loadFootplatePreview } from './product-view/footplate-preview.ts';
+
 import { cameraPresets } from './app/camera-presets.ts';
 import { createLifetime } from './app/lifetime.ts';
 import { createSceneCoordinator } from './app/scene-controller.ts';
@@ -48,12 +50,26 @@ async function start() {
         app.destroy();
         return;
     }
+
+    // model preview loading
     const house = await loadHouse(app, lifetime.signal);
     lifetime.add(house.destroy);
     if (disposed) {
         house.destroy();
         return;
     }
+
+    const footplate = await loadFootplatePreview(app, lifetime.signal);
+    lifetime.add(() => footplate.destroy());
+
+    if (disposed) return;
+    footplate.entity.setPosition(
+        0,
+        0,
+        house.footprint.depth / 2 + 2000
+    );
+
+    // rendering
     const rendering = createRendering(app);
     lifetime.add(() => rendering.destroy());
     const camera = createCameraController(app, cameraPresets, {
@@ -103,13 +119,23 @@ async function start() {
         document.querySelector('#active-view')!.textContent = `${cameraPresets.find((p) => p.id === id)!.label} view`;
     });
     lifetime.add(() => viewControls.destroy());
+    // const resize = () => {
+    //     const width = viewport.clientWidth,
+    //         height = viewport.clientHeight;
+    //     if (!width || !height) return;
+    //     app.resizeCanvas(width, height);
+    //     coordinator.resize({ width, height });
+    // };
+
     const resize = () => {
-        const width = viewport.clientWidth,
-            height = viewport.clientHeight;
+        const width = viewport.clientWidth;
+        const height = viewport.clientHeight;
         if (!width || !height) return;
+
         app.resizeCanvas(width, height);
         coordinator.resize({ width, height });
     };
+
     const observer = new ResizeObserver(resize);
     observer.observe(viewport);
     lifetime.add(() => observer.disconnect());
