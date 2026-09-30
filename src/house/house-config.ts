@@ -4,7 +4,7 @@
  */
 export const houseConfig = {
     url: '/models/house-edit.glb',
-    actualWidthMeters: 43,
+    actualWidthMm: 43000,
     sourceFootprint: { minX: -43000, maxX: 0, minZ: -57000, maxZ: 0 },
     groundY: 0,
     yawDegrees: 0

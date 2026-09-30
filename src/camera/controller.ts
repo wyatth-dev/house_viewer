@@ -1,4 +1,4 @@
-import { Entity, Color, PROJECTION_ORTHOGRAPHIC, PROJECTION_PERSPECTIVE } from 'playcanvas';
+import { Entity, Color, Vec3, PROJECTION_ORTHOGRAPHIC, PROJECTION_PERSPECTIVE } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
 import type { Bounds3, Viewport } from '../geometry/types.ts';
@@ -36,6 +36,15 @@ export function createCameraController(
     }
     // Restore the engine's own default callback after the temporary blended lens.
     const defaultProjection = cameras.get(presets[0].id)!.camera!.calculateProjection;
+    const frustums = new Map(
+        [...cameras].map(([id, entity]) => [
+            id,
+            {
+                native: entity.camera!.camera.getFrustumCorners,
+                corners: Array.from({ length: 8 }, () => new Vec3())
+            }
+        ])
+    );
     const apply = (id: string, frame: Frame, custom = false) => {
         const entity = cameras.get(id)!,
             camera = entity.camera!;
@@ -49,6 +58,22 @@ export function createCameraController(
                   matrix.data.set(projectionMatrix({ ...frame, near: camera.nearClip, far: camera.farClip }, viewport));
               }
             : defaultProjection;
+        const frustum = frustums.get(id)!;
+        // PlayCanvas fits directional shadows with getFrustumCorners, which ignores
+        // calculateProjection. Supply corners from the same blended lens during motion.
+        camera.camera.getFrustumCorners = custom
+            ? (near = camera.nearClip, far = camera.farClip) => {
+                  const m = projectionMatrix({ ...frame, near: camera.nearClip, far: camera.farClip }, viewport);
+                  for (let i = 0; i < 8; i++) {
+                      const depth = i < 4 ? near : far;
+                      const w = m[15] - m[11] * depth;
+                      const x = w / m[0],
+                          y = w / m[5];
+                      frustum.corners[i].set(i % 4 < 2 ? x : -x, i % 4 === 1 || i % 4 === 2 ? y : -y, -depth);
+                  }
+                  return frustum.corners;
+              }
+            : frustum.native;
     };
     const update = (dt: number) => {
         if (!transition || !bounds) return;

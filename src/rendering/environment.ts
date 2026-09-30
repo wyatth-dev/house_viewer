@@ -69,7 +69,7 @@ export function createEnvironment(app: AppBase) {
         levels: [grain]
     });
     material.diffuseMap = texture;
-    material.diffuseMapTiling.set(daylightConfig.groundSize / 8, daylightConfig.groundSize / 8);
+    material.diffuseMapTiling.set(daylightConfig.groundSize / 8000, daylightConfig.groundSize / 8000);
     material.update();
     const ground = new Entity('Environment ground');
     ground.addComponent('render', { type: 'plane', material, castShadows: false, receiveShadows: true });

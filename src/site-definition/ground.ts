@@ -26,10 +26,10 @@ export function createGround(app: AppBase) {
         if (!layout) return;
         const p = layout.property;
         const pts = [
-            new Vec3(p.minX, 0.025, p.minZ),
-            new Vec3(p.maxX, 0.025, p.minZ),
-            new Vec3(p.maxX, 0.025, p.maxZ),
-            new Vec3(p.minX, 0.025, p.maxZ)
+            new Vec3(p.minX, 25, p.minZ),
+            new Vec3(p.maxX, 25, p.minZ),
+            new Vec3(p.maxX, 25, p.maxZ),
+            new Vec3(p.minX, 25, p.maxZ)
         ];
         for (let i = 0; i < 4; i++) app.drawLine(pts[i], pts[(i + 1) % 4], new Color(0.23, 0.32, 0.28), true);
     };

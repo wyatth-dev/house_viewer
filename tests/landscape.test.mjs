@@ -5,14 +5,14 @@ import { landscapeLayout } from '../src/landscape/layout.ts';
 import { treeGeometry } from '../src/landscape/tree-geometry.ts';
 
 test('the parallel road and complete tree crowns remain outside zero, maximum and asymmetric properties', () => {
-    for (const front of [0, 5, 50])
-        for (const left of [0, 50]) {
-            const bounds = { min: { x: -21.5 - left, y: 0, z: -35.5 }, max: { x: 23.5, y: 1, z: 28.5 + front } };
+    for (const front of [0, 5000, 50000])
+        for (const left of [0, 50000]) {
+            const bounds = { min: { x: -21500 - left, y: 0, z: -35500 }, max: { x: 23500, y: 1000, z: 28500 + front } };
             const layout = landscapeLayout(bounds);
             assert.ok(layout.road.z - layout.road.width / 2 - layout.road.shoulder > bounds.max.z);
-            assert.equal(layout.road.z, bounds.max.z + 4.5);
+            assert.equal(layout.road.z, bounds.max.z + 4500);
             for (const tree of layout.trees) {
-                const radius = 4.2 * tree.scale;
+                const radius = 4200 * tree.scale;
                 assert.ok(
                     tree.x + radius < bounds.min.x ||
                         tree.x - radius > bounds.max.x ||

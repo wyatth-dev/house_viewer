@@ -2,11 +2,11 @@ import type { Footprint } from '../house/types.ts';
 
 import type { Dimensions, DimensionErrors, Layout, SiteSide } from './types.ts';
 export const sides: SiteSide[] = ['front', 'back', 'left', 'right'];
-export const defaults: Dimensions = { front: 5, back: 7, left: 2, right: 2 };
+export const defaults: Dimensions = { front: 5000, back: 7000, left: 2000, right: 2000 };
 export function validateDimensions(value: Dimensions): DimensionErrors {
     const errors: DimensionErrors = {};
     for (const side of sides)
-        if (!Number.isFinite(value[side]) || value[side] < 0 || value[side] > 50)
+        if (!Number.isFinite(value[side]) || value[side] < 0 || value[side] > 50000)
             errors[side] = 'Enter a distance from 0 to 50 m.';
     return errors;
 }

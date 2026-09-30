@@ -67,7 +67,7 @@ test('site updates reuse four surfaces, hide zero regions, reject invalid dimens
     };
     const site = createSiteController(
         app,
-        { width: 8, depth: 10 },
+        { width: 8000, depth: 10000 },
         {
             append() {
                 /* Exercise site state and engine resources without a browser DOM. */
@@ -77,18 +77,18 @@ test('site updates reuse four surfaces, hide zero regions, reject invalid dimens
     try {
         site.getState().dimensions.front = 40;
         site.getLayout().property.minX = -999;
-        assert.equal(site.getState().dimensions.front, 5);
-        assert.equal(site.getLayout().property.minX, -6);
-        assert.ok(site.setDimensions({ front: NaN, back: 7, left: 2, right: 2 }).front);
-        assert.equal(site.getState().dimensions.front, 5);
+        assert.equal(site.getState().dimensions.front, 5000);
+        assert.equal(site.getLayout().property.minX, -6000);
+        assert.ok(site.setDimensions({ front: NaN, back: 7000, left: 2000, right: 2000 }).front);
+        assert.equal(site.getState().dimensions.front, 5000);
         const root = app.root.children[0],
             original = [...root.children];
-        for (let i = 0; i < 100; i++) site.setDimensions({ front: i % 51, back: 0, left: 0, right: 0 });
+        for (let i = 0; i < 100; i++) site.setDimensions({ front: (i % 51) * 1000, back: 0, left: 0, right: 0 });
         assert.deepEqual(root.children, original);
         assert.equal(root.children.length, 4);
         site.setDimensions({ front: 0, back: 0, left: 0, right: 0 });
         assert.ok(root.children.every((e) => !e.enabled));
-        assert.deepEqual(site.getBounds(), { min: { x: -4, y: 0, z: -5 }, max: { x: 4, y: 0.06, z: 5 } });
+        assert.deepEqual(site.getBounds(), { min: { x: -4000, y: 0, z: -5000 }, max: { x: 4000, y: 60, z: 5000 } });
     } finally {
         site.destroy();
         assert.equal(app.root.children.length, 0);

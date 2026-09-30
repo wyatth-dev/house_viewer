@@ -1,3 +1,4 @@
+/** Scene positions and bounds are in millimetres; viewport/projection values are pixels. */
 export type Point3 = { x: number; y: number; z: number };
 export type Bounds3 = { min: Point3; max: Point3 };
 export type Viewport = { width: number; height: number };

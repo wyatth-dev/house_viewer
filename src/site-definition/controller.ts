@@ -29,7 +29,7 @@ export function createSiteController(app: AppBase, footprint: Footprint, overlay
         getLayout: () => structuredClone(layout),
         getBounds: () => ({
             min: { x: layout.property.minX, y: 0, z: layout.property.minZ },
-            max: { x: layout.property.maxX, y: 0.06, z: layout.property.maxZ }
+            max: { x: layout.property.maxX, y: 60, z: layout.property.maxZ }
         }),
         refreshLabels: (project) => measurements.refresh(project),
         destroy() {

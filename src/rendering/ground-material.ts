@@ -38,7 +38,7 @@ export function createSurroundingsMaterial(app: AppBase) {
             asset.material.aoIntensity = 0.3;
             asset.material.update();
             updateMesh = (bounds) => {
-                const data = surroundingGeometry(bounds, daylightConfig.groundSize / 2, daylightConfig.groundY + 0.02);
+                const data = surroundingGeometry(bounds, daylightConfig.groundSize / 2, daylightConfig.groundY + 20);
                 mesh.setPositions(data.positions);
                 mesh.setNormals(data.normals);
                 mesh.setUvs(0, data.uvs);

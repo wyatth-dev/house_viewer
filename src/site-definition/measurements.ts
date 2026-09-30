@@ -2,6 +2,7 @@ import { Color, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
 import type { ProjectPoint } from '../geometry/types.ts';
+import { mmToMetres } from '../geometry/units.ts';
 import type { Footprint } from '../house/types.ts';
 
 import { sides } from './layout.ts';
@@ -19,7 +20,7 @@ export function createMeasurements(app: AppBase, overlay: HTMLElement, footprint
         for (const [a, b] of lines.values()) {
             app.drawLine(a, b, new Color(0.16, 0.27, 0.22), false);
             const horizontal = Math.abs(a.x - b.x) > 0.001;
-            const offset = horizontal ? new Vec3(0, 0, 0.2) : new Vec3(0.2, 0, 0);
+            const offset = horizontal ? new Vec3(0, 0, 200) : new Vec3(200, 0, 0);
             for (const p of [a, b])
                 app.drawLine(p.clone().sub(offset), p.clone().add(offset), new Color(0.16, 0.27, 0.22), false);
         }
@@ -30,13 +31,13 @@ export function createMeasurements(app: AppBase, overlay: HTMLElement, footprint
             const x = footprint.width / 2,
                 z = footprint.depth / 2,
                 p = layout.property;
-            lines.set('front', [new Vec3(0, 0.06, z), new Vec3(0, 0.06, p.maxZ)]);
-            lines.set('back', [new Vec3(0, 0.06, -z), new Vec3(0, 0.06, p.minZ)]);
-            lines.set('left', [new Vec3(-x, 0.06, 0), new Vec3(p.minX, 0.06, 0)]);
-            lines.set('right', [new Vec3(x, 0.06, 0), new Vec3(p.maxX, 0.06, 0)]);
+            lines.set('front', [new Vec3(0, 60, z), new Vec3(0, 60, p.maxZ)]);
+            lines.set('back', [new Vec3(0, 60, -z), new Vec3(0, 60, p.minZ)]);
+            lines.set('left', [new Vec3(-x, 60, 0), new Vec3(p.minX, 60, 0)]);
+            lines.set('right', [new Vec3(x, 60, 0), new Vec3(p.maxX, 60, 0)]);
             for (const side of sides)
                 labels.get(side)!.textContent =
-                    `${side[0].toUpperCase() + side.slice(1)} · ${dimensions[side].toFixed(1)} m`;
+                    `${side[0].toUpperCase() + side.slice(1)} · ${mmToMetres(dimensions[side]).toFixed(1)} m`;
         },
         refresh(project: ProjectPoint) {
             const placed: { x: number; y: number }[] = [];

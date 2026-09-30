@@ -90,13 +90,13 @@ export function createLandscape(app: AppBase) {
         updateBounds(property: Bounds3) {
             const layout = landscapeLayout(property);
             layout.trees.forEach((pose, i) => {
-                trees[i].setPosition(pose.x, -0.04, pose.z);
+                trees[i].setPosition(pose.x, -40, pose.z);
                 trees[i].setLocalScale(pose.scale, pose.scale, pose.scale);
                 trees[i].setEulerAngles(0, pose.yaw, 0);
             });
-            surface.setPosition(0, -0.035, layout.road.z);
+            surface.setPosition(0, -35, layout.road.z);
             surface.setLocalScale(layout.road.length, 1, layout.road.width);
-            shoulders.setPosition(0, -0.045, layout.road.z);
+            shoulders.setPosition(0, -45, layout.road.z);
             shoulders.setLocalScale(layout.road.length, 1, layout.road.width + layout.road.shoulder * 2);
         },
         destroy() {

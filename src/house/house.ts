@@ -6,15 +6,15 @@ import type { Bounds3 } from '../geometry/types.ts';
 import { loadContainer } from './asset-loader.ts';
 import { houseConfig } from './house-config.ts';
 export async function loadHouse(app: AppBase, signal: AbortSignal) {
-    const { actualWidthMeters, sourceFootprint: source } = houseConfig;
-    if (!actualWidthMeters || actualWidthMeters <= 0)
-        throw new Error('Confirm the house width in meters to finish model calibration.');
+    const { actualWidthMm, sourceFootprint: source } = houseConfig;
+    if (!actualWidthMm || actualWidthMm <= 0)
+        throw new Error('Confirm the house width in millimetres to finish model calibration.');
     const asset = await loadContainer(app.assets, houseConfig.url, signal);
     signal.throwIfAborted();
     const house = new Entity('House');
     const model = (asset.resource as ContainerResource).instantiateRenderEntity();
     house.addChild(model);
-    const scale = actualWidthMeters / (source.maxX - source.minX);
+    const scale = actualWidthMm / (source.maxX - source.minX);
     house.setLocalScale(scale, scale, scale);
     house.setEulerAngles(0, houseConfig.yawDegrees, 0);
     house.setPosition(
@@ -42,7 +42,7 @@ export async function loadHouse(app: AppBase, signal: AbortSignal) {
     const renderBounds: Bounds3 = { min: { x: min.x, y: min.y, z: min.z }, max: { x: max.x, y: max.y, z: max.z } };
     return {
         entity: house,
-        footprint: { width: actualWidthMeters, depth: (source.maxZ - source.minZ) * scale },
+        footprint: { width: actualWidthMm, depth: (source.maxZ - source.minZ) * scale },
         bounds: renderBounds,
         destroy() {
             house.destroy();

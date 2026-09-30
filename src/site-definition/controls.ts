@@ -1,3 +1,5 @@
+import { metresToMm, mmToMetres } from '../geometry/units.ts';
+
 import { sides } from './layout.ts';
 import type { Dimensions, DimensionErrors, Layout, SiteSide } from './types.ts';
 const names: Record<SiteSide, string> = {
@@ -15,10 +17,10 @@ export function createSiteControls(
     const root = document.createElement('div');
     root.className = 'dimensions';
     const drafts: Record<SiteSide, string> = {
-        front: String(initial.front),
-        back: String(initial.back),
-        left: String(initial.left),
-        right: String(initial.right)
+        front: String(mmToMetres(initial.front)),
+        back: String(mmToMetres(initial.back)),
+        left: String(mmToMetres(initial.left)),
+        right: String(mmToMetres(initial.right))
     };
     const errors = new Map<SiteSide, HTMLElement>();
     const listeners: (() => void)[] = [];
@@ -32,7 +34,7 @@ export function createSiteControls(
         const handler = () => {
             drafts[side] = input.value;
             const value = {} as Dimensions;
-            for (const key of sides) value[key] = drafts[key].trim() === '' ? NaN : Number(drafts[key]);
+            for (const key of sides) value[key] = drafts[key].trim() === '' ? NaN : metresToMm(Number(drafts[key]));
             const result = onChange(value);
             for (const key of sides) {
                 errors.get(key)!.textContent = result[key] ?? '';
@@ -50,7 +52,7 @@ export function createSiteControls(
     host.append(root);
     return {
         update(layout: Layout) {
-            summary.innerHTML = `<span>PROPERTY SIZE</span><strong>${layout.width.toFixed(1)} <small>×</small> ${layout.depth.toFixed(1)} <small>m</small></strong><span>${(layout.width * layout.depth).toFixed(1)} m² total area</span>`;
+            summary.innerHTML = `<span>PROPERTY SIZE</span><strong>${mmToMetres(layout.width).toFixed(1)} <small>×</small> ${mmToMetres(layout.depth).toFixed(1)} <small>m</small></strong><span>${(mmToMetres(layout.width) * mmToMetres(layout.depth)).toFixed(1)} m² total area</span>`;
         },
         destroy() {
             listeners.forEach((remove) => remove());

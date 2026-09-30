@@ -32,12 +32,12 @@ The front yard uses the paving material across the full property width, includin
 
 ## Model and calibration
 
-The model is `public/models/house.glb`. Original mesh hierarchy and materials are preserved.
+The model is `public/models/house-edit.glb`. Original mesh hierarchy and materials are preserved.
 
 Calibration lives in `src/house/house-config.ts`:
 
 - Confirmed exterior width: **43 m** (user reference, 2026-09-28).
-- Raw GLB width: 43,000; applied scale: **0.001**.
+- Raw GLB width: 43,000 mm; applied scale: **1**. Scene coordinates and internal lengths use millimetres.
 - Exterior wall envelope: X = -43000…0, Z = -57000…0. This includes the rear extension, beyond the wall named Back at Z=-48000.
 - Ground reference: Y=0; the slab underside is not used as ground level.
 - Named Front faces +Z; Left is -X and right is +X. Y is up.

@@ -39,7 +39,7 @@ test('material validation rejects wrong color space, scale, channel convention a
         assert.throws(() => parseMaterialManifest(invalid));
     }
 });
-test('PBR material maps ORM channels correctly and preserves meter-based scale across maps', () => {
+test('PBR material maps ORM channels correctly and preserves physical scale with millimetre UVs across maps', () => {
     const maps = { baseColor: {}, normal: {}, orm: {} };
     const material = createPbrMaterial(parseMaterialManifest(sample), maps);
     try {
@@ -57,7 +57,7 @@ test('PBR material maps ORM channels correctly and preserves meter-based scale a
             material.aoMapTiling,
             material.metalnessMapTiling
         ])
-            assert.deepEqual([tiling.x, tiling.y], [0.5, 0.5]);
+            assert.deepEqual([tiling.x, tiling.y], [0.0005, 0.0005]);
     } finally {
         material.destroy();
     }
