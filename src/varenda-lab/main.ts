@@ -95,7 +95,7 @@ async function start() {
         footplateInstances = solution.assemblies.map((assembly, index) => {
             const entity = index === 0 ? footplate.entity : footplate.entity.clone();
             if (index !== 0) app.root.addChild(entity);
-            entity.name = assembly.assemblyId;
+            entity.name = assembly.instanceId;
             placeProductEntity(entity, assembly.positionMm, widthMm);
             return entity;
         });

@@ -1,22 +1,56 @@
+import { varendaCatalog } from './catalog.ts';
 import type { VarendaDatums } from './datums.ts';
-import { VarendaConvention } from './parameters.ts';
 import type { VarendaParams } from './parameters.ts';
 
 /** Varenda pure solvers. Product-local Rhino axes, lengths in mm. */
 
 // Result types
 export type ProductPointMm = Readonly<{ x: number; y: number; z: number }>;
+export type HoleOperation = {
+    operationId: string;
+    faceId: string;
+    centerMm: ProductPointMm;
+    axisUnit: ProductPointMm;
+    diameterMm: number;
+
+    extent:
+        | { kind: 'through'; wallIds: readonly string[] }
+        | { kind: 'blind'; depthMm: number }
+        | { kind: 'pending' };
+}
+
+/** 一个孔由构件实例编号和孔编号共同定位。 */
+export type HoleRef = {
+    partInstanceId: string;
+    operationId: string;
+};
+
+/** 一颗实际螺丝；连接多个构件也只统计一次。 */
+export type FastenerInstance = {
+    instanceId: string;
+    catalogProductId: string;
+};
+
+/** 关系只保存在这里，构件和螺丝不重复存储反向引用。 */
+export type Connection = {
+    connectionId: string;
+    holeRefs: readonly HoleRef[];
+    fastenerInstanceIds: readonly string[];
+    alignment: 'coaxial' | 'coincident-centres';
+};
+
 export type ColumnLayout = {
     centresMm: readonly number[];
     columns: readonly { columnId: string; positionMm: ProductPointMm }[];
 };
 
 export type FootingAssembly = {
-    assemblyId: string;
+    instanceId: string;
     columnId: string;
-    assetKey: typeof VarendaConvention.footPlate;
+    catalogProductId: typeof varendaCatalog.footplate.catalogProductId;
     positionMm: ProductPointMm;
 };
+
 export type FootingSolution = {
     centresMm: readonly number[];
     assemblies: FootingAssembly[];
@@ -25,6 +59,7 @@ export type FootingSolution = {
 export type PostInstance = {
     instanceId: string;
     columnId: string;
+    catalogProductId: typeof varendaCatalog.postProfile.catalogProductId;
     positionMm: ProductPointMm;
     lengthMm: number;
 };
@@ -72,9 +107,9 @@ export function solveFootings(layout: ColumnLayout, datums: VarendaDatums): Foot
     return {
         centresMm: [...layout.centresMm],
         assemblies: layout.columns.map((column) => ({
-            assemblyId: `footing-${column.columnId}`,
+            instanceId: `footing-${column.columnId}`,
+            catalogProductId: varendaCatalog.footplate.catalogProductId,
             columnId: column.columnId,
-            assetKey: VarendaConvention.footPlate,
             positionMm: {
                 ...column.positionMm,
                 z: column.positionMm.z + datums.footingBaseZMm
@@ -98,6 +133,7 @@ export function solvePosts(
 
     return layout.columns.map((column) => ({
         instanceId: `post-${column.columnId}`,
+        catalogProductId: varendaCatalog.postProfile.catalogProductId,
         columnId: column.columnId,
         positionMm: {
             x: column.positionMm.x,

@@ -30,8 +30,8 @@ test('footings consume shared column identities and do not mutate the layout', (
         result.assemblies.map((a) => a.positionMm),
         layout.columns.map((c) => c.positionMm)
     );
-    assert.equal(result.assemblies[0].assemblyId, 'footing-column-1');
-    assert.equal(result.assemblies[0].assetKey, 'varenda-footplate');
+    assert.equal(result.assemblies[0].instanceId, 'footing-column-1');
+    assert.equal(result.assemblies[0].catalogProductId, 'varenda-footplate');
     assert.deepEqual(layout, snapshot);
     assert.notEqual(result.assemblies[0].positionMm, layout.columns[0].positionMm);
 });
