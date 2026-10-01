@@ -10,9 +10,20 @@
         <h1>Varenda Lab</h1>
         <p>Unit:mm</p>
         <label>
-            Post Interval
+            Post Interval / Mm
             <input id="post-interval" type="number" value="1000" step="100"/>
         </label>
+        <label>
+            Width / mm
+            <input id="product-width" type="number" value="4000" step="100">
+        </label>
+        <label>
+            Depth / mm
+            <input id="product-depth" type="number" value="2000" step="100">
+        </label>
+
+        <button id="fit-product" type="button">Overview</button>
+
         <canvas id="lab-canvas"></canvas>
         <p id="lab-status">Lab Page Opened</p>
     </main>

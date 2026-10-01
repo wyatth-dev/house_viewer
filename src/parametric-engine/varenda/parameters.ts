@@ -7,6 +7,10 @@ export type VarendaParams = {
     rafterInterval: number;
 }
 
+export const VarendaConvention = {
+    footPlate: "varenda-footplate",
+} as const
+
 export const defaultVarendaParams: Readonly<VarendaParams> = {
     widthMm: 4000,
     depthMm: 2000,

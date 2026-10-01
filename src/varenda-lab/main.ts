@@ -3,12 +3,15 @@ import {
     AppOptions,
     CameraComponentSystem,
     ContainerHandler,
+    ContainerResource,
     LightComponentSystem,
     RenderComponentSystem,
     TextureHandler,
     Entity,
     Color
 } from 'playcanvas';
+
+import { loadContainer } from '../house/asset-loader.ts';
 import { createGraphicsDevice } from 'playcanvas';
 
 import { createLifetime } from '../app/lifetime.ts';
@@ -74,15 +77,18 @@ async function start() {
 
     // footplate.entity.setPosition(0, 0, 0);
     const params = { ...defaultVarendaParams };
-
-    const widthMm = params.widthMm;
-    const depthMm = params.depthMm;
     
     let instances: Entity[] = [];
 
-    const updateFootplates = (intervalMm: number) => {
-        
-        const centers = layoutPosts(widthMm, intervalMm);
+    const updateFootplates = (
+        nextWidthMm: number,
+        nextDepthMm: number,
+        intervalMm: number,
+    ) => {    
+        const centers = layoutPosts(nextWidthMm, intervalMm);
+        if (!Number.isFinite(nextDepthMm) || nextDepthMm <= 0) {
+            throw new Error('Depth must be a positive number');
+        }
 
         for (const entity of instances.slice(1)) { entity.destroy(); }
 
@@ -95,39 +101,82 @@ async function start() {
             if (index !== 0) app.root.addChild(entity);
 
             entity.name = `Footplate ${index + 1}`;
-            entity.setPosition(x - widthMm / 2, 0, depthMm);
+            entity.setPosition(x - nextWidthMm / 2, 0, nextDepthMm);
 
             return entity;
         })
 
+        params.widthMm = nextWidthMm;
+        params.depthMm = nextDepthMm;
         params.postInterval = intervalMm;
         status.textContent =
             `Post number: ${centers.length} · ` +
             `Local X: ${centers.join(', ')} mm · ` +
-            `Outward depth: ${depthMm} mm`;
+            `Outward depth: ${nextDepthMm} mm`;
     }
 
     lifetime.add(() => {
         for (const entity of instances.slice(1)) { entity.destroy(); }  
     })
 
-    const intervalInput = document.querySelector<HTMLInputElement>('#post-interval')!;
+    const widthInput =
+        document.querySelector<HTMLInputElement>('#product-width')!;
 
+    const intervalInput =
+        document.querySelector<HTMLInputElement>('#post-interval')!;
+
+    const depthInput =
+        document.querySelector<HTMLInputElement>('#product-depth')!;
+
+    widthInput.value = String(params.widthMm);
     intervalInput.value = String(params.postInterval);
-    
-    const onIntervalInput = () => {
+    depthInput.value = String(params.depthMm);
+
+    const onParametersInput = () => {
         try {
-            updateFootplates(intervalInput.valueAsNumber);
+            updateFootplates(
+                widthInput.valueAsNumber,
+                depthInput.valueAsNumber,
+                intervalInput.valueAsNumber
+            );
         } catch (error) {
-            status.textContent = 
+            status.textContent =
                 error instanceof Error ? error.message : 'Invalid input';
         }
     };
 
-    intervalInput.addEventListener('input', onIntervalInput);
-    lifetime.add(() => intervalInput.removeEventListener('input', onIntervalInput));
+    for (const input of [widthInput, intervalInput, depthInput]) {
+        input.addEventListener('input', onParametersInput);
+        lifetime.add(() => {
+            input.removeEventListener('input', onParametersInput);
+        });
+    }
 
-    updateFootplates(params.postInterval);
+    updateFootplates(params.widthMm, params.depthMm, params.postInterval);
+
+    // import post
+    const postAsset = await loadContainer(
+        app.assets,
+        '/models/varenda/post-body.glb',
+        lifetime.signal
+    );
+
+    lifetime.add(() => {
+        postAsset.unload();
+        app.assets.remove(postAsset);
+    });
+
+    lifetime.signal.throwIfAborted();
+
+    const postBody = (
+        postAsset.resource as ContainerResource
+    ).instantiateRenderEntity();
+
+    app.root.addChild(postBody);
+    lifetime.add(() => postBody.destroy());
+
+    // 暂时放在整排中央，底端落在厚 5 mm 的底板上。
+    postBody.setPosition(0, 5, params.depthMm);
 
     // Camera
     const resize = () => {
@@ -141,8 +190,8 @@ async function start() {
 
         const frame = fitPerspective(
             {
-                min: { x: -widthMm / 2 - 100, y: 0, z: depthMm - 100 },
-                max: { x: widthMm / 2 + 100, y: 100, z: depthMm + 100 }
+                min: { x: -params.widthMm / 2 - 100, y: 0, z: params.depthMm - 100 },
+                max: { x: params.widthMm / 2 + 100, y: 100, z: params.depthMm + 100 }
             },
             { width, height },
             { x: 0.2, y: 0.7, z: 1 },
@@ -164,6 +213,15 @@ async function start() {
         camera.camera!.nearClip = frame.near;
         camera.camera!.farClip = frame.far;
     };
+
+    const fitButton =
+        document.querySelector<HTMLButtonElement>('#fit-product')!;
+
+    fitButton.addEventListener('click', resize);
+
+    lifetime.add(() => {
+        fitButton.removeEventListener('click', resize);
+    });
 
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
