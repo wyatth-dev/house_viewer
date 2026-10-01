@@ -24,7 +24,7 @@ export function calculateColumnCentres(widthMm: number, postIntervalMm: number):
     return Array.from({ length: gapCount + 1 }, (_, index) => start + index * postIntervalMm);
 }
 
-// Shared column layout
+// Column layout
 export type ProductPointMm = Readonly<{ x: number; y: number; z: number }>;
 export type ColumnLayout = {
     centresMm: readonly number[];
@@ -73,4 +73,41 @@ export function solveFootings(layout: ColumnLayout, datums: VarendaDatums): Foot
             }
         }))
     };
+}
+
+// posts
+
+export type PostInstance = {
+    instanceId: string;
+    columnId: string;
+    positionMm: ProductPointMm;
+    lengthMm: number;
+}
+
+export function solvePosts(
+    layout: ColumnLayout,
+    params: Readonly<VarendaParams>,
+    datums: VarendaDatums
+): PostInstance[] {
+    const baseZMm = datums.postBaseZMm;
+    const lengthMm = params.undersideHeightMm - baseZMm;
+
+    if (
+        !Number.isFinite(baseZMm) ||
+        !Number.isFinite(lengthMm) ||
+        lengthMm <= 0
+    ) {
+        throw new Error('Post base and length must be finite positive numbers');
+    }
+
+    return layout.columns.map((column) => ({
+        instanceId: `post-${column.columnId}`,
+        columnId: column.columnId,
+        positionMm: {
+            x: column.positionMm.x,
+            y: column.positionMm.y,
+            z: baseZMm
+        },
+        lengthMm
+    }));
 }

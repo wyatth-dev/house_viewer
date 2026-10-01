@@ -7,6 +7,6 @@ export type VarendaDatums = Readonly<{
 }>;
 export const varendaDatums: VarendaDatums = Object.freeze({
     footingBaseZMm: 0,
-    postBaseZMm: 5,
+    postBaseZMm: 5, // thickness of footplate, parameterized later
     postSourceLengthMm: 95
 });
