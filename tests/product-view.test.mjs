@@ -64,19 +64,24 @@ test('product view keeps local geometry and independent roots without accumulati
     const second = await createVarendaView(app, resources);
     const solution = {
         footings: { assemblies: [{ instanceId: 'foot-1', positionMm: { x: 100, y: -2000, z: 0 } }] },
-        posts: [{ instanceId: 'post-1', positionMm: { x: 100, y: -2000, z: 5 }, lengthMm: 1595 }]
+        posts: [{ instanceId: 'post-1', positionMm: { x: 100, y: -2000, z: 5 }, lengthMm: 1595 }],
+        gutter: { positionMm: { x: 2000, y: -2000, z: 1600 }, lengthMm: 4000 }
     };
     first.update(solution);
     first.update(solution);
     second.update(solution);
     assert.equal(first.root.children.length, 1);
     const parts = first.root.children[0].children;
-    assert.equal(parts.length, 2);
+    assert.equal(parts.length, 4);
     assert.deepEqual(parts[1].getLocalPosition().toArray(), [100, 5, 2000]);
     assert.equal(parts[1].getLocalScale().y, 1595 / 95);
+    for (const gutter of parts.slice(2)) {
+        assert.deepEqual(gutter.getLocalPosition().toArray(), [2000, 1600, 2000]);
+        assert.deepEqual(gutter.getLocalScale().toArray(), [40, 1, 1]);
+    }
     first.destroy();
     first.destroy();
-    assert.equal(second.root.children[0].children.length, 2);
+    assert.equal(second.root.children[0].children.length, 4);
     second.destroy();
     app.root.destroy();
 });

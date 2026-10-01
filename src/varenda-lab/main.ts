@@ -16,7 +16,7 @@ import { fitPerspective } from '../camera/framing.ts';
 import { varendaDatums } from '../parametric-engine/varenda/datums.ts';
 import type { VarendaParams } from '../parametric-engine/varenda/parameters.ts';
 import { defaultVarendaParams } from '../parametric-engine/varenda/parameters.ts';
-import { solveColumnLayout, solveFootings, solvePosts } from '../parametric-engine/varenda/varenda-solver.ts';
+import { solveColumnLayout, solveFootings, solvePosts, solveGutterLayout } from '../parametric-engine/varenda/varenda-solver.ts';
 import { createProductAssetStore } from '../product-view/assets.ts';
 import { createVarendaView } from '../product-view/varenda-view.ts';
 
@@ -78,6 +78,7 @@ async function start() {
         const columnLayout = solveColumnLayout(nextParams);
         const footings = solveFootings(columnLayout, varendaDatums);
         const posts = solvePosts(columnLayout, nextParams, varendaDatums);
+        const gutter = solveGutterLayout(nextParams);
 
         // POST HOLE MARKERS: local Z and source diameter only; no assembly transforms applied.
         console.table(
@@ -90,7 +91,7 @@ async function start() {
         );
 
         // Commit to scene
-        product.update({ footings, posts });
+        product.update({ footings, posts, gutter });
         product.root.setLocalPosition(-nextParams.widthMm / 2, 0, 0);
         Object.assign(params, nextParams);
 
