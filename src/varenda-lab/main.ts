@@ -115,6 +115,7 @@ async function start() {
     const intervalInput = document.querySelector<HTMLInputElement>('#post-interval')!;
     const depthInput = document.querySelector<HTMLInputElement>('#product-depth')!;
     const heightInput = document.querySelector<HTMLInputElement>('#underside-height')!;
+    const wallHeightInput = document.querySelector<HTMLInputElement>('#wall-height')!;
 
     widthInput.value = String(params.widthMm);
     intervalInput.value = String(params.postInterval);
@@ -128,14 +129,15 @@ async function start() {
                 widthMm: widthInput.valueAsNumber,
                 depthMm: depthInput.valueAsNumber,
                 postInterval: intervalInput.valueAsNumber,
-                undersideHeightMm: heightInput.valueAsNumber
+                undersideHeightMm: heightInput.valueAsNumber,
+                wallHeightMm: wallHeightInput.valueAsNumber
             });
         } catch (error) {
             status.textContent = error instanceof Error ? error.message : 'Invalid input';
         }
     };
 
-    for (const input of [widthInput, intervalInput, depthInput, heightInput]) {
+    for (const input of [widthInput, intervalInput, depthInput, heightInput, wallHeightInput]) {
         input.addEventListener('input', onParametersInput);
         lifetime.add(() => {
             input.removeEventListener('input', onParametersInput);
