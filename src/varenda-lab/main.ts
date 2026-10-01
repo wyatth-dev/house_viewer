@@ -15,6 +15,8 @@ import { createLifetime } from '../app/lifetime.ts';
 import { loadFootplatePreview } from '../product-view/footplate-preview.ts';
 
 import { layoutPosts } from '../parametric-engine/varenda/layout-posts.ts';
+import { fitPerspective } from '../camera/framing.ts';
+import { defaultVarendaParams } from '../parametric-engine/varenda/parameters.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#lab-canvas')!;
 const status = document.querySelector<HTMLElement>('#lab-status')!;
@@ -70,8 +72,64 @@ async function start() {
     lifetime.add(() => footplate.destroy());
     lifetime.signal.throwIfAborted();
 
-    footplate.entity.setPosition(0, 0, 0);
+    // footplate.entity.setPosition(0, 0, 0);
+    const params = { ...defaultVarendaParams };
 
+    const widthMm = params.widthMm;
+    const depthMm = params.depthMm;
+    
+    let instances: Entity[] = [];
+
+    const updateFootplates = (intervalMm: number) => {
+        
+        const centers = layoutPosts(widthMm, intervalMm);
+
+        for (const entity of instances.slice(1)) { entity.destroy(); }
+
+        instances = centers.map((x, index) => {
+            const entity = 
+                index === 0 
+                    ? footplate.entity
+                    : footplate.entity.clone();
+            
+            if (index !== 0) app.root.addChild(entity);
+
+            entity.name = `Footplate ${index + 1}`;
+            entity.setPosition(x - widthMm / 2, 0, depthMm);
+
+            return entity;
+        })
+
+        params.postInterval = intervalMm;
+        status.textContent =
+            `Post number: ${centers.length} · ` +
+            `Local X: ${centers.join(', ')} mm · ` +
+            `Outward depth: ${depthMm} mm`;
+    }
+
+    lifetime.add(() => {
+        for (const entity of instances.slice(1)) { entity.destroy(); }  
+    })
+
+    const intervalInput = document.querySelector<HTMLInputElement>('#post-interval')!;
+
+    intervalInput.value = String(params.postInterval);
+    
+    const onIntervalInput = () => {
+        try {
+            updateFootplates(intervalInput.valueAsNumber);
+        } catch (error) {
+            status.textContent = 
+                error instanceof Error ? error.message : 'Invalid input';
+        }
+    };
+
+    intervalInput.addEventListener('input', onIntervalInput);
+    lifetime.add(() => intervalInput.removeEventListener('input', onIntervalInput));
+
+    updateFootplates(params.postInterval);
+
+    // Camera
     const resize = () => {
         if (lifetime.signal.aborted) return;
 
@@ -80,6 +138,31 @@ async function start() {
         if (!width || !height) return;
 
         app.resizeCanvas(width, height);
+
+        const frame = fitPerspective(
+            {
+                min: { x: -widthMm / 2 - 100, y: 0, z: depthMm - 100 },
+                max: { x: widthMm / 2 + 100, y: 100, z: depthMm + 100 }
+            },
+            { width, height },
+            { x: 0.2, y: 0.7, z: 1 },
+            45
+        );
+
+        camera.setPosition(
+            frame.position.x,
+            frame.position.y,
+            frame.position.z
+        );
+
+        camera.lookAt(
+            frame.center.x,
+            frame.center.y,
+            frame.center.z
+        );
+
+        camera.camera!.nearClip = frame.near;
+        camera.camera!.farClip = frame.far;
     };
 
     const observer = new ResizeObserver(resize);
@@ -88,11 +171,6 @@ async function start() {
 
     resize();
     app.start();
-
-    const centres = layoutPosts(8000, 1000);
-
-    status.textContent =
-        `柱数量：${centres.length} · 柱中心 X：${centres.join(', ')} mm`;
 }
 
 void start().catch((error: unknown) => {
@@ -101,7 +179,7 @@ void start().catch((error: unknown) => {
     lifetime.dispose();
     console.error(error);
     status.textContent =
-        error instanceof Error ? error.message : '实验场景启动失败';
+        error instanceof Error ? error.message : 'Lab initialization failed';
 });
 
 if (import.meta.hot) {

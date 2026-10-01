@@ -10,7 +10,6 @@ export function layoutPosts(
         postIntervalMm > widthMm
     ) {
         throw new Error('宽度与柱间距必须为正数，且柱间距不能大于宽度');
-        throw new Error('Invalid Parameters: width: ' + widthMm + ', postInterval: ' + postIntervalMm);
     }
 
     const remainder = widthMm % postIntervalMm;
