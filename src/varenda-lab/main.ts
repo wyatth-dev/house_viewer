@@ -17,7 +17,13 @@ import { fitPerspective } from '../camera/framing.ts';
 import { loadContainer } from '../house/asset-loader.ts';
 import { varendaDatums } from '../parametric-engine/varenda/datums.ts';
 import { defaultVarendaParams } from '../parametric-engine/varenda/parameters.ts';
-import { solveColumnLayout, solveFootings } from '../parametric-engine/varenda/varenda-solver.ts';
+
+import { 
+    solveColumnLayout, 
+    solveFootings, 
+    solvePosts 
+} from '../parametric-engine/varenda/varenda-solver.ts';
+
 import { loadFootplatePreview } from '../product-view/footplate-preview.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#lab-canvas')!;
@@ -75,7 +81,7 @@ async function start() {
 
     let instances: Entity[] = [];
 
-    const updateFootplates = (nextWidthMm: number, nextDepthMm: number, intervalMm: number) => {
+    const updateColumnPositions = (nextWidthMm: number, nextDepthMm: number, intervalMm: number) => {
         const nextParams = {
             ...params,
             widthMm: nextWidthMm,
@@ -107,6 +113,8 @@ async function start() {
             `Footing assemblies: ${result.assemblies.length} · ` +
             `Local X: ${result.centresMm.join(', ')} mm · ` +
             `Outward depth: ${nextDepthMm} mm`;
+
+        return columnLayout;
     };
 
     lifetime.add(() => {
@@ -127,7 +135,7 @@ async function start() {
 
     const onParametersInput = () => {
         try {
-            updateFootplates(widthInput.valueAsNumber, depthInput.valueAsNumber, intervalInput.valueAsNumber);
+            updateColumnPositions(widthInput.valueAsNumber, depthInput.valueAsNumber, intervalInput.valueAsNumber);
         } catch (error) {
             status.textContent = error instanceof Error ? error.message : 'Invalid input';
         }
@@ -140,7 +148,11 @@ async function start() {
         });
     }
 
-    updateFootplates(params.widthMm, params.depthMm, params.postInterval);
+    const initialLayout = updateColumnPositions(
+        params.widthMm, 
+        params.depthMm, 
+        params.postInterval
+    );
 
     // import post
     const postAsset = await loadContainer(app.assets, '/models/varenda/post-body.glb', lifetime.signal);
@@ -158,7 +170,23 @@ async function start() {
     lifetime.add(() => postBody.destroy());
 
     // 暂时放在整排中央，底端落在厚 5 mm 的底板上。
-    postBody.setPosition(0, varendaDatums.postBaseZMm, params.depthMm);
+    const posts = solvePosts(initialLayout, params, varendaDatums);
+    const post = posts[Math.floor(posts.length / 2)];
+    const p = post.positionMm;
+
+    postBody.name = post.instanceId;
+
+    postBody.setPosition(
+        p.x - params.widthMm / 2,
+        p.z,
+        -p.y
+    );
+
+    postBody.setLocalScale(
+        1,
+        post.lengthMm / varendaDatums.postSourceLengthMm,
+        1
+    );
 
     // Camera
     const resize = () => {
