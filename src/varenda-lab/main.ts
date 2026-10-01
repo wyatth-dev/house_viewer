@@ -22,6 +22,7 @@ import type { FootingSolution, PostInstance, ProductPointMm } from '../parametri
 import { solveColumnLayout, solveFootings, solvePosts } from '../parametric-engine/varenda/varenda-solver.ts';
 import { loadFootplatePreview } from '../product-view/footplate-preview.ts';
 
+
 const canvas = document.querySelector<HTMLCanvasElement>('#lab-canvas')!;
 const status = document.querySelector<HTMLElement>('#lab-status')!;
 const lifetime = createLifetime();
@@ -120,6 +121,17 @@ async function start() {
         const footings = solveFootings(columnLayout, varendaDatums);
         const posts = solvePosts(columnLayout, nextParams, varendaDatums);
 
+        // POST HOLE MARKERS: local Z and source diameter only; no assembly transforms applied.
+        console.table(
+            posts[0].holeMarkers.map((marker) => ({
+                part: marker.partInstanceId,
+                marker: marker.markerId,
+                localZMm: marker.centerMm.z,
+                diameterMm: marker.sourceDiameterMm
+            }))
+        );
+
+        // Commit to scene
         renderFootings(footings, nextParams.widthMm);
         renderPosts(posts, nextParams.widthMm);
         Object.assign(params, nextParams);

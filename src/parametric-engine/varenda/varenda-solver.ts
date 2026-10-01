@@ -1,5 +1,6 @@
 import { varendaCatalog } from './catalog.ts';
-import type { VarendaDatums } from './datums.ts';
+import { postHoleDatums } from './datums.ts';
+import type { PostHoleDatum, VarendaDatums } from './datums.ts';
 import type { VarendaParams } from './parameters.ts';
 
 /** Varenda pure solvers. Product-local Rhino axes, lengths in mm. */
@@ -62,6 +63,15 @@ export type PostInstance = {
     catalogProductId: typeof varendaCatalog.postProfile.catalogProductId;
     positionMm: ProductPointMm;
     lengthMm: number;
+    holeMarkers: readonly PostHoleMarker[];
+};
+
+export type PostHoleMarker = {
+    markerId: string;
+    partInstanceId: string;
+    faceId: PostHoleDatum['faceId'];
+    centerMm: ProductPointMm;
+    sourceDiameterMm: number;
 };
 
 // GH spacing formula
@@ -122,24 +132,75 @@ export function solveFootings(layout: ColumnLayout, datums: VarendaDatums): Foot
 export function solvePosts(
     layout: ColumnLayout,
     params: Readonly<VarendaParams>,
-    datums: VarendaDatums
+    datums: VarendaDatums,
+    holeDatums: readonly PostHoleDatum[] = postHoleDatums
 ): PostInstance[] {
     const baseZMm = datums.postBaseZMm;
     const lengthMm = params.undersideHeightMm - baseZMm;
 
-    if (!Number.isFinite(baseZMm) || !Number.isFinite(lengthMm) || lengthMm <= 0) {
+    if (
+        !Number.isFinite(baseZMm) ||
+        !Number.isFinite(lengthMm) ||
+        lengthMm <= 0
+    ) {
         throw new Error('Post base and length must be finite positive numbers');
     }
 
-    return layout.columns.map((column) => ({
-        instanceId: `post-${column.columnId}`,
-        catalogProductId: varendaCatalog.postProfile.catalogProductId,
-        columnId: column.columnId,
-        positionMm: {
-            x: column.positionMm.x,
-            y: column.positionMm.y,
-            z: baseZMm
-        },
-        lengthMm
-    }));
+    return layout.columns.map((column) => {
+        const post = {
+            instanceId: `post-${column.columnId}`,
+            catalogProductId: varendaCatalog.postProfile.catalogProductId,
+            columnId: column.columnId,
+            positionMm: {
+                x: column.positionMm.x,
+                y: column.positionMm.y,
+                z: baseZMm
+            },
+            lengthMm
+        };
+
+        return {
+            ...post,
+            holeMarkers: solvePostHoleMarkers(post, holeDatums)
+        };
+    });
+}
+
+/** 返回柱身加工局部坐标；不应用柱身缩放或装配平移。 */
+export function solvePostHoleMarkers(
+    post: Pick<PostInstance, 'instanceId' | 'lengthMm'>,
+    holeDatums: readonly PostHoleDatum[]
+): PostHoleMarker[] {
+    return holeDatums.map((datum) => {
+        const zMm =
+            datum.anchor === 'bottom'
+                ? datum.zOffsetMm
+                : post.lengthMm + datum.zOffsetMm;
+
+        const radiusMm = datum.sourceDiameterMm / 2;
+
+        if (
+            !Number.isFinite(zMm) ||
+            !Number.isFinite(radiusMm) ||
+            radiusMm <= 0 ||
+            zMm - radiusMm < 0 ||
+            zMm + radiusMm > post.lengthMm
+        ) {
+            throw new Error(
+                `${post.instanceId}: ${datum.markerId} 超出柱身长度`
+            );
+        }
+
+        return {
+            markerId: datum.markerId,
+            partInstanceId: post.instanceId,
+            faceId: datum.faceId,
+            centerMm: {
+                x: datum.xMm,
+                y: datum.yMm,
+                z: zMm
+            },
+            sourceDiameterMm: datum.sourceDiameterMm
+        };
+    });
 }
