@@ -50,3 +50,26 @@ test('invalid input rejects before producing a layout', () => {
         assert.throws(() => solveColumnLayout({ ...defaultVarendaParams, ...change }));
     }
 });
+
+test('posts and footings share identities and the post top reaches the underside height', async () => {
+    const { solvePosts } = await import('../src/parametric-engine/varenda/varenda-solver.ts');
+    const layout = solveColumnLayout(defaultVarendaParams);
+    const footings = solveFootings(layout, varendaDatums);
+    const posts = solvePosts(layout, defaultVarendaParams, varendaDatums);
+    assert.deepEqual(
+        posts.map((p) => p.columnId),
+        footings.assemblies.map((f) => f.columnId)
+    );
+    for (const post of posts) {
+        assert.equal(post.positionMm.z, 5);
+        assert.equal(post.lengthMm, 1595);
+        assert.equal(post.positionMm.z + post.lengthMm, 1600);
+    }
+    const taller = solvePosts(layout, { ...defaultVarendaParams, undersideHeightMm: 2000 }, varendaDatums);
+    assert.deepEqual(
+        taller.map((p) => p.positionMm),
+        posts.map((p) => p.positionMm)
+    );
+    assert.ok(taller.every((p) => p.lengthMm === 1995));
+    assert.throws(() => solvePosts(layout, { ...defaultVarendaParams, undersideHeightMm: 5 }, varendaDatums));
+});

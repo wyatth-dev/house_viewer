@@ -16,14 +16,10 @@ import { createLifetime } from '../app/lifetime.ts';
 import { fitPerspective } from '../camera/framing.ts';
 import { loadContainer } from '../house/asset-loader.ts';
 import { varendaDatums } from '../parametric-engine/varenda/datums.ts';
+import type { VarendaParams } from '../parametric-engine/varenda/parameters.ts';
 import { defaultVarendaParams } from '../parametric-engine/varenda/parameters.ts';
-
-import { 
-    solveColumnLayout, 
-    solveFootings, 
-    solvePosts 
-} from '../parametric-engine/varenda/varenda-solver.ts';
-
+import type { FootingSolution, PostInstance, ProductPointMm } from '../parametric-engine/varenda/varenda-solver.ts';
+import { solveColumnLayout, solveFootings, solvePosts } from '../parametric-engine/varenda/varenda-solver.ts';
 import { loadFootplatePreview } from '../product-view/footplate-preview.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#lab-canvas')!;
@@ -42,6 +38,7 @@ async function start() {
         return;
     }
 
+    // Scene setup
     const options = new AppOptions();
     options.graphicsDevice = device;
     options.componentSystems = [RenderComponentSystem, CameraComponentSystem, LightComponentSystem];
@@ -59,10 +56,6 @@ async function start() {
     });
     app.root.addChild(camera);
 
-    // 毫米坐标：观察原点附近的柱脚。
-    camera.setPosition(350, 300, 400);
-    camera.lookAt(0, 40, 0);
-
     const light = new Entity('Lab light');
     light.addComponent('light', {
         type: 'directional',
@@ -72,89 +65,11 @@ async function start() {
     app.root.addChild(light);
     app.scene.ambientLight = new Color(0.35, 0.35, 0.35);
 
+    // Assets: load once, reuse resources for every parameter update.
     const footplate = await loadFootplatePreview(app, lifetime.signal);
     lifetime.add(() => footplate.destroy());
     lifetime.signal.throwIfAborted();
 
-    // footplate.entity.setPosition(0, 0, 0);
-    const params = { ...defaultVarendaParams };
-
-    let instances: Entity[] = [];
-
-    const updateColumnPositions = (nextWidthMm: number, nextDepthMm: number, intervalMm: number) => {
-        const nextParams = {
-            ...params,
-            widthMm: nextWidthMm,
-            depthMm: nextDepthMm,
-            postInterval: intervalMm
-        };
-        const columnLayout = solveColumnLayout(nextParams);
-        const result = solveFootings(columnLayout, varendaDatums);
-
-        for (const entity of instances.slice(1)) {
-            entity.destroy();
-        }
-
-        instances = result.assemblies.map((assembly, index) => {
-            const entity = index === 0 ? footplate.entity : footplate.entity.clone();
-
-            if (index !== 0) app.root.addChild(entity);
-
-            entity.name = assembly.assemblyId;
-            const p = assembly.positionMm;
-            // Renderer-only axis mapping and presentation centering.
-            entity.setPosition(p.x - nextParams.widthMm / 2, p.z, -p.y);
-
-            return entity;
-        });
-
-        Object.assign(params, nextParams);
-        status.textContent =
-            `Footing assemblies: ${result.assemblies.length} · ` +
-            `Local X: ${result.centresMm.join(', ')} mm · ` +
-            `Outward depth: ${nextDepthMm} mm`;
-
-        return columnLayout;
-    };
-
-    lifetime.add(() => {
-        for (const entity of instances.slice(1)) {
-            entity.destroy();
-        }
-    });
-
-    const widthInput = document.querySelector<HTMLInputElement>('#product-width')!;
-
-    const intervalInput = document.querySelector<HTMLInputElement>('#post-interval')!;
-
-    const depthInput = document.querySelector<HTMLInputElement>('#product-depth')!;
-
-    widthInput.value = String(params.widthMm);
-    intervalInput.value = String(params.postInterval);
-    depthInput.value = String(params.depthMm);
-
-    const onParametersInput = () => {
-        try {
-            updateColumnPositions(widthInput.valueAsNumber, depthInput.valueAsNumber, intervalInput.valueAsNumber);
-        } catch (error) {
-            status.textContent = error instanceof Error ? error.message : 'Invalid input';
-        }
-    };
-
-    for (const input of [widthInput, intervalInput, depthInput]) {
-        input.addEventListener('input', onParametersInput);
-        lifetime.add(() => {
-            input.removeEventListener('input', onParametersInput);
-        });
-    }
-
-    const initialLayout = updateColumnPositions(
-        params.widthMm, 
-        params.depthMm, 
-        params.postInterval
-    );
-
-    // import post
     const postAsset = await loadContainer(app.assets, '/models/varenda/post-body.glb', lifetime.signal);
 
     lifetime.add(() => {
@@ -164,39 +79,108 @@ async function start() {
 
     lifetime.signal.throwIfAborted();
 
-    const postBody = (postAsset.resource as ContainerResource).instantiateRenderEntity();
+    // Last valid parameters and rendered instances
+    const params = { ...defaultVarendaParams };
 
-    app.root.addChild(postBody);
-    lifetime.add(() => postBody.destroy());
+    let footplateInstances: Entity[] = [];
+    let postInstances: Entity[] = [];
 
-    // 暂时放在整排中央，底端落在厚 5 mm 的底板上。
-    const posts = solvePosts(initialLayout, params, varendaDatums);
-    const post = posts[Math.floor(posts.length / 2)];
-    const p = post.positionMm;
+    // Rendering: only this layer maps Rhino axes and centers the lab presentation.
+    const placeProductEntity = (entity: Entity, p: ProductPointMm, widthMm: number) => {
+        entity.setPosition(p.x - widthMm / 2, p.z, -p.y);
+    };
 
-    postBody.name = post.instanceId;
+    const renderFootings = (solution: FootingSolution, widthMm: number) => {
+        for (const entity of footplateInstances.slice(1)) entity.destroy();
+        footplateInstances = solution.assemblies.map((assembly, index) => {
+            const entity = index === 0 ? footplate.entity : footplate.entity.clone();
+            if (index !== 0) app.root.addChild(entity);
+            entity.name = assembly.assemblyId;
+            placeProductEntity(entity, assembly.positionMm, widthMm);
+            return entity;
+        });
+    };
 
-    postBody.setPosition(
-        p.x - params.widthMm / 2,
-        p.z,
-        -p.y
-    );
+    const renderPosts = (posts: PostInstance[], widthMm: number) => {
+        for (const entity of postInstances) entity.destroy();
+        postInstances = posts.map((post) => {
+            const entity = (postAsset.resource as ContainerResource).instantiateRenderEntity();
+            app.root.addChild(entity);
+            entity.name = post.instanceId;
+            placeProductEntity(entity, post.positionMm, widthMm);
+            // The asset contains profile geometry only. Hardware must not inherit this scale.
+            entity.setLocalScale(1, post.lengthMm / varendaDatums.postSourceLengthMm, 1);
+            return entity;
+        });
+    };
 
-    postBody.setLocalScale(
-        1,
-        post.lengthMm / varendaDatums.postSourceLengthMm,
-        1
-    );
+    // Solve all parts against one layout before replacing the last valid scene.
+    const updateColumns = (nextParams: VarendaParams) => {
+        const columnLayout = solveColumnLayout(nextParams);
+        const footings = solveFootings(columnLayout, varendaDatums);
+        const posts = solvePosts(columnLayout, nextParams, varendaDatums);
 
-    // Camera
-    const resize = () => {
+        renderFootings(footings, nextParams.widthMm);
+        renderPosts(posts, nextParams.widthMm);
+        Object.assign(params, nextParams);
+
+        status.textContent =
+            `Footing assemblies: ${footings.assemblies.length} · ` +
+            `Local X: ${columnLayout.centresMm.join(', ')} mm · ` +
+            `Outward depth: ${params.depthMm} mm`;
+    };
+
+    lifetime.add(() => {
+        for (const entity of footplateInstances.slice(1)) {
+            entity.destroy();
+        }
+
+        for (const entity of postInstances) {
+            entity.destroy();
+        }
+    });
+
+    // Controls: drafts may be invalid; only successful solves commit to params.
+    const widthInput = document.querySelector<HTMLInputElement>('#product-width')!;
+    const intervalInput = document.querySelector<HTMLInputElement>('#post-interval')!;
+    const depthInput = document.querySelector<HTMLInputElement>('#product-depth')!;
+    const heightInput = document.querySelector<HTMLInputElement>('#underside-height')!;
+
+    widthInput.value = String(params.widthMm);
+    intervalInput.value = String(params.postInterval);
+    depthInput.value = String(params.depthMm);
+    heightInput.value = String(params.undersideHeightMm);
+
+    const onParametersInput = () => {
+        try {
+            updateColumns({
+                ...params,
+                widthMm: widthInput.valueAsNumber,
+                depthMm: depthInput.valueAsNumber,
+                postInterval: intervalInput.valueAsNumber,
+                undersideHeightMm: heightInput.valueAsNumber
+            });
+        } catch (error) {
+            status.textContent = error instanceof Error ? error.message : 'Invalid input';
+        }
+    };
+
+    for (const input of [widthInput, intervalInput, depthInput, heightInput]) {
+        input.addEventListener('input', onParametersInput);
+        lifetime.add(() => {
+            input.removeEventListener('input', onParametersInput);
+        });
+    }
+
+    updateColumns({ ...params });
+
+    // Camera: parameter input never refits; Overview and window resizing do.
+    const fitProduct = () => {
         if (lifetime.signal.aborted) return;
 
         const width = canvas.clientWidth;
         const height = canvas.clientHeight;
         if (!width || !height) return;
-
-        app.resizeCanvas(width, height);
 
         const frame = fitPerspective(
             {
@@ -207,7 +191,7 @@ async function start() {
                 },
                 max: {
                     x: params.widthMm / 2 + 100,
-                    y: 100,
+                    y: params.undersideHeightMm + 100,
                     z: params.depthMm + 100
                 }
             },
@@ -226,16 +210,25 @@ async function start() {
 
     const fitButton = document.querySelector<HTMLButtonElement>('#fit-product')!;
 
-    fitButton.addEventListener('click', resize);
+    fitButton.addEventListener('click', fitProduct);
 
     lifetime.add(() => {
-        fitButton.removeEventListener('click', resize);
+        fitButton.removeEventListener('click', fitProduct);
     });
 
+    const resize = () => {
+        if (lifetime.signal.aborted) return;
+        const width = canvas.clientWidth,
+            height = canvas.clientHeight;
+        if (!width || !height) return;
+        app.resizeCanvas(width, height);
+        fitProduct();
+    };
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
     lifetime.add(() => observer.disconnect());
 
+    // Start only after assets, initial geometry and viewport are ready.
     resize();
     app.start();
 }
