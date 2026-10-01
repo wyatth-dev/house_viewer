@@ -74,6 +74,11 @@ export type PostHoleMarker = {
     sourceDiameterMm: number;
 };
 
+export type GutterLayout = Readonly<{
+    positionMm: ProductPointMm;
+    lengthMm: number;
+}>
+
 // GH spacing formula
 /** GH fixed pitch with equal residual margins; all lengths are mm. */
 export function calculateColumnCentres(widthMm: number, postIntervalMm: number): number[] {
@@ -204,3 +209,23 @@ export function solvePostHoleMarkers(
         };
     });
 }
+
+export function solveGutterLayout(params: VarendaParams): GutterLayout {
+    const { widthMm, depthMm, undersideHeightMm } = params;
+
+    if (
+        ![widthMm, depthMm, undersideHeightMm].every(Number.isFinite) ||
+        widthMm <= 0 ||
+        depthMm <= 0 ||
+        undersideHeightMm <= 0
+    ) throw new Error('Gutter dimensions must be finite and positive');
+
+    return {
+        positionMm: {
+            x: widthMm / 2,
+            y: -depthMm,
+            z: undersideHeightMm
+        },
+        lengthMm: widthMm,
+    };
+}          

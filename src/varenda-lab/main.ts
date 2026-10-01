@@ -1,4 +1,3 @@
-import type { ContainerResource } from 'playcanvas';
 import {
     AppBase,
     AppOptions,
@@ -14,14 +13,12 @@ import {
 
 import { createLifetime } from '../app/lifetime.ts';
 import { fitPerspective } from '../camera/framing.ts';
-import { loadContainer } from '../house/asset-loader.ts';
 import { varendaDatums } from '../parametric-engine/varenda/datums.ts';
 import type { VarendaParams } from '../parametric-engine/varenda/parameters.ts';
 import { defaultVarendaParams } from '../parametric-engine/varenda/parameters.ts';
-import type { FootingSolution, PostInstance, ProductPointMm } from '../parametric-engine/varenda/varenda-solver.ts';
 import { solveColumnLayout, solveFootings, solvePosts } from '../parametric-engine/varenda/varenda-solver.ts';
-import { loadFootplatePreview } from '../product-view/footplate-preview.ts';
-
+import { createProductAssetStore } from '../product-view/assets.ts';
+import { createVarendaView } from '../product-view/varenda-view.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#lab-canvas')!;
 const status = document.querySelector<HTMLElement>('#lab-status')!;
@@ -66,54 +63,15 @@ async function start() {
     app.root.addChild(light);
     app.scene.ambientLight = new Color(0.35, 0.35, 0.35);
 
-    // Assets: load once, reuse resources for every parameter update.
-    const footplate = await loadFootplatePreview(app, lifetime.signal);
-    lifetime.add(() => footplate.destroy());
+    // Assets and product rendering are shared with future scene integration.
+    const assets = createProductAssetStore(app, lifetime.signal);
+    lifetime.add(() => assets.destroy());
+    const product = await createVarendaView(app, assets);
+    lifetime.add(() => product.destroy());
     lifetime.signal.throwIfAborted();
 
-    const postAsset = await loadContainer(app.assets, '/models/varenda/post-body.glb', lifetime.signal);
-
-    lifetime.add(() => {
-        postAsset.unload();
-        app.assets.remove(postAsset);
-    });
-
-    lifetime.signal.throwIfAborted();
-
-    // Last valid parameters and rendered instances
+    // Last valid engineering parameters. Presentation offset belongs to the root.
     const params = { ...defaultVarendaParams };
-
-    let footplateInstances: Entity[] = [];
-    let postInstances: Entity[] = [];
-
-    // Rendering: only this layer maps Rhino axes and centers the lab presentation.
-    const placeProductEntity = (entity: Entity, p: ProductPointMm, widthMm: number) => {
-        entity.setPosition(p.x - widthMm / 2, p.z, -p.y);
-    };
-
-    const renderFootings = (solution: FootingSolution, widthMm: number) => {
-        for (const entity of footplateInstances.slice(1)) entity.destroy();
-        footplateInstances = solution.assemblies.map((assembly, index) => {
-            const entity = index === 0 ? footplate.entity : footplate.entity.clone();
-            if (index !== 0) app.root.addChild(entity);
-            entity.name = assembly.instanceId;
-            placeProductEntity(entity, assembly.positionMm, widthMm);
-            return entity;
-        });
-    };
-
-    const renderPosts = (posts: PostInstance[], widthMm: number) => {
-        for (const entity of postInstances) entity.destroy();
-        postInstances = posts.map((post) => {
-            const entity = (postAsset.resource as ContainerResource).instantiateRenderEntity();
-            app.root.addChild(entity);
-            entity.name = post.instanceId;
-            placeProductEntity(entity, post.positionMm, widthMm);
-            // The asset contains profile geometry only. Hardware must not inherit this scale.
-            entity.setLocalScale(1, post.lengthMm / varendaDatums.postSourceLengthMm, 1);
-            return entity;
-        });
-    };
 
     // Solve all parts against one layout before replacing the last valid scene.
     const updateColumns = (nextParams: VarendaParams) => {
@@ -132,8 +90,8 @@ async function start() {
         );
 
         // Commit to scene
-        renderFootings(footings, nextParams.widthMm);
-        renderPosts(posts, nextParams.widthMm);
+        product.update({ footings, posts });
+        product.root.setLocalPosition(-nextParams.widthMm / 2, 0, 0);
         Object.assign(params, nextParams);
 
         status.textContent =
@@ -141,16 +99,6 @@ async function start() {
             `Local X: ${columnLayout.centresMm.join(', ')} mm · ` +
             `Outward depth: ${params.depthMm} mm`;
     };
-
-    lifetime.add(() => {
-        for (const entity of footplateInstances.slice(1)) {
-            entity.destroy();
-        }
-
-        for (const entity of postInstances) {
-            entity.destroy();
-        }
-    });
 
     // Controls: drafts may be invalid; only successful solves commit to params.
     const widthInput = document.querySelector<HTMLInputElement>('#product-width')!;
