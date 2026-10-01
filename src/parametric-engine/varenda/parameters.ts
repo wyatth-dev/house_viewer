@@ -1,3 +1,4 @@
+// Parameters and defaults
 export type VarendaParams = {
     widthMm: number;
     depthMm: number;
@@ -5,11 +6,11 @@ export type VarendaParams = {
     undersideHeightMm: number;
     postInterval: number;
     rafterInterval: number;
-}
+};
 
 export const VarendaConvention = {
-    footPlate: "varenda-footplate",
-} as const
+    footPlate: 'varenda-footplate'
+} as const;
 
 export const defaultVarendaParams: Readonly<VarendaParams> = {
     widthMm: 4000,
@@ -18,4 +19,4 @@ export const defaultVarendaParams: Readonly<VarendaParams> = {
     undersideHeightMm: 1600,
     postInterval: 1000,
     rafterInterval: 500
-}
+};

@@ -1,25 +1,24 @@
+import type { ContainerResource } from 'playcanvas';
 import {
     AppBase,
     AppOptions,
     CameraComponentSystem,
     ContainerHandler,
-    ContainerResource,
     LightComponentSystem,
     RenderComponentSystem,
     TextureHandler,
     Entity,
-    Color
+    Color,
+    createGraphicsDevice
 } from 'playcanvas';
 
-import { loadContainer } from '../house/asset-loader.ts';
-import { createGraphicsDevice } from 'playcanvas';
-
 import { createLifetime } from '../app/lifetime.ts';
-import { loadFootplatePreview } from '../product-view/footplate-preview.ts';
-
-import { layoutPosts } from '../parametric-engine/varenda/layout-posts.ts';
 import { fitPerspective } from '../camera/framing.ts';
+import { loadContainer } from '../house/asset-loader.ts';
+import { varendaDatums } from '../parametric-engine/varenda/datums.ts';
 import { defaultVarendaParams } from '../parametric-engine/varenda/parameters.ts';
+import { solveColumnLayout, solveFootings } from '../parametric-engine/varenda/varenda-solver.ts';
+import { loadFootplatePreview } from '../product-view/footplate-preview.ts';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#lab-canvas')!;
 const status = document.querySelector<HTMLElement>('#lab-status')!;
@@ -39,11 +38,7 @@ async function start() {
 
     const options = new AppOptions();
     options.graphicsDevice = device;
-    options.componentSystems = [
-        RenderComponentSystem,
-        CameraComponentSystem,
-        LightComponentSystem
-    ];
+    options.componentSystems = [RenderComponentSystem, CameraComponentSystem, LightComponentSystem];
     options.resourceHandlers = [TextureHandler, ContainerHandler];
 
     const app = new AppBase(canvas);
@@ -77,56 +72,54 @@ async function start() {
 
     // footplate.entity.setPosition(0, 0, 0);
     const params = { ...defaultVarendaParams };
-    
+
     let instances: Entity[] = [];
 
-    const updateFootplates = (
-        nextWidthMm: number,
-        nextDepthMm: number,
-        intervalMm: number,
-    ) => {    
-        const centers = layoutPosts(nextWidthMm, intervalMm);
-        if (!Number.isFinite(nextDepthMm) || nextDepthMm <= 0) {
-            throw new Error('Depth must be a positive number');
+    const updateFootplates = (nextWidthMm: number, nextDepthMm: number, intervalMm: number) => {
+        const nextParams = {
+            ...params,
+            widthMm: nextWidthMm,
+            depthMm: nextDepthMm,
+            postInterval: intervalMm
+        };
+        const columnLayout = solveColumnLayout(nextParams);
+        const result = solveFootings(columnLayout, varendaDatums);
+
+        for (const entity of instances.slice(1)) {
+            entity.destroy();
         }
 
-        for (const entity of instances.slice(1)) { entity.destroy(); }
+        instances = result.assemblies.map((assembly, index) => {
+            const entity = index === 0 ? footplate.entity : footplate.entity.clone();
 
-        instances = centers.map((x, index) => {
-            const entity = 
-                index === 0 
-                    ? footplate.entity
-                    : footplate.entity.clone();
-            
             if (index !== 0) app.root.addChild(entity);
 
-            entity.name = `Footplate ${index + 1}`;
-            entity.setPosition(x - nextWidthMm / 2, 0, nextDepthMm);
+            entity.name = assembly.assemblyId;
+            const p = assembly.positionMm;
+            // Renderer-only axis mapping and presentation centering.
+            entity.setPosition(p.x - nextParams.widthMm / 2, p.z, -p.y);
 
             return entity;
-        })
+        });
 
-        params.widthMm = nextWidthMm;
-        params.depthMm = nextDepthMm;
-        params.postInterval = intervalMm;
+        Object.assign(params, nextParams);
         status.textContent =
-            `Post number: ${centers.length} · ` +
-            `Local X: ${centers.join(', ')} mm · ` +
+            `Footing assemblies: ${result.assemblies.length} · ` +
+            `Local X: ${result.centresMm.join(', ')} mm · ` +
             `Outward depth: ${nextDepthMm} mm`;
-    }
+    };
 
     lifetime.add(() => {
-        for (const entity of instances.slice(1)) { entity.destroy(); }  
-    })
+        for (const entity of instances.slice(1)) {
+            entity.destroy();
+        }
+    });
 
-    const widthInput =
-        document.querySelector<HTMLInputElement>('#product-width')!;
+    const widthInput = document.querySelector<HTMLInputElement>('#product-width')!;
 
-    const intervalInput =
-        document.querySelector<HTMLInputElement>('#post-interval')!;
+    const intervalInput = document.querySelector<HTMLInputElement>('#post-interval')!;
 
-    const depthInput =
-        document.querySelector<HTMLInputElement>('#product-depth')!;
+    const depthInput = document.querySelector<HTMLInputElement>('#product-depth')!;
 
     widthInput.value = String(params.widthMm);
     intervalInput.value = String(params.postInterval);
@@ -134,14 +127,9 @@ async function start() {
 
     const onParametersInput = () => {
         try {
-            updateFootplates(
-                widthInput.valueAsNumber,
-                depthInput.valueAsNumber,
-                intervalInput.valueAsNumber
-            );
+            updateFootplates(widthInput.valueAsNumber, depthInput.valueAsNumber, intervalInput.valueAsNumber);
         } catch (error) {
-            status.textContent =
-                error instanceof Error ? error.message : 'Invalid input';
+            status.textContent = error instanceof Error ? error.message : 'Invalid input';
         }
     };
 
@@ -155,11 +143,7 @@ async function start() {
     updateFootplates(params.widthMm, params.depthMm, params.postInterval);
 
     // import post
-    const postAsset = await loadContainer(
-        app.assets,
-        '/models/varenda/post-body.glb',
-        lifetime.signal
-    );
+    const postAsset = await loadContainer(app.assets, '/models/varenda/post-body.glb', lifetime.signal);
 
     lifetime.add(() => {
         postAsset.unload();
@@ -168,15 +152,13 @@ async function start() {
 
     lifetime.signal.throwIfAborted();
 
-    const postBody = (
-        postAsset.resource as ContainerResource
-    ).instantiateRenderEntity();
+    const postBody = (postAsset.resource as ContainerResource).instantiateRenderEntity();
 
     app.root.addChild(postBody);
     lifetime.add(() => postBody.destroy());
 
     // 暂时放在整排中央，底端落在厚 5 mm 的底板上。
-    postBody.setPosition(0, 5, params.depthMm);
+    postBody.setPosition(0, varendaDatums.postBaseZMm, params.depthMm);
 
     // Camera
     const resize = () => {
@@ -190,32 +172,31 @@ async function start() {
 
         const frame = fitPerspective(
             {
-                min: { x: -params.widthMm / 2 - 100, y: 0, z: params.depthMm - 100 },
-                max: { x: params.widthMm / 2 + 100, y: 100, z: params.depthMm + 100 }
+                min: {
+                    x: -params.widthMm / 2 - 100,
+                    y: 0,
+                    z: params.depthMm - 100
+                },
+                max: {
+                    x: params.widthMm / 2 + 100,
+                    y: 100,
+                    z: params.depthMm + 100
+                }
             },
             { width, height },
             { x: 0.2, y: 0.7, z: 1 },
             45
         );
 
-        camera.setPosition(
-            frame.position.x,
-            frame.position.y,
-            frame.position.z
-        );
+        camera.setPosition(frame.position.x, frame.position.y, frame.position.z);
 
-        camera.lookAt(
-            frame.center.x,
-            frame.center.y,
-            frame.center.z
-        );
+        camera.lookAt(frame.center.x, frame.center.y, frame.center.z);
 
         camera.camera!.nearClip = frame.near;
         camera.camera!.farClip = frame.far;
     };
 
-    const fitButton =
-        document.querySelector<HTMLButtonElement>('#fit-product')!;
+    const fitButton = document.querySelector<HTMLButtonElement>('#fit-product')!;
 
     fitButton.addEventListener('click', resize);
 
@@ -236,8 +217,7 @@ void start().catch((error: unknown) => {
 
     lifetime.dispose();
     console.error(error);
-    status.textContent =
-        error instanceof Error ? error.message : 'Lab initialization failed';
+    status.textContent = error instanceof Error ? error.message : 'Lab initialization failed';
 });
 
 if (import.meta.hot) {
