@@ -1,24 +1,31 @@
 import { Entity } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
-import type { FootingSolution, GutterLayout, PostInstance, ProductPointMm } from '../parametric-engine/varenda/varenda-solver.ts';
+import type { FootingSolution, GutterLayout, PostInstance, ProductPointMm, WallPieceLayout } from '../parametric-engine/varenda/varenda-solver.ts';
 
 import type { ProductAssetStore } from './assets.ts';
 
 // Rendering assets are independent of engineering catalog identities.
 const varendaAssets = {
+    //footplate
     footplate: '/models/varenda/footplate.glb',
     postBody: '/models/varenda/post-body.glb',
     postSourceLengthMm: 95,
+    // gutter
     gutterFixed: '/models/varenda/gutter-fixed.glb',
     gutterMoving: '/models/varenda/gutter-moving.glb',
-    gutterSourceLengthMm: 100
+    gutterSourceLengthMm: 100,
+    // wall piece
+    wallPieceFixed: '/models/varenda/wallpiece-fixed.glb',
+    wallPieceMoving: '/models/varenda/wallpiece-moving.glb',
+    wallPieceSourceLengthMm: 100
 } as const;
 
 export type VarendaViewSolution = Readonly<{
     footings: FootingSolution;
     posts: readonly PostInstance[];
     gutter: GutterLayout;
+    wallPiece: WallPieceLayout;
 }>;
 
 /** Rhino engineering coordinates -> PlayCanvas local coordinates, both in mm. */
@@ -33,6 +40,8 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
     const postBody = await assets.load(varendaAssets.postBody);
     const gutterFixed = await assets.load(varendaAssets.gutterFixed);
     const gutterMoving = await assets.load(varendaAssets.gutterMoving);
+    const wallPieceFixed = await assets.load(varendaAssets.wallPieceFixed);
+    const wallPieceMoving = await assets.load(varendaAssets.wallPieceMoving);
     const root = new Entity('Varenda');
     app.root.addChild(root);
     let destroyed = false;
@@ -50,6 +59,7 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
                     next.addChild(entity);
                     placeProductEntity(entity, footing.positionMm);
                 }
+
                 for (const post of solution.posts) {
                     const entity = postBody.instantiateRenderEntity();
                     entity.name = post.instanceId;
@@ -58,6 +68,7 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
                     // Only profile geometry inherits this stretch; hardware stays separate.
                     entity.setLocalScale(1, post.lengthMm / varendaAssets.postSourceLengthMm, 1);
                 }
+
                 for (const [name, resource] of [
                     ['Gutter fixed', gutterFixed],
                     ['Gutter moving', gutterMoving]
@@ -69,6 +80,22 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
                     placeProductEntity(entity, solution.gutter.positionMm);
                     entity.setLocalScale(
                         solution.gutter.lengthMm / varendaAssets.gutterSourceLengthMm,
+                        1,
+                        1
+                    );
+                }
+
+                for (const [name, resource] of [
+                    ['Wall Piece fixed', wallPieceFixed],
+                    ['Wall Piece moving', wallPieceMoving]
+                ] as const) {
+                    const entity = resource.instantiateRenderEntity();
+                    entity.name = name;
+                    next.addChild(entity);
+
+                    placeProductEntity(entity, solution.wallPiece.positionMm);
+                    entity.setLocalScale(
+                        solution.wallPiece.lengthMm / varendaAssets.wallPieceSourceLengthMm,
                         1,
                         1
                     );

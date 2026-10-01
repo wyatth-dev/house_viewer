@@ -79,6 +79,11 @@ export type GutterLayout = Readonly<{
     lengthMm: number;
 }>
 
+export type WallPieceLayout = Readonly<{
+    positionMm: ProductPointMm;
+    lengthMm: number;
+}>
+
 // GH spacing formula
 /** GH fixed pitch with equal residual margins; all lengths are mm. */
 export function calculateColumnCentres(widthMm: number, postIntervalMm: number): number[] {
@@ -229,3 +234,24 @@ export function solveGutterLayout(params: VarendaParams): GutterLayout {
         lengthMm: widthMm,
     };
 }          
+
+export function solveWallPieceLayout(
+    params: VarendaParams,
+): WallPieceLayout {
+    const { widthMm, wallHeightMm } = params;
+
+    if (
+        ![widthMm, wallHeightMm].every(Number.isFinite) ||
+        widthMm <= 0 ||
+        wallHeightMm <= 0
+    ) throw new Error('Wall Piece dimensions must be finite and positive');
+
+    return {
+        positionMm: {
+            x: widthMm / 2,
+            y: 0,
+            z: wallHeightMm
+        },
+        lengthMm: widthMm,
+    }
+}
