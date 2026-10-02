@@ -25,7 +25,8 @@ import {
     solveGutterLayout, 
     solveWallPieceLayout, 
     solveRoofSlope,
-    solveSingleRafter
+    solveSingleRafter,
+    summarizeRafterStandParts
 } from '../parametric-engine/varenda/varenda-solver.ts';
 import { createProductAssetStore } from '../product-view/assets.ts';
 import { createVarendaView } from '../product-view/varenda-view.ts';
@@ -94,7 +95,9 @@ async function start() {
         const gutter = solveGutterLayout(nextParams);
         const wallPiece = solveWallPieceLayout(nextParams);
         const roofSlope = solveRoofSlope(nextParams);
-        const rafter = solveSingleRafter(nextParams)
+        const rafter = solveSingleRafter(nextParams);
+        const standParts = summarizeRafterStandParts(rafter.stands);
+        console.table(standParts);
 
         // POST HOLE MARKERS: local Z and source diameter only; no assembly transforms applied.
         console.table(

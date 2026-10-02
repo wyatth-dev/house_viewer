@@ -28,3 +28,16 @@ test('changing stand thickness moves both plate centres along the roof normal wi
         else rafterDatums.stand.thicknessMm = original;
     }
 });
+
+test('one rafter carries two plate instances and four independently countable fasteners', () => {
+    const result = solveRafterStandPlacements(defaultVarendaParams);
+    const plates = [result.front, result.rear];
+    const parts = plates.flatMap((plate) => [plate, ...(plate.fasteners ?? [])]);
+    assert.equal(parts.length, 6);
+    assert.equal(new Set(parts.map((part) => part.instanceId)).size, 6);
+    const counts = new Map();
+    for (const part of parts) counts.set(part.catalogProductId, (counts.get(part.catalogProductId) ?? 0) + 1);
+    assert.equal(counts.get('varenda-rafter-fixing-plate'), 2);
+    assert.equal(counts.get('varenda-rafter-stand-bolt'), 2);
+    assert.equal(counts.get('varenda-rafter-stand-nut'), 2);
+});

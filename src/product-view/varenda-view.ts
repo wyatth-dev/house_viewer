@@ -25,6 +25,7 @@ const varendaAssets = {
     wallPieceSourceLengthMm: 100,
     // rafter
     rafterBody: '/models/varenda/rafter-body.glb',
+    rafterStand: '/models/varenda/rafter-stand.glb',
 } as const;
 
 export type VarendaViewSolution = Readonly<{
@@ -51,6 +52,7 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
     const wallPieceFixed = await assets.load(varendaAssets.wallPieceFixed);
     const wallPieceMoving = await assets.load(varendaAssets.wallPieceMoving);
     const rafterBody = await assets.load(varendaAssets.rafterBody);
+    const rafterStand = await assets.load(varendaAssets.rafterStand);
 
     const root = new Entity('Varenda');
     app.root.addChild(root);
@@ -135,6 +137,28 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
                         1,
                         rafter.lengthMm / rafterDatums.body.sourceLengthMm
                     );
+
+                    for (const placement of [
+                        rafter.stands.front,
+                        rafter.stands.rear
+                    ]) {
+                        const pivot = new Entity(`${placement.instanceId} pivot`);
+                        next.addChild(pivot);
+
+                        placeProductEntity(pivot, placement.positionMm);
+                        pivot.setLocalEulerAngles(
+                            rafter.slopeRadians * 180 / Math.PI,
+                            0,
+                            0
+                        );
+
+                        const stand = rafterStand.instantiateRenderEntity();
+                        stand.name = placement.instanceId;
+                        pivot.addChild(stand);
+
+                        // Rhino Y 对应 PlayCanvas Z。
+                        stand.setLocalScale(1, 1, placement.mirrorY ? -1 : 1);
+                    }
                 }
 
             } catch (error) {

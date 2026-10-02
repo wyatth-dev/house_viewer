@@ -18,7 +18,6 @@ import { createCameraController, createCameraControls } from './camera/index.ts'
 import { loadHouse } from './house/house.ts';
 import { createLandscape, landscapeLayout } from './landscape/index.ts';
 import { createModelPreview } from './model-preview/index.ts';
-import { loadFootplatePreview } from './product-view/footplate-preview.ts';
 import { createRendering, daylightConfig } from './rendering/index.ts';
 import { createSiteController, createSiteControls } from './site-definition/index.ts';
 import { createPanel } from './ui/panel.ts';
@@ -50,12 +49,6 @@ async function start() {
     const house = await loadHouse(app, lifetime.signal);
     lifetime.add(house.destroy);
     lifetime.signal.throwIfAborted();
-
-    const footplate = await loadFootplatePreview(app, lifetime.signal);
-    lifetime.add(() => footplate.destroy());
-
-    if (isDisposed()) return;
-    footplate.entity.setPosition(0, 0, house.footprint.depth / 2 + 2000);
 
     // Scene services: rendering, camera, site and landscape
     const rendering = createRendering(app);

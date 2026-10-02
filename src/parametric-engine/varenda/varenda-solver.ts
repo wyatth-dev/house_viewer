@@ -342,6 +342,9 @@ export function solveRafterStandPlacements(
     const stand = rafterDatums.stand;
     const source = rafterDatums.standSourcePlacement;
     const thicknessMm = stand.thicknessMm;
+    // 当前默认朝向：板的 +X 理论边缘与椽子的 +X 侧对齐。
+    const standOffsetXMm =
+        (rafterDatums.body.sectionWidthMm - stand.widthMm) / 2;
 
     const place = (end: 'front' | 'rear') => {
         const reference = source[end];
@@ -353,11 +356,25 @@ export function solveRafterStandPlacements(
             ? -stand.boltAxisXYMm.y
             : stand.boltAxisXYMm.y;
 
+        const instanceId = `rafter-stand-${end}`;
+        const fasteners: FastenerInstance[] = [
+            {
+                instanceId: `${instanceId}-bolt`,
+                catalogProductId: varendaCatalog.rafterStandBolt.catalogProductId
+            },
+            {
+                instanceId: `${instanceId}-nut`,
+                catalogProductId: varendaCatalog.rafterStandNut.catalogProductId
+            }
+        ];
+
         return {
-            instanceId: `rafter-stand-${end}`,
+            instanceId,
+            catalogProductId: varendaCatalog.rafterFixingPlate.catalogProductId,
+            fasteners,
             mirrorY: reference.mirrorY,
             positionMm: {
-                x: support.x + reference.positionMm.x,
+                x: support.x + standOffsetXMm,
                 y: support.y
                     - boltY * roof.tangentUnit.y
                     + thicknessMm * roof.normalUnit.y,
@@ -389,7 +406,7 @@ export function solveSingleRafter(
         const plate = stands[end].positionMm;
 
         return {
-            x: plate.x - source[end].positionMm.x,
+            x: params.widthMm / 2,
             y: plate.y + offsetMm * roof.tangentUnit.y,
             z: plate.z + offsetMm * roof.tangentUnit.z
         };
@@ -419,4 +436,29 @@ export function solveSingleRafter(
         slopeRadians: roof.slopeRadians,
         stands
     };
+}
+
+export function summarizeRafterStandParts(
+    stands: ReturnType<typeof solveRafterStandPlacements>
+) {
+    const groups = new Map<string, Set<string>>();
+
+    for (const plate of [stands.front, stands.rear]) {
+        for (const part of [plate, ...plate.fasteners]) {
+            let ids = groups.get(part.catalogProductId);
+
+            if (!ids) {
+                ids = new Set<string>();
+                groups.set(part.catalogProductId, ids);
+            }
+
+            ids.add(part.instanceId);
+        }
+    }
+
+    return [...groups].map(([catalogProductId, ids]) => ({
+        catalogProductId,
+        quantity: ids.size,
+        instanceIds: [...ids]
+    }));
 }

@@ -151,14 +151,17 @@ export const rafterDatums = {
         sourceLengthMm: 100,
         lengthAxis: 'y',
         sourceEndsMm: { front: -50, rear: 50 },
-        undersideZMm: 0
+        undersideZMm: 0,
+        sectionWidthMm: 50
     },
     stand: {
         // 原点为板上接触面的中心。
         thicknessMm: 3,
         topZMm: 0,
         bottomZMm: -3,
-        boltAxisXYMm: { x: -24.6, y: -3.75 }
+        boltAxisXYMm: { x: -24.6, y: -3.75 },
+        widthMm: 80,
+        depthMm: 28.5
     },
     standSourcePlacement: {
         front: {

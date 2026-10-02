@@ -19,6 +19,27 @@ export const varendaCatalog = {
         productName: null,
         kind: 'assembly',
         status: 'pending'
+    }, 
+
+    rafterFixingPlate: {
+        catalogProductId: 'varenda-rafter-fixing-plate',
+        productName: '5130010010 - Veranda Rafter Fixing Plate v3 v2(Mirror)',
+        kind: 'plate',
+        status: 'pending'
+    },
+
+    rafterStandBolt: {
+        catalogProductId: 'varenda-rafter-stand-bolt',
+        productName: '91180A530_Medium-Strength Class 8.8 Steel Hex Head Screw',
+        kind: 'fastener',
+        status: 'pending'
+    },
+
+    rafterStandNut: {
+        catalogProductId: 'varenda-rafter-stand-nut',
+        productName: 'Hexagon Nut BS EN 14399-8 - M8 Stainless Steel A2 Plain v1',
+        kind: 'fastener',
+        status: 'pending'
     },
 
     screwM6x16Din7500cA2: {
