@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createSceneCoordinator } from '../src/app/scene-controller.ts';
+import { createSceneCoordinator } from '../src/site-definition/scene-controller.ts';
 test('view changes and resizing never rebuild the site; invalid dimensions never refit', () => {
     let updates = 0,
         fits = 0,

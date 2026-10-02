@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { fitPerspective, projectPoint } from '../src/camera/framing.ts';
+import { fitPerspective, projectPoint } from '../src/shared/camera/framing.ts';
 test('perspective fit contains all scene corners at both angled views and viewport shapes', () => {
     for (const direction of [
         { x: 0.342, y: 0.839, z: 0.94 },

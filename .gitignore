@@ -25,9 +25,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Downloaded source textures; normalized web assets are versioned.
-.material-cache/
-
 # Python material import tooling
 __pycache__/
 skill-zips/

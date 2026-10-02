@@ -1,4 +1,4 @@
-import type { Bounds3, ProjectPoint } from '../geometry/types.ts';
+import type { Bounds3, ProjectPoint } from '../shared/geometry/types.ts';
 export type SiteSide = 'front' | 'back' | 'left' | 'right';
 /** Yard clearances in millimeters. UI may display meters. */
 export type Dimensions = Record<SiteSide, number>;

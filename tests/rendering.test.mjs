@@ -3,8 +3,8 @@ import { test } from 'node:test';
 
 import { AppBase, AppOptions, CameraComponentSystem, LightComponentSystem, NullGraphicsDevice } from 'playcanvas';
 
-import { createCameraController } from '../src/camera/index.ts';
-import { createDaylight } from '../src/rendering/lighting.ts';
+import { createCameraController } from '../src/shared/camera/index.ts';
+import { createDaylight } from '../src/site-definition/rendering/lighting.ts';
 
 test('daylight covers resized plots and releases its light; extended camera depth survives transitions', () => {
     const canvas = {

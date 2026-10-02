@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { rafterDatums } from '../src/parametric-engine/varenda/datums.ts';
-import { defaultVarendaParams } from '../src/parametric-engine/varenda/parameters.ts';
-import { solveRafterStandPlacements, solveRoofSupportPoints } from '../src/parametric-engine/varenda/varenda-solver.ts';
+import { rafterDatums } from '../src/products/parametric-engine/varenda/datums.ts';
+import { defaultVarendaParams } from '../src/products/parametric-engine/varenda/parameters.ts';
+import { solveRafterStandPlacements, solveRoofSupportPoints } from '../src/products/parametric-engine/varenda/varenda-solver.ts';
 
 test('edge fixing plates fit within the rails and preserve front and rear support alignment', () => {
     const params = defaultVarendaParams;

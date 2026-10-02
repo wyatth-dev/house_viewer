@@ -1,6 +1,6 @@
 import type { AppBase } from 'playcanvas';
 
-import type { Footprint } from '../house/types.ts';
+import type { Footprint } from '../scene/house/types.ts';
 
 import { createGround } from './ground.ts';
 import { defaults, calculateLayout, validateDimensions } from './layout.ts';

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { fitOrthographic, fitPerspective, projectPoint } from '../src/camera/framing.ts';
-import { transitionFrame, projectionMatrix } from '../src/camera/transition.ts';
+import { fitOrthographic, fitPerspective, projectPoint } from '../src/shared/camera/framing.ts';
+import { transitionFrame, projectionMatrix } from '../src/shared/camera/transition.ts';
 test('mixed-lens orbit keeps the plot in frame and projected labels match the render matrix', () => {
     for (const viewport of [
         { width: 980, height: 720 },

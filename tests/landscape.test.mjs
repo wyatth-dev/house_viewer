@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { landscapeLayout } from '../src/landscape/layout.ts';
-import { treeGeometry } from '../src/landscape/tree-geometry.ts';
+import { landscapeLayout } from '../src/scene/landscape/layout.ts';
+import { treeGeometry } from '../src/scene/landscape/tree-geometry.ts';
 
 test('the parallel road and complete tree crowns remain outside zero, maximum and asymmetric properties', () => {
     for (const front of [0, 5000, 50000])

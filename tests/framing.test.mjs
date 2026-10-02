@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { fitOrthographic, projectPoint } from '../src/camera/framing.ts';
+import { fitOrthographic, projectPoint } from '../src/shared/camera/framing.ts';
 test('fixed camera fit includes all corners across wide, deep and portrait views', () => {
     for (const max of [
         { x: 100, y: 19, z: 10 },

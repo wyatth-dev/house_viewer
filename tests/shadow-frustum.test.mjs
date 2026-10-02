@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { AppBase, AppOptions, CameraComponentSystem, NullGraphicsDevice } from 'playcanvas';
 
-import { createCameraController } from '../src/camera/index.ts';
+import { createCameraController } from '../src/shared/camera/index.ts';
 
 test('shadow frustum follows the rendered lens throughout interrupted and completed transitions', () => {
     const canvas = {

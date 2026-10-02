@@ -1,9 +1,9 @@
 import { Color, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
-import type { ProjectPoint } from '../geometry/types.ts';
-import { mmToMeters } from '../geometry/units.ts';
-import type { Footprint } from '../house/types.ts';
+import type { Footprint } from '../scene/house/types.ts';
+import type { ProjectPoint } from '../shared/geometry/types.ts';
+import { mmToMeters } from '../shared/geometry/units.ts';
 
 import { sides } from './layout.ts';
 import type { Dimensions, Layout, SiteSide } from './types.ts';

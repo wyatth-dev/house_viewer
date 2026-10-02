@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { createLifetime } from '../src/app/lifetime.ts';
-import { loadContainer } from '../src/house/asset-loader.ts';
+import { loadContainer } from '../src/shared/assets/containers.ts';
+import { createLifetime } from '../src/shared/lifetime.ts';
 test('disposal aborts pending loading before releasing the app and runs once', async () => {
     const life = createLifetime();
     let callback;

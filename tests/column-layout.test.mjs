@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { varendaDatums } from '../src/parametric-engine/varenda/datums.ts';
-import { defaultVarendaParams } from '../src/parametric-engine/varenda/parameters.ts';
-import { solveColumnLayout, solveFootings, solveGutterLayout } from '../src/parametric-engine/varenda/varenda-solver.ts';
+import { varendaDatums } from '../src/products/parametric-engine/varenda/datums.ts';
+import { defaultVarendaParams } from '../src/products/parametric-engine/varenda/parameters.ts';
+import { solveColumnLayout, solveFootings, solveGutterLayout } from '../src/products/parametric-engine/varenda/varenda-solver.ts';
 
 test('the outer footplate edge defines site depth and the gutter follows the column axis', () => {
     for (const depthMm of [150, 500, 2000, 6000]) {
@@ -102,7 +102,7 @@ test('invalid input rejects before producing a layout', () => {
 });
 
 test('posts and footings share identities and the post top reaches the underside height', async () => {
-    const { solvePosts } = await import('../src/parametric-engine/varenda/varenda-solver.ts');
+    const { solvePosts } = await import('../src/products/parametric-engine/varenda/varenda-solver.ts');
     const layout = solveColumnLayout(defaultVarendaParams);
     const footings = solveFootings(layout, varendaDatums);
     const posts = solvePosts(layout, defaultVarendaParams, varendaDatums);

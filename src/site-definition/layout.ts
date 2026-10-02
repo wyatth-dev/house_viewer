@@ -1,4 +1,4 @@
-import type { Footprint } from '../house/types.ts';
+import type { Footprint } from '../scene/house/types.ts';
 
 import type { Dimensions, DimensionErrors, Layout, SiteSide } from './types.ts';
 export const sides: SiteSide[] = ['front', 'back', 'left', 'right'];

@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { fitOrthographic, fitPerspective, projectPoint } from '../src/camera/framing.ts';
-import { landscapeLayout } from '../src/landscape/layout.ts';
-import { treeGeometry } from '../src/landscape/tree-geometry.ts';
-import { createPbrMaterial } from '../src/materials/material.ts';
+import { landscapeLayout } from '../src/scene/landscape/layout.ts';
+import { treeGeometry } from '../src/scene/landscape/tree-geometry.ts';
+import { fitOrthographic, fitPerspective, projectPoint } from '../src/shared/camera/framing.ts';
 import { defaults, calculateLayout, validateDimensions } from '../src/site-definition/layout.ts';
+import { createPbrMaterial } from '../src/site-definition/materials/material.ts';
 
 test('a 43m house and default yards are calculated entirely in mm', () => {
     const layout = calculateLayout({ width: 43000, depth: 57000 }, defaults);

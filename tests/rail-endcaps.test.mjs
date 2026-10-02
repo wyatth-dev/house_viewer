@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+
 import { Entity } from 'playcanvas';
-import { createVarendaView } from '../src/product-view/varenda-view.ts';
-import { defaultVarendaParams } from '../src/parametric-engine/varenda/parameters.ts';
-import { solveGutterLayout, solveWallPieceLayout, solveRailEndCaps } from '../src/parametric-engine/varenda/varenda-solver.ts';
+
+import { defaultVarendaParams } from '../src/products/parametric-engine/varenda/parameters.ts';
+import { solveGutterLayout, solveWallPieceLayout, solveRailEndCaps } from '../src/products/parametric-engine/varenda/varenda-solver.ts';
+import { createVarendaView } from '../src/products/varenda/view/varenda-view.ts';
 
 test('rail endcaps align cap holes and screw axes with independently measured rail channels', () => {
     for (const widthMm of [2000, 4000, 8000]) {

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 
 import { AppBase, AppOptions, CameraComponentSystem, NullGraphicsDevice, RenderComponentSystem } from 'playcanvas';
 
-import { createCameraController } from '../src/camera/index.ts';
+import { createCameraController } from '../src/shared/camera/index.ts';
 import { createSiteController } from '../src/site-definition/index.ts';
 function createApp() {
     const canvas = {

@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-import { roofJointDatums } from '../src/parametric-engine/varenda/datums.ts';
-import { defaultVarendaParams } from '../src/parametric-engine/varenda/parameters.ts';
-import { solveGutterLayout, solveRoofSlope, solveWallPieceLayout } from '../src/parametric-engine/varenda/varenda-solver.ts';
+import { roofJointDatums } from '../src/products/parametric-engine/varenda/datums.ts';
+import { defaultVarendaParams } from '../src/products/parametric-engine/varenda/parameters.ts';
+import { solveGutterLayout, solveRoofSlope, solveWallPieceLayout } from '../src/products/parametric-engine/varenda/varenda-solver.ts';
 
 test('roof data preserves input dimensions and aligns bearing planes within 0.001 mm', () => {
     for (const widthMm of [2000, 4000, 4398, 8000]) {

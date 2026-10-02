@@ -3,11 +3,11 @@ import test from 'node:test';
 
 import { Entity, Vec3 } from 'playcanvas';
 
-import { roofJointDatums } from '../src/parametric-engine/varenda/datums.ts';
-import { defaultVarendaParams } from '../src/parametric-engine/varenda/parameters.ts';
-import { solveRoofSlope } from '../src/parametric-engine/varenda/varenda-solver.ts';
-import { createProductAssetStore, loadContainer } from '../src/product-view/assets.ts';
-import { createVarendaView } from '../src/product-view/varenda-view.ts';
+import { roofJointDatums } from '../src/products/parametric-engine/varenda/datums.ts';
+import { defaultVarendaParams } from '../src/products/parametric-engine/varenda/parameters.ts';
+import { solveRoofSlope } from '../src/products/parametric-engine/varenda/varenda-solver.ts';
+import { createVarendaView } from '../src/products/varenda/view/varenda-view.ts';
+import { createProductAssetStore, loadContainer } from '../src/shared/assets/containers.ts';
 
 test('asset store shares loads and releases once after disposal', async () => {
     let loads = 0,
