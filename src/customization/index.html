@@ -1,42 +1,27 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Varenda Lab</title>
-</head>
-<body>
-    <main>
-        <h1>Varenda Lab</h1>
-        <p>Unit:mm</p>
-        <label>
-            Post Interval / Mm
-            <input id="post-interval" type="number" value="1000" step="100"/>
-        </label>
-        <label>
-            Width / mm
-            <input id="product-width" type="number" value="4000" step="100">
-        </label>
-        <label>
-            Depth / mm
-            <input id="product-depth" type="number" value="2000" step="100">
-        </label>
-        <label>
-            Underside height / mm
-            <input id="underside-height" type="number" value="1600" step="100">
-        </label>
-        <label>
-            Wall height / mm
-            <input id="wall-height" type="number" value="2500" step="100">
-        </label>
-        
-        <button id="fit-product" type="button">Overview</button>
-
-        <label><input type="checkbox" id="glazing-details"> Glazing details</label>
-        <canvas id="lab-canvas"></canvas>
-        <p id="lab-status">Lab Page Opened</p>
-    </main>
-
-    <script type="module" src="/src/customization/main.ts"></script>
-</body>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>Varenda — Customization & Production List</title>
+    </head>
+    <body>
+        <main class="product-page">
+            <section class="product-viewport" aria-label="Product 3D preview">
+                <canvas id="lab-canvas" aria-label="3D veranda preview"></canvas>
+                <header class="product-header">
+                    <a class="brand" href="/">HOUSE <span>&</span> GROUND</a
+                    ><span class="product-stage">VARENDA / PRODUCT PREVIEW</span>
+                </header>
+                <div class="viewport-toolbar">
+                    <button id="fit-product" class="secondary-button" type="button">Overview</button
+                    ><label class="detail-toggle"><input id="glazing-details" type="checkbox" /> Glazing details</label>
+                </div>
+                <div id="selection-caption" class="selection-caption" aria-live="polite">All components</div>
+            </section>
+            <div id="product-panel" class="product-panel"></div>
+            <p id="lab-status" class="page-status" role="status" aria-live="polite">Preparing your veranda…</p>
+        </main>
+        <script type="module" src="/src/customization/main.ts"></script>
+    </body>
 </html>

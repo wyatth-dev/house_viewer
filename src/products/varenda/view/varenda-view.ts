@@ -1,31 +1,18 @@
-import { Entity } from 'playcanvas';
+import { Color, Entity } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
 import type { ProductAssetStore } from '../../../shared/assets/containers.ts';
 import { roofJointDatums, rafterDatums, glazingGasketDatums } from '../../parametric-engine/varenda/datums.ts';
-import type { GlazingSolution } from '../../parametric-engine/varenda/glazing-solver.ts';
-import type {
-    FootingSolution,
-    GutterLayout,
-    PostInstance,
-    ProductPointMm,
-    WallPieceLayout,
-    solveRafters,
-    solveRailEndCaps
-} from '../../parametric-engine/varenda/varenda-solver.ts';
+import { getInstalledFasteners } from '../../parametric-engine/varenda/production-list.ts';
+import type { InstalledFastener } from '../../parametric-engine/varenda/production-list.ts';
+import type { VarendaGeometry } from '../../parametric-engine/varenda/solution.ts';
+import type { ProductPointMm } from '../../parametric-engine/varenda/varenda-solver.ts';
 
 import { varendaAssets } from './assets.ts';
+import { axisBounds, axisEndpoints } from './fastener-axes.ts';
+import { combineBounds, createSelectionMaterials, entityBounds, meshTargets } from './selection.ts';
 
-export type VarendaViewSolution = Readonly<{
-    footings: FootingSolution;
-    posts: readonly PostInstance[];
-    gutter: GutterLayout;
-    wallPiece: WallPieceLayout;
-    roofSlope: Readonly<{ slopeDegrees: number }>;
-    rafters?: ReturnType<typeof solveRafters>;
-    endCaps?: ReturnType<typeof solveRailEndCaps>;
-    glazing?: GlazingSolution;
-}>;
+export type VarendaViewSolution = VarendaGeometry;
 
 /** Rhino engineering coordinates -> PlayCanvas local coordinates, both in mm. */
 export function placeProductEntity(entity: Entity, point: ProductPointMm) {
@@ -34,7 +21,10 @@ export function placeProductEntity(entity: Entity, point: ProductPointMm) {
 
 export type VarendaView = Awaited<ReturnType<typeof createVarendaView>>;
 
-export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: ProductAssetStore) {
+export async function createVarendaView(
+    app: Pick<AppBase, 'root'> & Partial<Pick<AppBase, 'drawLine' | 'on' | 'off'>>,
+    assets: ProductAssetStore
+) {
     const footplate = await assets.load(varendaAssets.footplate);
     const postBody = await assets.load(varendaAssets.postBody);
     const gutterFixed = await assets.load(varendaAssets.gutterFixed);
@@ -58,12 +48,59 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
     const root = new Entity('Varenda');
     app.root.addChild(root);
     let destroyed = false;
+    let registry = new Map<string, Entity[]>();
+    let hardware: InstalledFastener[] = [];
+    let selected = new Set<string>();
+    const materials = createSelectionMaterials();
+    const refreshDetails = () => {
+        for (const entity of gasketEntities) entity.enabled = glazingDetailVisible || selected.has(entity.name);
+    };
+    const clearSelection = () => {
+        selected.clear();
+        materials.clear();
+        refreshDetails();
+    };
+    const drawAxes = () => {
+        for (const fastener of hardware) {
+            const [a, b] = axisEndpoints(root, fastener);
+            const active = selected.has(fastener.instanceId);
+            app.drawLine?.(
+                a,
+                b,
+                new Color(
+                    active ? 1 : 0.32,
+                    active ? 0.52 : 0.48,
+                    active ? 0.05 : 0.4,
+                    selected.size && !active ? 0.12 : 1
+                ),
+                !active
+            );
+        }
+    };
+    app.on?.('update', drawAxes);
 
     return {
         root,
+        clearSelection,
+        getBounds() {
+            return entityBounds(root);
+        },
+        select(instanceIds: readonly string[]) {
+            clearSelection();
+            const valid = instanceIds.filter((id) => registry.has(id) || hardware.some((h) => h.instanceId === id));
+            if (!valid.length) return undefined;
+            selected = new Set(valid);
+            refreshDetails();
+            const entities = valid.flatMap((id) => registry.get(id) ?? []);
+            materials.apply(root, new Set(entities.flatMap(meshTargets)));
+            return combineBounds([
+                ...entities.map(entityBounds),
+                ...hardware.filter((h) => selected.has(h.instanceId)).map((h) => axisBounds(root, h))
+            ]);
+        },
         setGlazingDetailVisible(visible: boolean) {
             glazingDetailVisible = visible;
-            for (const entity of gasketEntities) entity.enabled = visible;
+            refreshDetails();
         },
         update(solution: VarendaViewSolution) {
             if (destroyed) throw new Error('Varenda view is disposed');
@@ -210,13 +247,45 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
                 next.destroy();
                 throw error;
             }
+            clearSelection();
             for (const child of [...root.children]) child.destroy();
             root.addChild(next);
             gasketEntities = nextGasketEntities;
+            registry = new Map();
+            next.forEach((node) => {
+                if (node instanceof Entity) registry.set(node.name, [node]);
+            });
+            for (const [id, name, metalNode] of [
+                ['gutter-fixed', 'Gutter fixed', undefined],
+                ['gutter-moving', 'Gutter moving', '5110010015 - Veranda Ring beam Swivel v2'],
+                ['wallpiece-fixed', 'Wall Piece fixed', undefined],
+                ['wallpiece-moving', 'Wall Piece moving', '5110010035 - Veranda Wallplate Swivel v2']
+            ]) {
+                const owner = next.findByName(name!);
+                const entity = metalNode ? owner?.findByName(metalNode) : owner;
+                if (entity instanceof Entity) registry.set(id!, [entity]);
+            }
+            for (const gasket of solution.glazing?.gaskets ?? []) {
+                if (!gasket.renderOwnerInstanceId) continue;
+                const owner = next.findByName(
+                    gasket.renderOwnerInstanceId === 'gutter' ? 'Gutter moving' : 'Wall Piece moving'
+                );
+                const name =
+                    gasket.role === 'top-seal'
+                        ? 'Wallplate Top Seal Gasket'
+                        : gasket.role === 'support'
+                          ? 'Glazing Support Gasket'
+                          : 'Glazing Seal Gasket';
+                const target = owner?.findByName(name);
+                if (target instanceof Entity) registry.set(gasket.instanceId, [target]);
+            }
+            hardware = getInstalledFasteners(solution);
         },
         destroy() {
             if (destroyed) return;
             destroyed = true;
+            materials.clear();
+            app.off?.('update', drawAxes);
             root.destroy();
         }
     };

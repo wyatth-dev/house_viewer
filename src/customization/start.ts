@@ -13,36 +13,47 @@ import {
     createGraphicsDevice
 } from 'playcanvas';
 
-import { varendaDatums } from '../products/parametric-engine/varenda/datums.ts';
-import { solveGlazing } from '../products/parametric-engine/varenda/glazing-solver.ts';
 import type { VarendaParams } from '../products/parametric-engine/varenda/parameters.ts';
 import { defaultVarendaParams } from '../products/parametric-engine/varenda/parameters.ts';
-import {
-    solveColumnLayout,
-    solveFootings,
-    solvePosts,
-    solveGutterLayout,
-    solveWallPieceLayout,
-    solveRoofSlope,
-    solveRafters,
-    solveRailEndCaps
-} from '../products/parametric-engine/varenda/varenda-solver.ts';
+import { buildProductionList } from '../products/parametric-engine/varenda/production-list.ts';
+import { buildInstallationMenus } from '../products/parametric-engine/varenda/production-relations.ts';
+import { solveVarenda } from '../products/parametric-engine/varenda/solution.ts';
 import { createVarendaView } from '../products/varenda/view/varenda-view.ts';
 import { createProductAssetStore } from '../shared/assets/containers.ts';
 import { createLifetime } from '../shared/lifetime.ts';
 
 import { logProductDiagnostics } from './diagnostics.ts';
+import { createCustomizationPanel } from './panel.ts';
 import { bindParameterInputs } from './parameter-inputs.ts';
 import { createProductCamera } from './product-camera.ts';
+import type { DisplayProductionRow } from './production-groups.ts';
+import { groupProductionRows } from './production-groups.ts';
+import type { InstanceNavigation, InstanceSelection } from './selection-state.ts';
+import { navigateInstance, reconcileSelection, toggleGroup } from './selection-state.ts';
+import './style.css';
 
 export function startCustomization() {
     const canvas = document.querySelector<HTMLCanvasElement>('#lab-canvas')!;
+    const viewport = document.querySelector<HTMLElement>('.product-viewport')!;
     const status = document.querySelector<HTMLElement>('#lab-status')!;
     const lifetime = createLifetime();
 
-    canvas.style.display = 'block';
-    canvas.style.width = '100%';
-    canvas.style.height = '70vh';
+    let selectRow: (id: string) => void = () => {
+        /* Inputs are disabled until the scene is ready. */
+    };
+    let overview: () => void = () => {
+        /* Inputs are disabled until the scene is ready. */
+    };
+    let selectInstance: (id: string, navigation?: InstanceNavigation, menuId?: string) => void = () => {
+        /* Scene is loading. */
+    };
+    const panel = createCustomizationPanel(
+        document.querySelector<HTMLElement>('#product-panel')!,
+        (id) => selectRow(id),
+        () => overview(),
+        (id, navigation, menuId) => selectInstance(id, navigation, menuId)
+    );
+    lifetime.add(() => panel.destroy());
 
     async function start() {
         const device = await createGraphicsDevice(canvas);
@@ -61,12 +72,14 @@ export function startCustomization() {
 
         const app = new AppBase(canvas);
         app.init(options);
-        app.setCanvasFillMode(FILLMODE_NONE, canvas.clientWidth, canvas.clientHeight);
+        app.setCanvasFillMode(FILLMODE_NONE, viewport.clientWidth, viewport.clientHeight);
         app.setCanvasResolution(RESOLUTION_AUTO);
         lifetime.add(() => app.destroy());
 
         const params = { ...defaultVarendaParams };
-        const productCamera = createProductCamera(app, canvas, () => params);
+        const productCamera = createProductCamera(app, canvas, () => params, {
+            duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 0.8
+        });
         const camera = productCamera.entity;
         lifetime.add(() => productCamera.destroy());
 
@@ -96,38 +109,92 @@ export function startCustomization() {
         app.on('update', updateGlazingDetails);
         lifetime.add(() => app.off('update', updateGlazingDetails));
 
-        // Solve all parts against one layout before replacing the last valid scene.
+        let rows: DisplayProductionRow[] = [];
+        let selectedId: string | undefined;
+        let instanceSelection: InstanceSelection | undefined;
+        const menus = new Map<string, Set<string>>();
+        let installations: ReadonlyMap<string, readonly string[]> = new Map();
+        const caption = document.querySelector<HTMLElement>('#selection-caption')!;
+        selectRow = (id) => {
+            const row = rows.find((candidate) => candidate.id === id);
+            if (!row) return;
+            instanceSelection = undefined;
+            const bounds = product.select(row.instanceIds);
+            selectedId = id;
+            toggleGroup(menus, id);
+            caption.textContent = `${row.label} · ${row.quantity} selected`;
+            panel.update(rows, selectedId, instanceSelection, menus, installations);
+            if (bounds) productCamera.focus(bounds);
+        };
+        selectInstance = (id, navigation = 'direct', menuId = selectedId) => {
+            const row = rows.find((candidate) => candidate.instanceIds.includes(id));
+            if (!row || !rows.some((candidate) => candidate.instanceIds.includes(id))) return;
+            if (menuId) {
+                selectedId = menuId;
+                if (navigation === 'direct') {
+                    const wasOpen = menus.get(menuId)?.has(id) ?? false;
+                    menus.set(menuId, new Set(wasOpen ? [] : [id]));
+                }
+            }
+            // Instance focus does not change the expanded HUD group.
+            instanceSelection = navigateInstance(instanceSelection, id, navigation);
+            const bounds = product.select([id]);
+            const part = rows.find((candidate) => candidate.instanceIds.includes(id))!;
+            caption.textContent = `${part.label} · ${id}`;
+            panel.update(rows, selectedId, instanceSelection, menus, installations);
+            if (bounds) productCamera.focus(bounds);
+        };
+        overview = () => {
+            selectedId = undefined;
+            instanceSelection = undefined;
+            product.clearSelection();
+            panel.update(rows, undefined, undefined, menus, installations);
+            caption.textContent = 'All components';
+            productCamera.focus(product.getBounds());
+        };
+        const overviewButton = document.querySelector<HTMLButtonElement>('#fit-product')!;
+        const handleOverview = () => overview();
+        overviewButton.addEventListener('click', handleOverview);
+        lifetime.add(() => overviewButton.removeEventListener('click', handleOverview));
+
         const updateColumns = (nextParams: VarendaParams) => {
-            const columnLayout = solveColumnLayout(nextParams);
-            const footings = solveFootings(columnLayout, varendaDatums);
-            const posts = solvePosts(columnLayout, nextParams, varendaDatums);
-            const gutter = solveGutterLayout(nextParams);
-            const wallPiece = solveWallPieceLayout(nextParams);
-            const roofSlope = solveRoofSlope(nextParams);
-            const rafters = solveRafters(nextParams);
-            const endCaps = solveRailEndCaps(gutter, wallPiece);
-            const glazing = solveGlazing(nextParams, rafters);
-            const solution = { footings, posts, gutter, wallPiece, roofSlope, rafters, endCaps, glazing };
+            const solution = solveVarenda(nextParams);
+            const nextRows = groupProductionRows(buildProductionList(solution));
             logProductDiagnostics(solution);
-
-            // Commit to scene
             product.update(solution);
-
             product.root.setLocalPosition(-nextParams.widthMm / 2, 0, 0);
             Object.assign(params, nextParams);
-
-            status.textContent =
-                `Footing assemblies: ${footings.assemblies.length} · ` +
-                `Local X: ${columnLayout.centersMm.join(', ')} mm · ` +
-                `Outward depth: ${params.depthMm} mm · ` +
-                `Roof slope: ${roofSlope.slopeDegrees.toFixed(3)}° · ` +
-                `Glass panels: ${glazing.glass.length} · Gaskets: ${glazing.gaskets.length}`;
+            rows = nextRows;
+            installations = buildInstallationMenus(solution);
+            for (const [menuId, ids] of menus) {
+                if (!rows.some((row) => row.id === menuId)) menus.delete(menuId);
+                else for (const id of ids) if (!rows.some((row) => row.instanceIds.includes(id))) ids.delete(id);
+            }
+            const retained = reconcileSelection(rows, selectedId);
+            selectedId = retained?.id;
+            if (!retained || !rows.some((row) => row.instanceIds.includes(instanceSelection?.id ?? '')))
+                instanceSelection = undefined;
+            if (instanceSelection)
+                instanceSelection = {
+                    ...instanceSelection,
+                    path: instanceSelection.path.filter((id) => rows.some((row) => row.instanceIds.includes(id)))
+                };
+            if (retained) product.select(instanceSelection ? [instanceSelection.id] : retained.instanceIds);
+            caption.textContent = instanceSelection
+                ? instanceSelection.id
+                : retained
+                  ? `${retained.label} · ${retained.quantity} selected`
+                  : 'All components';
+            panel.update(rows, selectedId, instanceSelection, menus, installations);
+            status.classList.remove('error');
+            status.textContent = `${solution.footings.assemblies.length} posts · ${solution.glazing.glass.length} glass panels · Roof slope ${solution.roofSlope.slopeDegrees.toFixed(2)}°`;
         };
 
         const inputs = bindParameterInputs(params, (draft) => {
             try {
                 updateColumns(draft);
             } catch (error) {
+                status.classList.add('error');
                 status.textContent = error instanceof Error ? error.message : 'Invalid input';
             }
         });
@@ -137,19 +204,24 @@ export function startCustomization() {
 
         const resize = () => {
             if (lifetime.signal.aborted) return;
-            const width = canvas.clientWidth,
-                height = canvas.clientHeight;
+            const width = viewport.clientWidth,
+                height = viewport.clientHeight;
             if (!width || !height) return;
             app.resizeCanvas(width, height);
-            productCamera.fit();
+            const active = reconcileSelection(rows, selectedId);
+            const bounds = active
+                ? product.select(instanceSelection ? [instanceSelection.id] : active.instanceIds)
+                : product.getBounds();
+            if (bounds) productCamera.focus(bounds, false);
         };
         const observer = new ResizeObserver(resize);
-        observer.observe(canvas);
+        observer.observe(viewport);
         lifetime.add(() => observer.disconnect());
 
         // Start only after assets, initial geometry and viewport are ready.
         resize();
         app.start();
+        panel.enable();
     }
 
     void start().catch((error: unknown) => {

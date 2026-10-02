@@ -8,6 +8,12 @@ export type CatalogProduct = {
 /** 内部目录键，不是厂家 SKU；不包含安装位置或用途。 */
 export const varendaCatalog = {
 
+    gutterFixed: { catalogProductId: 'varenda-gutter-fixed', productName: null, kind: 'profile', status: 'pending' },
+    gutterMoving: { catalogProductId: 'varenda-gutter-moving', productName: null, kind: 'profile', status: 'pending' },
+    wallpieceFixed: { catalogProductId: 'varenda-wallpiece-fixed', productName: null, kind: 'profile', status: 'pending' },
+    wallpieceMoving: { catalogProductId: 'varenda-wallpiece-moving', productName: null, kind: 'profile', status: 'pending' },
+    rafterRegular: { catalogProductId: 'varenda-rafter-regular', productName: null, kind: 'profile', status: 'pending' },
+    rafterEnd: { catalogProductId: 'varenda-rafter-end', productName: null, kind: 'profile', status: 'pending' },
     gutterEndCap: {
         catalogProductId: 'varenda-gutter-endcap',
         productName: '5140010010 Veranda ring beam End Cap',

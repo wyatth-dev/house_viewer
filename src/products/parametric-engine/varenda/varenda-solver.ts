@@ -39,9 +39,17 @@ export type FastenerInstance = {
     catalogProductId: string;
 };
 
+/** Installed rigid fastener pose in product engineering coordinates (mm). */
+export type InstalledFastener = FastenerInstance & Readonly<{
+    positionMm: ProductPointMm;
+    axisUnit: ProductPointMm;
+}>;
+
 /** 关系只保存在这里，构件和螺丝不重复存储反向引用。 */
 export type Connection = {
     connectionId: string;
+    /** All joined physical parts; references never create additional parts. */
+    partInstanceIds: readonly string[];
     holeRefs: readonly HoleRef[];
     fastenerInstanceIds: readonly string[];
     alignment: 'coaxial' | 'coincident-centers';

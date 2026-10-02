@@ -126,3 +126,9 @@ See [the material import workflow](docs/materials/import-workflow.md) for textur
 ## Landscape context prototype
 
 `src/scene/landscape/` adds four lightweight procedural trees and a 6 m road parallel to the front facade, outside the front-yard boundary. They follow property edits. Trees share two meshes and two materials, with approximately 23k triangles total; only two trees cast shadows. No additional model download is required. Camera framing includes bounded context around the property. The road and tree appearance are prototypes; target-device frame time has not yet been benchmarked.
+
+## Customization and production preview
+
+Customization uses a left 3D preview and right parameter panel, matching Site Definition. Its Production List tab switches to a sticky preview above an expandable list. Installed components are grouped by material and specification, with placeholder thumbnails and explicit pending metadata. Selecting a row frames and highlights its instances, fades other components, and animates the camera for 0.8 seconds. Overview resets selection. Fasteners appear as lines through their installed bore axes; no screw model is required. Invalid parameter drafts retain the last valid product and list. This independent entry is not integrated into the main workflow.
+
+Expanded production rows support individual instance focus (including each Post column). Related-part navigation follows shared column IDs, fixing-plate fastener references, end-cap connections and glazing installations. Each related component can be focused separately and navigated back to the originating instance or the full group. Post fastening schedules remain undefined, so post connections currently expose the matching footing only.
