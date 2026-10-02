@@ -116,7 +116,7 @@ async function start() {
 
         status.textContent =
             `Footing assemblies: ${footings.assemblies.length} · ` +
-            `Local X: ${columnLayout.centresMm.join(', ')} mm · ` +
+            `Local X: ${columnLayout.centersMm.join(', ')} mm · ` +
             `Outward depth: ${params.depthMm} mm · ` +
             `Roof slope: ${roofSlope.slopeDegrees.toFixed(3)}°`;
     };

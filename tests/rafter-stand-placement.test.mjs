@@ -5,7 +5,7 @@ import { rafterDatums } from '../src/parametric-engine/varenda/datums.ts';
 import { defaultVarendaParams } from '../src/parametric-engine/varenda/parameters.ts';
 import { solveRafterStandPlacements, solveRoofSupportPoints } from '../src/parametric-engine/varenda/varenda-solver.ts';
 
-test('changing stand thickness moves both plate centres along the roof normal without changing slot alignment', () => {
+test('changing stand thickness moves both plate centers along the roof normal without changing slot alignment', () => {
     const original = rafterDatums.stand.thicknessMm;
     try {
         rafterDatums.stand.thicknessMm = 3;

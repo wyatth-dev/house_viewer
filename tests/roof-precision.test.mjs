@@ -63,7 +63,7 @@ test('exported wall profiles preserve exact width and centering at 8000 mm', () 
     }
 });
 
-// The fixing-plate bolt is centred in the swivel slot. These are the two
+// The fixing-plate bolt is centered in the swivel slot. These are the two
 // flanking support-face heights read from persisted CAD, not the separate
 // Wall Piece shelf at Z=29.2 outside the installed plate footprint.
 test('roof slope aligns the actual slot-side fixing-plate support faces', () => {

@@ -8,7 +8,7 @@ import { houseConfig } from './house-config.ts';
 export async function loadHouse(app: AppBase, signal: AbortSignal) {
     const { actualWidthMm, sourceFootprint: source } = houseConfig;
     if (!Number.isFinite(actualWidthMm) || actualWidthMm <= 0)
-        throw new Error('Confirm the house width in millimetres to finish model calibration.');
+        throw new Error('Confirm the house width in millimeters to finish model calibration.');
     const asset = await loadContainer(app.assets, houseConfig.url, signal);
     signal.throwIfAborted();
     const house = new Entity('House');

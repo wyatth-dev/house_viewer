@@ -11,7 +11,7 @@ test('column layout retains GH fixed pitch and equal residual margins', () => {
         widthMm: 4398,
         postInterval: 1011
     });
-    assert.deepEqual(layout.centresMm, [177, 1188, 2199, 3210, 4221]);
+    assert.deepEqual(layout.centersMm, [177, 1188, 2199, 3210, 4221]);
     assert.deepEqual(layout.columns[0], {
         columnId: 'column-1',
         positionMm: { x: 177, y: -2000, z: 0 }
@@ -38,7 +38,7 @@ test('footings consume shared column identities and do not mutate the layout', (
 test('depth changes only outward coordinates, not column count or pitch', () => {
     const a = solveColumnLayout(defaultVarendaParams);
     const b = solveColumnLayout({ ...defaultVarendaParams, depthMm: 2200 });
-    assert.deepEqual(b.centresMm, a.centresMm);
+    assert.deepEqual(b.centersMm, a.centersMm);
     assert.deepEqual(
         b.columns.map((c) => c.columnId),
         a.columns.map((c) => c.columnId)

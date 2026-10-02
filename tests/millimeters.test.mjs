@@ -22,7 +22,7 @@ test('context road and tree geometry have engineering dimensions', () => {
     const ys = treeGeometry().bark.positions.filter((_, i) => i % 3 === 1);
     assert.ok(Math.max(...ys) > 8000);
 });
-test('millimetre detail can be framed without a metre-sized minimum radius', () => {
+test('millimeter detail can be framed without a meter-sized minimum radius', () => {
     const b = { min: { x: -0.5, y: 0, z: -0.5 }, max: { x: 0.5, y: 0.5, z: 0.5 } };
     const viewport = { width: 800, height: 600 };
     for (const fit of [fitOrthographic, fitPerspective]) {
@@ -32,7 +32,7 @@ test('millimetre detail can be framed without a metre-sized minimum radius', () 
                 for (const z of [-0.5, 0.5]) assert.ok(projectPoint({ x, y, z }, f, viewport).visible);
     }
 });
-test('a two-metre PBR tile repeats once per 2000 scene units', () => {
+test('a two-meter PBR tile repeats once per 2000 scene units', () => {
     const mat = createPbrMaterial({ label: 'Grass', tileMeters: [2, 2] }, { baseColor: {}, normal: {}, orm: {} });
     try {
         assert.deepEqual([mat.diffuseMapTiling.x, mat.diffuseMapTiling.y], [0.0005, 0.0005]);

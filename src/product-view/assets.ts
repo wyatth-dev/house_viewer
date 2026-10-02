@@ -7,7 +7,7 @@ export function loadContainer(
     signal: AbortSignal
 ): Promise<Asset> {
     return new Promise((resolve, reject) => {
-        const cancel = () => reject(new DOMException('Scene loading cancelled', 'AbortError'));
+        const cancel = () => reject(new DOMException('Scene loading canceled', 'AbortError'));
         if (signal.aborted) return cancel();
         signal.addEventListener('abort', cancel, { once: true });
         registry.loadFromUrl(url, 'container', (error, asset) => {

@@ -1,11 +1,11 @@
 import { Color, StandardMaterial } from 'playcanvas';
 import type { Texture } from 'playcanvas';
 
-import { metresToMm } from '../geometry/units.ts';
+import { metersToMm } from '../geometry/units.ts';
 
 import type { MapRole, MaterialManifest } from './manifest.ts';
 
-/** Mesh UV coordinates are measured in world millimetres, independent of its bounds. */
+/** Mesh UV coordinates are measured in world millimeters, independent of its bounds. */
 export function createPbrMaterial(manifest: MaterialManifest, maps: Record<MapRole, Texture>) {
     const material = new StandardMaterial();
     material.name = manifest.label;
@@ -31,7 +31,7 @@ export function createPbrMaterial(manifest: MaterialManifest, maps: Record<MapRo
         material.aoMapTiling,
         material.metalnessMapTiling
     ]) {
-        tiling.set(1 / metresToMm(manifest.tileMeters[0]), 1 / metresToMm(manifest.tileMeters[1]));
+        tiling.set(1 / metersToMm(manifest.tileMeters[0]), 1 / metersToMm(manifest.tileMeters[1]));
     }
     material.update();
     return material;

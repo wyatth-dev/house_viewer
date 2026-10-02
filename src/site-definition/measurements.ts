@@ -2,7 +2,7 @@ import { Color, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
 import type { ProjectPoint } from '../geometry/types.ts';
-import { mmToMetres } from '../geometry/units.ts';
+import { mmToMeters } from '../geometry/units.ts';
 import type { Footprint } from '../house/types.ts';
 
 import { sides } from './layout.ts';
@@ -37,7 +37,7 @@ export function createMeasurements(app: AppBase, overlay: HTMLElement, footprint
             lines.set('right', [new Vec3(x, 60, 0), new Vec3(p.maxX, 60, 0)]);
             for (const side of sides)
                 labels.get(side)!.textContent =
-                    `${side[0].toUpperCase() + side.slice(1)} · ${mmToMetres(dimensions[side]).toFixed(1)} m`;
+                    `${side[0].toUpperCase() + side.slice(1)} · ${mmToMeters(dimensions[side]).toFixed(1)} m`;
         },
         refresh(project: ProjectPoint) {
             const placed: { x: number; y: number }[] = [];

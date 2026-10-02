@@ -79,7 +79,7 @@ export function treeGeometry() {
                 leaves.indices.push(start, start + 1, start + 2, start, start + 2, start + 3);
             }
         }
-    // Procedural construction above uses metre-sized design proportions; output meshes are millimetres.
+    // Procedural construction above uses meter-sized design proportions; output meshes are millimeters.
     for (const geometry of [bark, leaves]) geometry.positions = geometry.positions.map((value) => value * 1000);
     return { bark, leaves };
 }

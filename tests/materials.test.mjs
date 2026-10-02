@@ -39,7 +39,7 @@ test('material validation rejects wrong color space, scale, channel convention a
         assert.throws(() => parseMaterialManifest(invalid));
     }
 });
-test('PBR material maps ORM channels correctly and preserves physical scale with millimetre UVs across maps', () => {
+test('PBR material maps ORM channels correctly and preserves physical scale with millimeter UVs across maps', () => {
     const maps = { baseColor: {}, normal: {}, orm: {} };
     const material = createPbrMaterial(parseMaterialManifest(sample), maps);
     try {

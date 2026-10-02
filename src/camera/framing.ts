@@ -24,7 +24,7 @@ const normalize = (p: Point3): Point3 => {
     if (!length) throw new Error('Camera direction cannot be zero');
     return { x: p.x / length, y: p.y / length, z: p.z / length };
 };
-/** Lengths are millimetres, including the small fit/clip floors used for engineering details. */
+/** Lengths are millimeters, including the small fit/clip floors used for engineering details. */
 export function fitOrthographic(bounds: Bounds3, viewport: Viewport, direction: Point3): Frame {
     const center = {
         x: (bounds.min.x + bounds.max.x) / 2,

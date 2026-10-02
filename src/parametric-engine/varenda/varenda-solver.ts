@@ -41,11 +41,11 @@ export type Connection = {
     connectionId: string;
     holeRefs: readonly HoleRef[];
     fastenerInstanceIds: readonly string[];
-    alignment: 'coaxial' | 'coincident-centres';
+    alignment: 'coaxial' | 'coincident-centers';
 };
 
 export type ColumnLayout = {
-    centresMm: readonly number[];
+    centersMm: readonly number[];
     columns: readonly { columnId: string; positionMm: ProductPointMm }[];
 };
 
@@ -57,7 +57,7 @@ export type FootingAssembly = {
 };
 
 export type FootingSolution = {
-    centresMm: readonly number[];
+    centersMm: readonly number[];
     assemblies: FootingAssembly[];
 };
 
@@ -90,7 +90,7 @@ export type WallPieceLayout = Readonly<{
 
 // GH spacing formula
 /** GH fixed pitch with equal residual margins; all lengths are mm. */
-export function calculateColumnCentres(widthMm: number, postIntervalMm: number): number[] {
+export function calculateColumnCenters(widthMm: number, postIntervalMm: number): number[] {
     if (
         !Number.isFinite(widthMm) ||
         !Number.isFinite(postIntervalMm) ||
@@ -111,13 +111,13 @@ export function calculateColumnCentres(widthMm: number, postIntervalMm: number):
 // Shared layout: solve once and pass to each component solver
 /** Product-local Rhino axes: X width, Z up, -Y outward. No rendering transforms. */
 export function solveColumnLayout(params: Readonly<VarendaParams>): ColumnLayout {
-    const centresMm = calculateColumnCentres(params.widthMm, params.postInterval);
+    const centersMm = calculateColumnCenters(params.widthMm, params.postInterval);
     if (!Number.isFinite(params.depthMm) || params.depthMm <= 0) {
         throw new Error('Depth must be a positive number');
     }
     return {
-        centresMm,
-        columns: centresMm.map((x, index) => ({
+        centersMm,
+        columns: centersMm.map((x, index) => ({
             columnId: `column-${index + 1}`,
             positionMm: { x, y: -params.depthMm, z: 0 }
         }))
@@ -129,7 +129,7 @@ export function solveColumnLayout(params: Readonly<VarendaParams>): ColumnLayout
 export function solveFootings(layout: ColumnLayout, datums: VarendaDatums): FootingSolution {
     if (!Number.isFinite(datums.footingBaseZMm)) throw new Error('Footing base must be finite');
     return {
-        centresMm: [...layout.centresMm],
+        centersMm: [...layout.centersMm],
         assemblies: layout.columns.map((column) => ({
             instanceId: `footing-${column.columnId}`,
             catalogProductId: varendaCatalog.footplate.catalogProductId,
@@ -336,7 +336,9 @@ export function solveRoofSupportPoints(
 }
 
 export function solveRafterStandPlacements(
-    params: Readonly<VarendaParams>
+    params: Readonly<VarendaParams>,
+    rafterInstanceId = 'rafter-center',
+    centerXMm = params.widthMm / 2
 ) {
     const roof = solveRoofSupportPoints(params);
     const stand = rafterDatums.stand;
@@ -356,7 +358,7 @@ export function solveRafterStandPlacements(
             ? -stand.boltAxisXYMm.y
             : stand.boltAxisXYMm.y;
 
-        const instanceId = `rafter-stand-${end}`;
+        const instanceId = `${rafterInstanceId}-stand-${end}`;
         const fasteners: FastenerInstance[] = [
             {
                 instanceId: `${instanceId}-bolt`,
@@ -374,7 +376,7 @@ export function solveRafterStandPlacements(
             fasteners,
             mirrorY: reference.mirrorY,
             positionMm: {
-                x: support.x + standOffsetXMm,
+                x: centerXMm + standOffsetXMm,
                 y: support.y
                     - boltY * roof.tangentUnit.y
                     + thicknessMm * roof.normalUnit.y,
@@ -393,10 +395,12 @@ export function solveRafterStandPlacements(
 }
 
 export function solveSingleRafter(
-    params: Readonly<VarendaParams>
+    params: Readonly<VarendaParams>,
+    instanceId = 'rafter-center',
+    centerXMm = params.widthMm / 2
 ) {
     const roof = solveRoofSupportPoints(params);
-    const stands = solveRafterStandPlacements(params);
+    const stands = solveRafterStandPlacements(params, instanceId, centerXMm);
     const body = rafterDatums.body;
     const source = rafterDatums.standSourcePlacement;
 
@@ -406,7 +410,7 @@ export function solveSingleRafter(
         const plate = stands[end].positionMm;
 
         return {
-            x: params.widthMm / 2,
+            x: centerXMm,
             y: plate.y + offsetMm * roof.tangentUnit.y,
             z: plate.z + offsetMm * roof.tangentUnit.z
         };
@@ -424,7 +428,7 @@ export function solveSingleRafter(
     }
 
     return {
-        instanceId: 'rafter-centre',
+        instanceId: instanceId,
         frontMm,
         rearMm,
         lengthMm,
@@ -461,4 +465,40 @@ export function summarizeRafterStandParts(
         quantity: ids.size,
         instanceIds: [...ids]
     }));
+}
+
+export function calculateRafterCenters(
+    params: Readonly<VarendaParams>
+): number[] {
+    const { widthMm, rafterInterval } = params;
+    const halfWidthMm = rafterDatums.body.sectionWidthMm / 2;
+    
+    if (
+        !Number.isFinite(widthMm) ||
+        !Number.isFinite(rafterInterval) ||
+        rafterInterval <= 0 ||
+        rafterInterval > widthMm ||
+        widthMm < halfWidthMm * 2
+    ) throw new Error('Invalid rafter width or interval');
+
+    const spaces = Math.floor(widthMm / rafterInterval);
+    const marginMm = (widthMm - spaces * rafterInterval) / 2;
+
+    const centersMm = Array.from(
+        { length: spaces + 1},
+        ( _, index ) => marginMm + index * rafterInterval
+    );
+
+    centersMm[0] = Math.max(centersMm[0], halfWidthMm);
+    const last = centersMm.length - 1;
+    centersMm[last] = Math.min(centersMm[last], widthMm - halfWidthMm);
+
+    for (let index = 1; index < centersMm.length; index++) {
+        if (
+            centersMm[index] - centersMm[index - 1] < 
+            rafterDatums.body.sectionWidthMm
+        ) throw new Error('Adjacent rafter bodies overlap');
+    }
+
+    return centersMm;
 }
