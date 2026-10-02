@@ -348,6 +348,20 @@ export function solveRafterStandPlacements(
     const standOffsetXMm =
         (rafterDatums.body.sectionWidthMm - stand.widthMm) / 2;
 
+    const fitsWithinWidth = (x: number) =>
+        Number.isFinite(x)
+        && x - stand.widthMm / 2 >= 0
+        && x + stand.widthMm / 2 <= params.widthMm;
+
+    const defaultXMm = centerXMm + standOffsetXMm;
+    const mirroredXMm = centerXMm - standOffsetXMm;
+    const mirrorX = !fitsWithinWidth(defaultXMm);
+    const standXMm = mirrorX ? mirroredXMm : defaultXMm;
+
+    if (!fitsWithinWidth(standXMm)) {
+        throw new Error('Rafter fixing plate exceeds the rail width');
+    }
+
     const place = (end: 'front' | 'rear') => {
         const reference = source[end];
         const support = end === 'front'
@@ -374,9 +388,10 @@ export function solveRafterStandPlacements(
             instanceId,
             catalogProductId: varendaCatalog.rafterFixingPlate.catalogProductId,
             fasteners,
+            mirrorX,
             mirrorY: reference.mirrorY,
             positionMm: {
-                x: centerXMm + standOffsetXMm,
+                x: standXMm,
                 y: support.y
                     - boltY * roof.tangentUnit.y
                     + thicknessMm * roof.normalUnit.y,
@@ -501,4 +516,27 @@ export function calculateRafterCenters(
     }
 
     return centersMm;
+}
+
+export function solveRafter(
+    params: Readonly<VarendaParams>
+) {
+    const centersMm = calculateRafterCenters(params);
+
+    return centersMm.map((centerXMm, index) => {
+        const isLeftEnd = index === 0;
+        const isRightEnd = index === centersMm.length - 1;
+
+        return {
+            ...solveSingleRafter(
+                params,
+                `rafter-${index + 1}`,
+                centerXMm
+            ),
+            bodyKind: isLeftEnd || isRightEnd
+                ? 'end' as const
+                : 'regular' as const,
+            mirrorX: isRightEnd
+        }
+    });
 }

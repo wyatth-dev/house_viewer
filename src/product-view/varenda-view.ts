@@ -157,7 +157,11 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
                         pivot.addChild(stand);
 
                         // Rhino Y 对应 PlayCanvas Z。
-                        stand.setLocalScale(1, 1, placement.mirrorY ? -1 : 1);
+                        stand.setLocalScale(
+                            placement.mirrorX ? -1 : 1,
+                            1,
+                            placement.mirrorY ? -1 : 1
+                        );
                     }
                 }
 
