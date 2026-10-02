@@ -114,28 +114,29 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
                         placeProductEntity(entity, layout.positionMm);
                     }
                     entity.setLocalScale(layout.lengthMm / sourceLength, 1, 1);
-
-                    if (solution.rafter) {
-                        const rafter = solution.rafter;
-                        const entity = rafterBody.instantiateRenderEntity();
-                        entity.name = rafter.instanceId;
-                        next.addChild(entity);
-
-                        placeProductEntity(entity, rafter.positionMm);
-                        entity.setLocalEulerAngles(
-                            rafter.slopeRadians * 180 / Math.PI,
-                            0,
-                            0
-                        );
-
-                        // 导出后的长度轴为 PlayCanvas Z；截面保持原尺寸。
-                        entity.setLocalScale(
-                            1,
-                            1,
-                            rafter.lengthMm / rafterDatums.body.sourceLengthMm
-                        );
-                    }
                 }
+
+                if (solution.rafter) {
+                    const rafter = solution.rafter;
+                    const entity = rafterBody.instantiateRenderEntity();
+                    entity.name = rafter.instanceId;
+                    next.addChild(entity);
+
+                    placeProductEntity(entity, rafter.positionMm);
+                    entity.setLocalEulerAngles(
+                        rafter.slopeRadians * 180 / Math.PI,
+                        0,
+                        0
+                    );
+
+                    // 导出后的长度轴为 PlayCanvas Z；截面保持原尺寸。
+                    entity.setLocalScale(
+                        1,
+                        1,
+                        rafter.lengthMm / rafterDatums.body.sourceLengthMm
+                    );
+                }
+
             } catch (error) {
                 next.destroy();
                 throw error;
