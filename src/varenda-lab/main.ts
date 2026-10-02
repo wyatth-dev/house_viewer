@@ -25,7 +25,7 @@ import {
     solveGutterLayout, 
     solveWallPieceLayout, 
     solveRoofSlope,
-    solveSingleRafter,
+    solveRafters,
     summarizeRafterStandParts
 } from '../parametric-engine/varenda/varenda-solver.ts';
 import { createProductAssetStore } from '../product-view/assets.ts';
@@ -95,9 +95,16 @@ async function start() {
         const gutter = solveGutterLayout(nextParams);
         const wallPiece = solveWallPieceLayout(nextParams);
         const roofSlope = solveRoofSlope(nextParams);
-        const rafter = solveSingleRafter(nextParams);
-        const standParts = summarizeRafterStandParts(rafter.stands);
-        console.table(standParts);
+        const rafters = solveRafters(nextParams);
+
+        console.table(
+            rafters.flatMap((rafter) =>
+                summarizeRafterStandParts(rafter.stands).map((part) => ({
+                    rafterInstanceId: rafter.instanceId,
+                    ...part
+                }))
+            )
+        );
 
         // POST HOLE MARKERS: local Z and source diameter only; no assembly transforms applied.
         console.table(
@@ -110,7 +117,15 @@ async function start() {
         );
 
         // Commit to scene
-        product.update({ footings, posts, gutter, wallPiece, roofSlope, rafter });
+        product.update({ 
+            footings, 
+            posts, 
+            gutter, 
+            wallPiece, 
+            roofSlope, 
+            rafters 
+        });
+        
         product.root.setLocalPosition(-nextParams.widthMm / 2, 0, 0);
         Object.assign(params, nextParams);
 

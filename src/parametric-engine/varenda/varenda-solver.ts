@@ -518,7 +518,7 @@ export function calculateRafterCenters(
     return centersMm;
 }
 
-export function solveRafter(
+export function solveRafters(
     params: Readonly<VarendaParams>
 ) {
     const centersMm = calculateRafterCenters(params);

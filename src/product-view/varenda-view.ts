@@ -7,7 +7,7 @@ import type { FootingSolution, GutterLayout, PostInstance, ProductPointMm, WallP
 
 import type { ProductAssetStore } from './assets.ts';
 
-import { solveSingleRafter } from '../parametric-engine/varenda/varenda-solver.ts';
+import { solveRafters } from '../parametric-engine/varenda/varenda-solver.ts';
 
 // Rendering assets are independent of engineering catalog identities.
 const varendaAssets = {
@@ -25,6 +25,7 @@ const varendaAssets = {
     wallPieceSourceLengthMm: 100,
     // rafter
     rafterBody: '/models/varenda/rafter-body.glb',
+    rafterEndBody: '/models/varenda/rafter-end-body.glb',
     rafterStand: '/models/varenda/rafter-stand.glb',
 } as const;
 
@@ -34,7 +35,7 @@ export type VarendaViewSolution = Readonly<{
     gutter: GutterLayout;
     wallPiece: WallPieceLayout;
     roofSlope: Readonly<{ slopeDegrees: number }>;
-    rafter?: ReturnType<typeof solveSingleRafter>;
+    rafters?: ReturnType<typeof solveRafters>;
 }>;
 
 /** Rhino engineering coordinates -> PlayCanvas local coordinates, both in mm. */
@@ -52,6 +53,7 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
     const wallPieceFixed = await assets.load(varendaAssets.wallPieceFixed);
     const wallPieceMoving = await assets.load(varendaAssets.wallPieceMoving);
     const rafterBody = await assets.load(varendaAssets.rafterBody);
+    const rafterEndBody = await assets.load(varendaAssets.rafterEndBody);
     const rafterStand = await assets.load(varendaAssets.rafterStand);
 
     const root = new Entity('Varenda');
@@ -118,9 +120,13 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
                     entity.setLocalScale(layout.lengthMm / sourceLength, 1, 1);
                 }
 
-                if (solution.rafter) {
-                    const rafter = solution.rafter;
-                    const entity = rafterBody.instantiateRenderEntity();
+                for (const rafter of solution.rafters ?? []) {
+                    const bodyAsset = rafter.bodyKind === 'end'
+                        ? rafterEndBody
+                        : rafterBody;
+                    
+                    const entity = bodyAsset.instantiateRenderEntity();
+                    
                     entity.name = rafter.instanceId;
                     next.addChild(entity);
 
@@ -133,7 +139,7 @@ export async function createVarendaView(app: Pick<AppBase, 'root'>, assets: Prod
 
                     // 导出后的长度轴为 PlayCanvas Z；截面保持原尺寸。
                     entity.setLocalScale(
-                        1,
+                        rafter.mirrorX ? -1 : 1,
                         1,
                         rafter.lengthMm / rafterDatums.body.sourceLengthMm
                     );
