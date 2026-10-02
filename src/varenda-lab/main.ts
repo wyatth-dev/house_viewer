@@ -1,6 +1,8 @@
 import {
     AppBase,
     AppOptions,
+    FILLMODE_NONE,
+    RESOLUTION_AUTO,
     CameraComponentSystem,
     ContainerHandler,
     LightComponentSystem,
@@ -16,15 +18,15 @@ import { fitPerspective } from '../camera/framing.ts';
 import { varendaDatums } from '../parametric-engine/varenda/datums.ts';
 import type { VarendaParams } from '../parametric-engine/varenda/parameters.ts';
 import { defaultVarendaParams } from '../parametric-engine/varenda/parameters.ts';
-
 import { 
     solveColumnLayout, 
     solveFootings, 
     solvePosts, 
     solveGutterLayout, 
-    solveWallPieceLayout 
+    solveWallPieceLayout, 
+    solveRoofSlope,
+    solveSingleRafter
 } from '../parametric-engine/varenda/varenda-solver.ts';
-
 import { createProductAssetStore } from '../product-view/assets.ts';
 import { createVarendaView } from '../product-view/varenda-view.ts';
 
@@ -38,6 +40,7 @@ canvas.style.height = '70vh';
 
 async function start() {
     const device = await createGraphicsDevice(canvas);
+    device.maxPixelRatio = Math.min(window.devicePixelRatio, 2);
 
     if (lifetime.signal.aborted) {
         device.destroy();
@@ -52,6 +55,8 @@ async function start() {
 
     const app = new AppBase(canvas);
     app.init(options);
+    app.setCanvasFillMode(FILLMODE_NONE, canvas.clientWidth, canvas.clientHeight);
+    app.setCanvasResolution(RESOLUTION_AUTO);
     lifetime.add(() => app.destroy());
 
     const camera = new Entity('Lab camera');
@@ -88,6 +93,8 @@ async function start() {
         const posts = solvePosts(columnLayout, nextParams, varendaDatums);
         const gutter = solveGutterLayout(nextParams);
         const wallPiece = solveWallPieceLayout(nextParams);
+        const roofSlope = solveRoofSlope(nextParams);
+        const rafter = solveSingleRafter(nextParams)
 
         // POST HOLE MARKERS: local Z and source diameter only; no assembly transforms applied.
         console.table(
@@ -95,19 +102,20 @@ async function start() {
                 part: marker.partInstanceId,
                 marker: marker.markerId,
                 localZMm: marker.centerMm.z,
-                diameterMm: marker.sourceDiameterMm
+                diameterMm: marker.sourceDiameterMm,
             }))
         );
 
         // Commit to scene
-        product.update({ footings, posts, gutter, wallPiece });
+        product.update({ footings, posts, gutter, wallPiece, roofSlope, rafter });
         product.root.setLocalPosition(-nextParams.widthMm / 2, 0, 0);
         Object.assign(params, nextParams);
 
         status.textContent =
             `Footing assemblies: ${footings.assemblies.length} · ` +
             `Local X: ${columnLayout.centresMm.join(', ')} mm · ` +
-            `Outward depth: ${params.depthMm} mm`;
+            `Outward depth: ${params.depthMm} mm · ` +
+            `Roof slope: ${roofSlope.slopeDegrees.toFixed(3)}°`;
     };
 
     // Controls: drafts may be invalid; only successful solves commit to params.
@@ -121,6 +129,7 @@ async function start() {
     intervalInput.value = String(params.postInterval);
     depthInput.value = String(params.depthMm);
     heightInput.value = String(params.undersideHeightMm);
+    wallHeightInput.value = String(params.wallHeightMm);
 
     const onParametersInput = () => {
         try {

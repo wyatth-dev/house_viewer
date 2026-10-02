@@ -117,3 +117,65 @@ export const postHoleDatums: readonly PostHoleDatum[] = [
         sourceDiameterMm: 5
     }
 ];
+
+/** 当前归零源素材的局部转轴；Rhino 坐标，单位 mm，轴向 +X。 */
+export const roofJointDatums = {
+    wallPiece: {
+        pivotMm: {
+            x: 0,
+            y: -13,
+            z: 16.5
+        },
+        sourceAngleDegrees: 0,
+        // 固定板螺栓对准槽中心时，接触槽口两侧的 Z=28.99622020225 面。
+        // Z=29.2 的另一段台面不在该板的安装接触区域内。
+        bearingNormalOffsetMm: 12.49622020225,
+        slotTangentOffsetMm: -30.1842903229,
+    },
+    gutter: {
+        pivotMm: {
+            x: 0,
+            y: 22.5125710834,
+            z: 49.5
+        },
+        sourceAngleDegrees: 0,
+        bearingNormalOffsetMm: 12.4962202025,
+        slotTangentOffsetMm: 19.05,
+    },
+    
+} as const;
+
+
+export const rafterDatums = {
+    body: {
+        sourceLengthMm: 100,
+        lengthAxis: 'y',
+        sourceEndsMm: { front: -50, rear: 50 },
+        undersideZMm: 0
+    },
+    stand: {
+        // 原点为板上接触面的中心。
+        thicknessMm: 3,
+        topZMm: 0,
+        bottomZMm: -3,
+        boltAxisXYMm: { x: -24.6, y: -3.75 }
+    },
+    standSourcePlacement: {
+        front: {
+            positionMm: {
+                x: -14.9679048686,
+                y: -13.6978135741,
+                z: 0
+            },
+            mirrorY: true
+        },
+        rear: {
+            positionMm: {
+                x: -14.9679048686,
+                y: 35.75,
+                z: 0
+            },
+            mirrorY: false
+        }
+    }
+} as const;

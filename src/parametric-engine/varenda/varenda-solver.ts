@@ -1,5 +1,9 @@
 import { varendaCatalog } from './catalog.ts';
-import { postHoleDatums } from './datums.ts';
+import { 
+    postHoleDatums, 
+    roofJointDatums, 
+    rafterDatums 
+} from './datums.ts';
 import type { PostHoleDatum, VarendaDatums } from './datums.ts';
 import type { VarendaParams } from './parameters.ts';
 
@@ -254,4 +258,165 @@ export function solveWallPieceLayout(
         },
         lengthMm: widthMm,
     }
+}
+
+export function solveRoofSlope(params: Readonly<VarendaParams>) {
+    const wall = solveWallPieceLayout(params);
+    const gutter = solveGutterLayout(params);
+    const w = roofJointDatums.wallPiece;
+    const g = roofJointDatums.gutter;
+
+    const dy =
+        wall.positionMm.y + w.pivotMm.y -
+        gutter.positionMm.y - g.pivotMm.y;
+
+    const dz =
+        wall.positionMm.z + w.pivotMm.z -
+        gutter.positionMm.z - g.pivotMm.z;
+
+    const distance = Math.hypot(dy, dz);
+    const deltaNormal =
+        w.bearingNormalOffsetMm - g.bearingNormalOffsetMm;
+
+    if (dy <= 0 || distance <= Math.abs(deltaNormal)) {
+        throw new Error('No forward roof span exists');
+    }
+
+    const slopeRadians =
+        Math.atan2(dz, dy) + Math.asin(deltaNormal / distance);
+
+    return {
+        slopeRadians,
+        slopeDegrees: slopeRadians * 180 / Math.PI
+    };
+}
+
+export function solveRoofSupportPoints(
+    params: Readonly<VarendaParams>
+) {
+    const { slopeRadians } = solveRoofSlope(params);
+    const c = Math.cos(slopeRadians);
+    const s = Math.sin(slopeRadians);
+
+    // Rhino 坐标：沿坡朝墙方向，以及承托面向上的法向。
+    const tangentUnit = { x: 0, y: c, z: s };
+    const normalUnit = { x: 0, y: -s, z: c };
+
+    const supportPoint = (
+        layout: GutterLayout | WallPieceLayout,
+        joint: typeof roofJointDatums[
+            keyof typeof roofJointDatums
+        ]
+    ): ProductPointMm => {
+        const along = joint.slotTangentOffsetMm;
+        const normal = joint.bearingNormalOffsetMm;
+
+        return {
+            x: layout.positionMm.x + joint.pivotMm.x,
+            y: layout.positionMm.y + joint.pivotMm.y
+                + c * along - s * normal,
+            z: layout.positionMm.z + joint.pivotMm.z
+                + s * along + c * normal
+        };
+    };
+
+    return {
+        slopeRadians,
+        tangentUnit,
+        normalUnit,
+        gutter: supportPoint(
+            solveGutterLayout(params),
+            roofJointDatums.gutter
+        ),
+        wallPiece: supportPoint(
+            solveWallPieceLayout(params),
+            roofJointDatums.wallPiece
+        )
+    };
+}
+
+export function solveRafterStandPlacements(
+    params: Readonly<VarendaParams>
+) {
+    const roof = solveRoofSupportPoints(params);
+    const stand = rafterDatums.stand;
+    const source = rafterDatums.standSourcePlacement;
+    const thicknessMm = stand.thicknessMm;
+
+    const place = (end: 'front' | 'rear') => {
+        const reference = source[end];
+        const support = end === 'front'
+            ? roof.gutter
+            : roof.wallPiece;
+
+        const boltY = reference.mirrorY
+            ? -stand.boltAxisXYMm.y
+            : stand.boltAxisXYMm.y;
+
+        return {
+            instanceId: `rafter-stand-${end}`,
+            mirrorY: reference.mirrorY,
+            positionMm: {
+                x: support.x + reference.positionMm.x,
+                y: support.y
+                    - boltY * roof.tangentUnit.y
+                    + thicknessMm * roof.normalUnit.y,
+                z: support.z
+                    - boltY * roof.tangentUnit.z
+                    + thicknessMm * roof.normalUnit.z
+            }
+        };
+    };
+
+    return {
+        slopeRadians: roof.slopeRadians,
+        front: place('front'),
+        rear: place('rear')
+    };
+}
+
+export function solveSingleRafter(
+    params: Readonly<VarendaParams>
+) {
+    const roof = solveRoofSupportPoints(params);
+    const stands = solveRafterStandPlacements(params);
+    const body = rafterDatums.body;
+    const source = rafterDatums.standSourcePlacement;
+
+    const endpoint = (end: 'front' | 'rear'): ProductPointMm => {
+        const offsetMm =
+            body.sourceEndsMm[end] - source[end].positionMm.y;
+        const plate = stands[end].positionMm;
+
+        return {
+            x: plate.x - source[end].positionMm.x,
+            y: plate.y + offsetMm * roof.tangentUnit.y,
+            z: plate.z + offsetMm * roof.tangentUnit.z
+        };
+    };
+
+    const frontMm = endpoint('front');
+    const rearMm = endpoint('rear');
+    const dy = rearMm.y - frontMm.y;
+    const dz = rearMm.z - frontMm.z;
+    const lengthMm =
+        dy * roof.tangentUnit.y + dz * roof.tangentUnit.z;
+
+    if (!Number.isFinite(lengthMm) || lengthMm <= 0) {
+        throw new Error('Rafter length must be finite and positive');
+    }
+
+    return {
+        instanceId: 'rafter-centre',
+        frontMm,
+        rearMm,
+        lengthMm,
+        positionMm: {
+            x: (frontMm.x + rearMm.x) / 2,
+            y: (frontMm.y + rearMm.y) / 2,
+            z: (frontMm.z + rearMm.z) / 2
+        },
+        slopeRadians: roof.slopeRadians,
+        stands
+    };
 }
