@@ -103,7 +103,7 @@ test('moving rails rotate about stationary hinges and share one bearing plane', 
         for (const changes of [{}, { wallHeightMm: 2200 }, { depthMm: 3000, widthMm: 5000 }]) {
             const params = { ...defaultVarendaParams, ...changes };
             const roofSlope = solveRoofSlope(params);
-            const gutter = { positionMm: { x: params.widthMm / 2, y: -params.depthMm, z: params.undersideHeightMm }, lengthMm: params.widthMm };
+            const gutter = { positionMm: { x: params.widthMm / 2, y: -params.depthMm + 75, z: params.undersideHeightMm }, lengthMm: params.widthMm };
             const wallPiece = { positionMm: { x: params.widthMm / 2, y: 0, z: params.wallHeightMm }, lengthMm: params.widthMm };
             view.update({ footings: { assemblies: [] }, posts: [], gutter, wallPiece, roofSlope });
             const parts = view.root.children[0];

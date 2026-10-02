@@ -1,5 +1,7 @@
 import { varendaCatalog } from './catalog.ts';
 import { 
+    varendaDatums,
+    railEndCapDatums,
     postHoleDatums, 
     roofJointDatums, 
     rafterDatums 
@@ -11,6 +13,7 @@ import type { VarendaParams } from './parameters.ts';
 
 // Result types
 export type ProductPointMm = Readonly<{ x: number; y: number; z: number }>;
+
 export type HoleOperation = {
     operationId: string;
     faceId: string;
@@ -43,6 +46,89 @@ export type Connection = {
     fastenerInstanceIds: readonly string[];
     alignment: 'coaxial' | 'coincident-centers';
 };
+
+export type RailEndCapInstance = Readonly<{
+    instanceId: string;
+    catalogProductId: string;
+    railRef: Readonly<{ instanceId: 'gutter' | 'wallpiece'; end: 'left' | 'right' }>;
+    positionMm: ProductPointMm;
+    mirrorX: boolean;
+    thicknessMm: number;
+    holes: readonly HoleOperation[];
+}>;
+
+/** Position is the screw axis at the underside of the head, against the plate outer face. */
+export type RailEndCapFastener = FastenerInstance & Readonly<{
+    positionMm: ProductPointMm;
+    axisUnit: ProductPointMm;
+}>;
+
+/** A measured extrusion screw channel is an installation feature, not a drilling operation. */
+export type RailEndCapConnection = Readonly<{
+    connectionId: string;
+    endCapHoleRef: HoleRef;
+    railRef: Readonly<{ instanceId: 'gutter' | 'wallpiece'; end: 'left' | 'right'; featureId: string }>;
+    fastenerInstanceId: string;
+    alignment: 'coaxial';
+}>;
+
+/** 每块实际玻璃独立记录；尺寸沿屋面局部坐标测量。 */
+export type GlassInstance = Readonly<{
+    instanceId: string;
+    catalogProductId: string;
+
+    bayRef: Readonly<{
+        leftRafterInstanceId: string;
+        rightRafterInstanceId: string;
+    }>;
+
+    displayNumber: string;
+    /** 玻璃实体中心，Rhino 产品坐标，单位 mm。 */
+    positionMm: ProductPointMm;
+    slopeRadians: number;
+
+    widthMm: number;
+    lengthMm: number;
+    thicknessMm: number;
+}>;
+
+/** 每条实际胶条只建立一个实例，独立记录长度和安装姿态。 */
+export type GasketInstance = Readonly<{
+    instanceId: string;
+    catalogProductId: string;
+
+    role: 'support' | 'wedge-a' | 'wedge-b' | 'seal' | 'top-seal';
+    /** Existing rail assets own their gasket geometry; never render it twice. */
+    renderOwnerInstanceId?: 'gutter' | 'wallpiece';
+    /** 胶条素材基准原点的安装位置，Rhino 产品坐标，单位 mm。 */
+    positionMm: ProductPointMm;
+    slopeRadians: number;
+    mirrorX: boolean;
+    mirrorY: boolean;
+
+    /** 素材局部长度轴；只沿此轴改变长度，保持截面尺寸。 */
+    lengthAxis: 'x' | 'y';
+    lengthMm: number;
+}>;
+
+/** 一条记录引用实际零件，不重复创建玻璃或胶条。 */
+export type GasketInstallation = Readonly<{
+    installationId: string;
+    gasketInstanceId: string;
+    role: 'support' | 'wedge-a' | 'wedge-b' | 'seal' | 'top-seal';
+
+    glassRef?: Readonly<{
+        instanceId: string;
+        edge: 'left' | 'right' | 'front' | 'rear';
+    }>;
+
+    supportRef: Readonly<{
+        instanceId: string;
+        feature:
+            | Readonly<{ status: 'confirmed'; featureId: string }>
+            | Readonly<{ status: 'pending' }>;
+    }>;
+}>;
 
 export type ColumnLayout = {
     centersMm: readonly number[];
@@ -88,9 +174,14 @@ export type WallPieceLayout = Readonly<{
     lengthMm: number;
 }>
 
+
 // GH spacing formula
 /** GH fixed pitch with equal residual margins; all lengths are mm. */
-export function calculateColumnCenters(widthMm: number, postIntervalMm: number): number[] {
+export function calculateColumnCenters(
+    widthMm: number,
+    postIntervalMm: number,
+    datums: VarendaDatums = varendaDatums
+): number[] {
     if (
         !Number.isFinite(widthMm) ||
         !Number.isFinite(postIntervalMm) ||
@@ -105,21 +196,58 @@ export function calculateColumnCenters(widthMm: number, postIntervalMm: number):
     const gapCount = Math.round((widthMm - remainder) / postIntervalMm);
     const start = remainder / 2;
 
-    return Array.from({ length: gapCount + 1 }, (_, index) => start + index * postIntervalMm);
+    const sectionWidthMm = Math.max(datums.postWidthMm, datums.footplateWidthMm);
+    if (
+        !Number.isFinite(datums.postWidthMm) || datums.postWidthMm <= 0 ||
+        !Number.isFinite(datums.footplateWidthMm) || datums.footplateWidthMm <= 0 ||
+        widthMm < sectionWidthMm
+    ) throw new Error('Invalid column section width or installation width');
+
+    const centersMm = Array.from({ length: gapCount + 1 }, (_, index) => start + index * postIntervalMm);
+    const halfWidthMm = sectionWidthMm / 2;
+    centersMm[0] = Math.max(centersMm[0], halfWidthMm);
+    const last = centersMm.length - 1;
+    centersMm[last] = Math.min(centersMm[last], widthMm - halfWidthMm);
+
+    for (let index = 0; index < centersMm.length; index++) {
+        if (
+            centersMm[index] < halfWidthMm ||
+            centersMm[index] > widthMm - halfWidthMm ||
+            (index > 0 && centersMm[index] - centersMm[index - 1] < sectionWidthMm)
+        ) throw new Error('Column sections exceed the installation width or overlap');
+    }
+    return centersMm;
 }
 
 // Shared layout: solve once and pass to each component solver
+/** The outward footplate edge is at -depthMm; the gutter shares the post axis. */
+export function solveFrontAxisYMm(
+    params: Readonly<VarendaParams>,
+    datums: VarendaDatums = varendaDatums
+): number {
+    if (
+        !Number.isFinite(params.depthMm) ||
+        !Number.isFinite(datums.footplateDepthMm) || datums.footplateDepthMm <= 0 ||
+        !Number.isFinite(datums.postDepthMm) || datums.postDepthMm <= 0 ||
+        datums.postDepthMm > datums.footplateDepthMm ||
+        params.depthMm < datums.footplateDepthMm
+    ) throw new Error('Post and footplate must fit within the site depth');
+
+    return -params.depthMm + datums.footplateDepthMm / 2;
+}
+
 /** Product-local Rhino axes: X width, Z up, -Y outward. No rendering transforms. */
-export function solveColumnLayout(params: Readonly<VarendaParams>): ColumnLayout {
-    const centersMm = calculateColumnCenters(params.widthMm, params.postInterval);
-    if (!Number.isFinite(params.depthMm) || params.depthMm <= 0) {
-        throw new Error('Depth must be a positive number');
-    }
+export function solveColumnLayout(
+    params: Readonly<VarendaParams>,
+    datums: VarendaDatums = varendaDatums
+): ColumnLayout {
+    const centersMm = calculateColumnCenters(params.widthMm, params.postInterval, datums);
+    const frontYMm = solveFrontAxisYMm(params, datums);
     return {
         centersMm,
         columns: centersMm.map((x, index) => ({
             columnId: `column-${index + 1}`,
-            positionMm: { x, y: -params.depthMm, z: 0 }
+            positionMm: { x, y: frontYMm, z: 0 }
         }))
     };
 }
@@ -219,7 +347,10 @@ export function solvePostHoleMarkers(
     });
 }
 
-export function solveGutterLayout(params: VarendaParams): GutterLayout {
+export function solveGutterLayout(
+    params: VarendaParams,
+    datums: VarendaDatums = varendaDatums
+): GutterLayout {
     const { widthMm, depthMm, undersideHeightMm } = params;
 
     if (
@@ -232,7 +363,7 @@ export function solveGutterLayout(params: VarendaParams): GutterLayout {
     return {
         positionMm: {
             x: widthMm / 2,
-            y: -depthMm,
+            y: solveFrontAxisYMm(params, datums),
             z: undersideHeightMm
         },
         lengthMm: widthMm,
@@ -258,6 +389,65 @@ export function solveWallPieceLayout(
         },
         lengthMm: widthMm,
     }
+}
+
+/** Rigid endcaps remain outside the rail span; width continues to mean rail length. */
+export function solveRailEndCaps(gutter: GutterLayout, wallPiece: WallPieceLayout) {
+    const plates: RailEndCapInstance[] = [];
+    const fasteners: RailEndCapFastener[] = [];
+    const connections: RailEndCapConnection[] = [];
+    const rails = [
+        { instanceId: 'gutter' as const, layout: gutter, datum: railEndCapDatums.gutter, catalog: varendaCatalog.gutterEndCap },
+        { instanceId: 'wallpiece' as const, layout: wallPiece, datum: railEndCapDatums.wallPiece, catalog: varendaCatalog.wallPieceEndCap }
+    ];
+    for (const rail of rails) {
+        if (!Number.isFinite(rail.layout.lengthMm) || rail.layout.lengthMm <= 0 ||
+            !Object.values(rail.layout.positionMm).every(Number.isFinite)) {
+            throw new Error('Invalid rail endcap installation dimensions');
+        }
+        for (const end of ['left', 'right'] as const) {
+            const mirrorX = end === 'right';
+            const sign = mirrorX ? -1 : 1;
+            const instanceId = `${rail.instanceId}-endcap-${end}`;
+            const positionMm = {
+                x: rail.layout.positionMm.x - sign * rail.layout.lengthMm / 2,
+                y: rail.layout.positionMm.y + rail.datum.anchorYZMm.y,
+                z: rail.layout.positionMm.z + rail.datum.anchorYZMm.z
+            };
+            const holes: HoleOperation[] = rail.datum.holes.map((hole, index) => ({
+                operationId: `hole-${index + 1}`,
+                faceId: 'contact-face',
+                centerMm: { x: 0, y: hole.y, z: hole.z },
+                axisUnit: { x: 1, y: 0, z: 0 },
+                diameterMm: hole.diameterMm,
+                extent: { kind: 'through', wallIds: ['endcap-plate'] }
+            }));
+            plates.push({ instanceId, catalogProductId: rail.catalog.catalogProductId,
+                railRef: { instanceId: rail.instanceId, end }, positionMm, mirrorX,
+                thicknessMm: rail.datum.thicknessMm, holes });
+            for (const [index, hole] of holes.entries()) {
+                const fastenerInstanceId = `${instanceId}-screw-${index + 1}`;
+                fasteners.push({
+                    instanceId: fastenerInstanceId,
+                    catalogProductId: varendaCatalog.screwWaferHead4_2x16.catalogProductId,
+                    positionMm: {
+                        x: positionMm.x - sign * rail.datum.thicknessMm,
+                        y: positionMm.y + hole.centerMm.y,
+                        z: positionMm.z + hole.centerMm.z
+                    },
+                    axisUnit: { x: sign, y: 0, z: 0 }
+                });
+                connections.push({
+                    connectionId: `${instanceId}-connection-${index + 1}`,
+                    endCapHoleRef: { partInstanceId: instanceId, operationId: hole.operationId },
+                    railRef: { instanceId: rail.instanceId, end, featureId: `screw-channel-${index + 1}` },
+                    fastenerInstanceId,
+                    alignment: 'coaxial'
+                });
+            }
+        }
+    }
+    return { plates, fasteners, connections };
 }
 
 export function solveRoofSlope(params: Readonly<VarendaParams>) {

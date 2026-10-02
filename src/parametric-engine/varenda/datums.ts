@@ -6,12 +6,24 @@ export type VarendaDatums = Readonly<{
     postBaseZMm: number;
     /** Exported post-body profile spans 0..95 mm along its height axis. */
     postSourceLengthMm: number;
+    /** Actual X width of the post section. */
+    postWidthMm: number;
+    /** Actual X width of the centered footplate bottom plate. */
+    footplateWidthMm: number;
+    /** Actual Y depth of the centered footplate bottom plate. */
+    footplateDepthMm: number;
+    /** Actual Y depth of the post section. */
+    postDepthMm: number;
 }>;
 
 export const varendaDatums: VarendaDatums = Object.freeze({
     footingBaseZMm: 0,
     postBaseZMm: 5,
-    postSourceLengthMm: 95
+    postSourceLengthMm: 95,
+    postWidthMm: 80,
+    footplateWidthMm: 160,
+    footplateDepthMm: 150,
+    postDepthMm: 100
 });
 
 export type PostHoleDatum = {
@@ -181,4 +193,67 @@ export const rafterDatums = {
             mirrorY: false
         }
     }
+} as const;
+
+/** glass-source.3dm: origin at the glass underside center; Rhino axes, mm. */
+export const glassDatums = {
+    source: {
+        fileName: 'glass-source.3dm',
+        widthMm: 380.8836918301446,
+        lengthMm: 342.680931656579,
+        lengthAxis: 'y',
+        sourceEndsMm: {
+            front: -171.34046582828947,
+            rear: 171.34046582828955
+        },
+        undersideZMm: 0,
+        sourceAngleDegrees: 0
+    },
+    // Measured 5-degree engineer bay, projected along the roof tangent.
+    endOffsetFromRafterMm: {
+        front: 0.002186428106,
+        rear: 19.91000905688
+    },
+    thicknessMm: 6,
+    // Installation offset from the rafter underside, not the glass source origin.
+    undersideNormalOffsetMm: 9.200542,
+    edgeOffsetMm: {
+        regularRafter: 14,
+        endRafter: 5.25
+    }
+} as const;
+
+/** Endcap local origin: first hole axis on the contact face X=0; plate spans X=-2..0. */
+export const railEndCapDatums = {
+    gutter: {
+        sourceFileName: 'gutter-endcap-source.3dm',
+        thicknessMm: 2,
+        anchorYZMm: { y: -59.9874289166, z: 8.5 },
+        holes: [
+            { y: 0, z: 0, diameterMm: 3.6 },
+            { y: 0, z: 15.3, diameterMm: 3.6 },
+            { y: 85, z: 15.3, diameterMm: 3.6 },
+            { y: 85, z: 0, diameterMm: 3.6 },
+            { y: 121, z: 15.3, diameterMm: 3.6 }
+        ]
+    },
+    wallPiece: {
+        sourceFileName: 'wallpiece-endcap-source.3dm',
+        thicknessMm: 2,
+        anchorYZMm: { y: 5.50171320116, z: 98 },
+        holes: [
+            { y: 0, z: 0, diameterMm: 3.6 },
+            { y: 0, z: -57.4, diameterMm: 3.6 }
+        ]
+    }
+} as const;
+
+/** Side gasket assets use the rafter underside center, canonical +X side, length 100 mm. */
+export const glazingGasketDatums = {
+    sideSourceFileName: 'rafter-source.3dm',
+    sideSourceLengthMm: 100,
+    sideSourceEndsMm: { front: -50, rear: 50 },
+    // Independently verified against glass-source and both rafter sources.
+    supportTopZMm: 9.200542,
+    sourceGlassRightGasketCorrectionMm: 8.75
 } as const;

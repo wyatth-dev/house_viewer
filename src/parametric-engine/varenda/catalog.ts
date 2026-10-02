@@ -1,12 +1,72 @@
 export type CatalogProduct = {
     catalogProductId: string;
     productName: string | null;
-    kind: 'profile' | 'plate' | 'fastener' | 'assembly';
+    kind: 'profile' | 'plate' | 'fastener' | 'assembly' | 'glass' | 'gasket';
     status: 'confirmed' | 'pending';
 };
 
 /** 内部目录键，不是厂家 SKU；不包含安装位置或用途。 */
 export const varendaCatalog = {
+
+    gutterEndCap: {
+        catalogProductId: 'varenda-gutter-endcap',
+        productName: '5140010010 Veranda ring beam End Cap',
+        kind: 'plate',
+        status: 'pending'
+    },
+    wallPieceEndCap: {
+        catalogProductId: 'varenda-wallpiece-endcap',
+        productName: '5140010015 - Veranda Wallplate End Cap v2',
+        kind: 'plate',
+        status: 'pending'
+    },
+    screwWaferHead4_2x16: {
+        catalogProductId: 'fastener-wafer-head-self-drilling-4-2-16',
+        productName: '4.2x16mm wafer head Self Drilling Screw v1',
+        kind: 'fastener',
+        status: 'pending'
+    },
+
+    glazingSealGasket: {
+        catalogProductId: 'varenda-glazing-seal-gasket',
+        productName: 'Glazing Seal Gasket',
+        kind: 'gasket',
+        status: 'pending'
+    },
+    wallPlateTopSealGasket: {
+        catalogProductId: 'varenda-wallplate-top-seal-gasket',
+        productName: 'Wallplate Top Seal Gasket',
+        kind: 'gasket',
+        status: 'pending'
+    },
+    glassPanel: {
+        catalogProductId: 'varenda-glass-panel',
+        productName: null,
+        kind: 'glass',
+        status: 'pending'
+    },
+
+    glazingSupportGasket: {
+        catalogProductId: 'varenda-glazing-support-gasket',
+        productName: 'Glazing Support Gasket',
+        kind: 'gasket',
+        status: 'pending'
+    },
+
+    glazingWedgeGasketA: {
+        catalogProductId: 'varenda-glazing-wedge-gasket-a',
+        productName: 'Glazing Wedge Gasket A',
+        kind: 'gasket',
+        status: 'pending'
+    },
+
+    glazingWedgeGasketB: {
+        catalogProductId: 'varenda-glazing-wedge-gasket-b',
+        productName: 'Glazing Wedge Gasket B',
+        kind: 'gasket',
+        status: 'pending'
+    },
+
     postProfile: {
         catalogProductId: 'varenda-post-profile',
         productName: null,
@@ -19,7 +79,7 @@ export const varendaCatalog = {
         productName: null,
         kind: 'assembly',
         status: 'pending'
-    }, 
+    },
 
     rafterFixingPlate: {
         catalogProductId: 'varenda-rafter-fixing-plate',

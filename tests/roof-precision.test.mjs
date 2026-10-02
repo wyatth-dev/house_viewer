@@ -18,11 +18,11 @@ test('roof data preserves input dimensions and aligns bearing planes within 0.00
                     assert.equal(gutter.lengthMm, widthMm);
                     assert.equal(wall.positionMm.z, wallHeightMm);
                     assert.equal(gutter.positionMm.z, undersideHeightMm);
-                    assert.equal(wall.positionMm.y - gutter.positionMm.y, depthMm);
+                    assert.equal(wall.positionMm.y - gutter.positionMm.y, depthMm - 75);
                     const { slopeRadians } = solveRoofSlope(params);
                     const w = roofJointDatums.wallPiece;
                     const g = roofJointDatums.gutter;
-                    const dy = depthMm + w.pivotMm.y - g.pivotMm.y;
+                    const dy = depthMm - 75 + w.pivotMm.y - g.pivotMm.y;
                     const dz = wallHeightMm + w.pivotMm.z - undersideHeightMm - g.pivotMm.z;
                     // Check the solved plane against both independent support constraints.
                     const residual = -Math.sin(slopeRadians) * dy + Math.cos(slopeRadians) * dz
@@ -36,7 +36,7 @@ test('roof data preserves input dimensions and aligns bearing planes within 0.00
 
 test('default roof angle agrees with independently measured CAD datums within 0.001 degree', () => {
     // Slot-side support faces have equal normal offsets to measurement tolerance.
-    assert.ok(Math.abs(solveRoofSlope(defaultVarendaParams).slopeDegrees - 23.81361805932082) < 0.001);
+    assert.ok(Math.abs(solveRoofSlope(defaultVarendaParams).slopeDegrees - Math.atan2(867, 2000 - 75 - 35.5125710834) * 180 / Math.PI) < 0.001);
 });
 
 
@@ -77,8 +77,8 @@ test('roof slope aligns the actual slot-side fixing-plate support faces', () => 
             const fixtures = [
                 { y: -36.33429032294, z: 28.99622020225, py: -13, pz: 16.5, originY: 0, originZ: wallHeightMm },
                 { y: -50.03429032294, z: 28.99622020225, py: -13, pz: 16.5, originY: 0, originZ: wallHeightMm },
-                { y: 34.56458730938, z: 61.99622020251, py: 22.5125710834, pz: 49.5, originY: -depthMm, originZ: 1600 },
-                { y: 48.56055485754, z: 61.99622020251, py: 22.5125710834, pz: 49.5, originY: -depthMm, originZ: 1600 }
+                { y: 34.56458730938, z: 61.99622020251, py: 22.5125710834, pz: 49.5, originY: -depthMm + 75, originZ: 1600 },
+                { y: 48.56055485754, z: 61.99622020251, py: 22.5125710834, pz: 49.5, originY: -depthMm + 75, originZ: 1600 }
             ];
             const planeOffsets = fixtures.map((p) => {
                 const y = p.originY + p.py + c * (p.y - p.py) - s * (p.z - p.pz);

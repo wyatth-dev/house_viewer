@@ -15,6 +15,7 @@ import {
 
 import { createLifetime } from '../app/lifetime.ts';
 import { fitPerspective } from '../camera/framing.ts';
+import { solveGlazing, summarizeGlazingParts } from '../parametric-engine/varenda/glazing-solver.ts';
 import { varendaDatums } from '../parametric-engine/varenda/datums.ts';
 import type { VarendaParams } from '../parametric-engine/varenda/parameters.ts';
 import { defaultVarendaParams } from '../parametric-engine/varenda/parameters.ts';
@@ -26,6 +27,7 @@ import {
     solveWallPieceLayout, 
     solveRoofSlope,
     solveRafters,
+    solveRailEndCaps,
     summarizeRafterStandParts
 } from '../parametric-engine/varenda/varenda-solver.ts';
 import { createProductAssetStore } from '../product-view/assets.ts';
@@ -84,6 +86,16 @@ async function start() {
     lifetime.add(() => product.destroy());
     lifetime.signal.throwIfAborted();
 
+    const detailInput = document.querySelector<HTMLInputElement>('#glazing-details')!;
+    const updateGlazingDetails = () => {
+        // Side gasket widths are about 10 mm. Reveal mesh detail only when resolved on screen or requested.
+        const distance = camera.getPosition().length();
+        const pixels = 10 * canvas.clientHeight / (2 * Math.tan(Math.PI / 8) * Math.max(1, distance));
+        product.setGlazingDetailVisible(detailInput.checked || pixels >= 2);
+    };
+    app.on('update', updateGlazingDetails);
+    lifetime.add(() => app.off('update', updateGlazingDetails));
+
     // Last valid engineering parameters. Presentation offset belongs to the root.
     const params = { ...defaultVarendaParams };
 
@@ -96,6 +108,19 @@ async function start() {
         const wallPiece = solveWallPieceLayout(nextParams);
         const roofSlope = solveRoofSlope(nextParams);
         const rafters = solveRafters(nextParams);
+        const endCaps = solveRailEndCaps(gutter, wallPiece);
+        const glazing = solveGlazing(nextParams, rafters);
+        console.table(summarizeGlazingParts(glazing));
+        // Count actual engineering instances even when hardware geometry is hidden.
+        const endCapParts = new Map<string, Set<string>>();
+        for (const part of [...endCaps.plates, ...endCaps.fasteners]) {
+            const ids = endCapParts.get(part.catalogProductId) ?? new Set<string>();
+            ids.add(part.instanceId);
+            endCapParts.set(part.catalogProductId, ids);
+        }
+        console.table([...endCapParts].map(([catalogProductId, ids]) => ({
+            catalogProductId, quantity: ids.size, instanceIds: [...ids]
+        })));
 
         console.table(
             rafters.flatMap((rafter) =>
@@ -123,7 +148,9 @@ async function start() {
             gutter, 
             wallPiece, 
             roofSlope, 
-            rafters 
+            rafters,
+            endCaps,
+            glazing
         });
         
         product.root.setLocalPosition(-nextParams.widthMm / 2, 0, 0);
@@ -133,7 +160,8 @@ async function start() {
             `Footing assemblies: ${footings.assemblies.length} · ` +
             `Local X: ${columnLayout.centersMm.join(', ')} mm · ` +
             `Outward depth: ${params.depthMm} mm · ` +
-            `Roof slope: ${roofSlope.slopeDegrees.toFixed(3)}°`;
+            `Roof slope: ${roofSlope.slopeDegrees.toFixed(3)}° · ` +
+            `Glass panels: ${glazing.glass.length} · Gaskets: ${glazing.gaskets.length}`;
     };
 
     // Controls: drafts may be invalid; only successful solves commit to params.
