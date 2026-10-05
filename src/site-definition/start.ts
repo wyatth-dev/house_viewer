@@ -24,6 +24,15 @@ import { createRendering, daylightConfig } from './rendering/index.ts';
 import { createSceneCoordinator } from './scene-controller.ts';
 import './style.css';
 
+import { calculateEnvelopeCorners } from '../product-placement/geometry.ts';
+import { createEnvelopeView } from '../product-placement/envelope-view.ts';
+import type {
+    CustomizableEnvelope,
+    InstallationWallFace
+} from '../product-placement/types.ts';
+
+
+
 export function startSiteDefinition() {
     const canvas = document.querySelector<HTMLCanvasElement>('#application-canvas')!;
     const viewport = document.querySelector<HTMLElement>('#viewport')!;
@@ -63,6 +72,41 @@ export function startSiteDefinition() {
         lifetime.add(() => camera.destroy());
         const site = createSiteController(app, house.footprint, document.querySelector<HTMLElement>('#measurements')!);
         lifetime.add(() => site.destroy());
+
+        // Temporary preview fixture; replace with calibrated wall data later.
+        const previewWall: InstallationWallFace = {
+            wallFaceId: 'preview-front',
+            structureId: 'house-1',
+            side: 'front',
+            originMm: {
+                x: -house.footprint.width / 2,
+                y: 0,
+                z: house.footprint.depth / 2
+            },
+            alongWallUnit: { x: 1, z: 0 },
+            outwardUnit: { x: 0, z: 1 },
+            lengthMm: house.footprint.width
+        };
+
+        const previewEnvelope: CustomizableEnvelope = {
+            instanceId: 'preview-envelope',
+            productType: 'varenda',
+            attachment: {
+                kind: 'wall',
+                structureId: previewWall.structureId,
+                wallFaceId: previewWall.wallFaceId,
+                alongWallOffsetMm: (previewWall.lengthMm - 4000) / 2
+            },
+            widthMm: 4000,
+            depthMm: 2000
+        };
+
+        const envelopeView = createEnvelopeView(app);
+        lifetime.add(() => envelopeView.destroy());
+        envelopeView.update(
+            calculateEnvelopeCorners(previewEnvelope, previewWall)
+        );
+
         const landscape = createLandscape(app);
         lifetime.add(() => landscape.destroy());
 

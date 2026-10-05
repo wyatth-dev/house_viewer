@@ -47,6 +47,14 @@ export function calculateEnvelopeCorners(
         Math.abs(dot) > tolerance
     ) throw new Error('Wall directions must be perpendicular unit vectors.');
 
+    if (
+        lengthMm <= 0 ||
+        widthMm <= 0 ||
+        depthMm <= 0 ||
+        offsetMm < 0 ||
+        offsetMm + widthMm > lengthMm
+    ) throw new Error('Envelope dimensions exceed the wall range.');
+    
     const point = (alongMm: number, outwardMm: number): PlacementPointMm => ({
         x: originMm.x +
             alongWallUnit.x * alongMm +
