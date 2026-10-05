@@ -8,7 +8,13 @@ import type { VarendaView } from '../products/varenda/view/varenda-view.ts';
 import { createProductAssetStore } from '../shared/assets/containers.ts';
 import type { Point3 } from '../shared/geometry/types.ts';
 
-import { calculateEnvelopeCorners, solvePlacementCandidate } from './geometry.ts';
+import { 
+    calculateEnvelopeCorners, 
+    solvePlacementCandidate,
+    getPreviewDimensions,
+    editPreviewDimension,
+    type PreviewDimensionKey
+} from './geometry.ts';
 import type { InstallationWallFace } from './types.ts';
 
 /** Transient game-style preview. Owns no committed product instances or dimension UI. */
@@ -32,24 +38,47 @@ export function createPlacementPreview(
     let pointer: { x: number; y: number } | undefined;
     let lastShape: string | undefined;
     let candidate: ReturnType<typeof solvePlacementCandidate>;
+    let previewParams = { ...defaultVarendaParams };
+    let editingDimensions = false;
+
     const materials = new Map<Material, StandardMaterial>();
     const clearMaterials = () => {
         for (const material of materials.values()) material.destroy();
         materials.clear();
     };
     const render = () => {
-        candidate = undefined;
+    
         if (!active || !pointer || disposed) {
+            candidate = undefined;
             if (product) product.root.enabled = false;
             onFeedback(undefined);
             return;
         }
-        for (const wall of walls) {
-            const point = screenToGround(pointer.x, pointer.y, wall.originMm.y);
-            if (!point) continue;
-            candidate = solvePlacementCandidate([wall], getProperty(), point, defaultVarendaParams);
-            if (candidate) break;
+
+        // Freeze the current location while a dimension is being edited.
+        if (!editingDimensions) {
+            candidate = undefined;
+
+            for (const wall of walls) {
+                const point = screenToGround(
+                    pointer.x,
+                    pointer.y,
+                    wall.originMm.y
+                );
+
+                if (!point) continue;
+
+                candidate = solvePlacementCandidate(
+                    [wall],
+                    getProperty(),
+                    point,
+                    previewParams
+                );
+
+                if (candidate) break;
+            }
         }
+
         if (!candidate) {
             if (product) product.root.enabled = false;
             onFeedback('Move onto a highlighted area.');
@@ -61,7 +90,11 @@ export function createPlacementPreview(
         }
         try {
             const { envelope, wall } = candidate;
-            const params = { ...defaultVarendaParams, widthMm: envelope.widthMm, depthMm: envelope.depthMm };
+            const params = {
+                 ...previewParams,
+                  widthMm: envelope.widthMm, 
+                  depthMm: envelope.depthMm 
+                };
             const shape = JSON.stringify(params);
             if (shape !== lastShape) {
                 const solution = solveVarenda(params);
@@ -131,19 +164,86 @@ export function createPlacementPreview(
     return {
         setActive(value: boolean) {
             active = value;
+            if (!active) editingDimensions = false;
             if (active) ensureLoaded();
             render();
         },
+        
         move(x: number, y: number) {
             pointer = { x, y };
             render();
         },
+        
         leave() {
+            if(!editingDimensions) return;
             pointer = undefined;
             render();
         },
+        
         refresh: render,
+        
         getCandidate: () => candidate,
+        
+        getDimensionState(){
+            if (!candidate || !product?.root.enabled) return undefined;
+
+            return {
+                wall: candidate.wall,
+                envelope: getPreviewDimensions(
+                    candidate.envelope,
+                    candidate.wall,
+                    previewParams.wallHeightMm
+                )
+            };
+        },
+
+        setDimensionEditing(value: boolean) {
+            editingDimensions = value && Boolean(candidate);
+        },
+
+        editDimensions(
+            field: PreviewDimensionKey,
+            valueMm: number
+        ): string | undefined {
+            if (!candidate || !product?.root.enabled) {
+                return 'Move onto an available area first.';
+            }
+
+            try {
+                const edited = editPreviewDimension(
+                    candidate.envelope,
+                    candidate.wall,
+                    previewParams.wallHeightMm,
+                    field,
+                    valueMm
+                );
+
+                const nextParams = {
+                    ...previewParams,
+                    widthMm: edited.envelope.widthMm,
+                    depthMm: edited.envelope.depthMm,
+                    wallHeighMm: edited.wallHeightMm,
+                };
+
+                solveVarenda(nextParams);
+
+                candidate = {
+                    wall: candidate.wall,
+                    envelope: candidate.envelope
+                };
+                previewParams = nextParams;
+
+                const wasEditing = editingDimensions;
+                editingDimensions = true;
+                render();
+                editingDimensions = wasEditing;
+            } catch(error) {
+                return error instanceof Error
+                    ? error.message
+                    : 'Unable to update this dimension.';
+            }
+        },
+
         destroy() {
             if (disposed) return;
             disposed = true;
