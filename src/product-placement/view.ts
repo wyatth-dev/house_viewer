@@ -1,6 +1,13 @@
 import { BLEND_NORMAL, Color, Entity, StandardMaterial, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
+import type { ProjectPoint } from '../shared/geometry/types.ts';
+import { createDimensionOverlay } from '../shared/measurements/dimension-overlay.ts';
+import type {
+    CustomizableEnvelope,
+    InstallationWallFace
+} from './types.ts';
 
+import { calculateEnvelopeCorners } from './geometry.ts';
 import type { EnvelopeCorners } from './geometry.ts';
 
 export function createEnvelopeView(app: AppBase) {
@@ -136,6 +143,89 @@ export function createAvailableAreaView(app: AppBase, reducedMotion: boolean) {
             app.off('update', animate);
             for (const view of views) view.destroy();
             views = [];
+        }
+    };
+}
+
+export function createPreviewMeasurements(
+    app: AppBase,
+    overlay: HTMLElement,
+    project: ProjectPoint,
+    readState: () => {
+        wall: InstallationWallFace;
+        envelope: CustomizableEnvelope;
+        dimensions: {
+            leftMm: number;
+            rightMm: number;
+            widthMm: number;
+        };
+    } | undefined
+) {
+    const measurements = createDimensionOverlay(app, overlay);
+    measurements.setVisible(false);
+
+    let visible = false;
+
+    const update = () => {
+        const state = readState();
+
+        if (Boolean(state) !== visible) {
+            visible = Boolean(state);
+            measurements.setVisible(visible);
+        }
+
+        if (!state) return;
+
+        const { wall, envelope, dimensions } = state;
+        const corners = calculateEnvelopeCorners(envelope, wall);
+
+        // Place the horizontal dimension chain beyond the product's outer edge.
+        const dimensionOffsetMm = envelope.depthMm + 600;
+        const raised = (point: typeof wall.originMm) => ({
+            x: point.x + wall.outwardUnit.x * dimensionOffsetMm,
+            y: point.y + 80,
+            z: point.z + wall.outwardUnit.z * dimensionOffsetMm
+        });
+
+        const wallEnd = {
+            x: wall.originMm.x + wall.alongWallUnit.x * wall.lengthMm,
+            y: wall.originMm.y,
+            z: wall.originMm.z + wall.alongWallUnit.z * wall.lengthMm
+        };
+
+        measurements.update([
+            {
+                id: 'preview-left',
+                label: 'Left clearance',
+                start: raised(wall.originMm),
+                end: raised(corners.wallStart),
+                valueMm: dimensions.leftMm
+            },
+            {
+                id: 'preview-width',
+                label: 'Width',
+                start: raised(corners.wallStart),
+                end: raised(corners.wallEnd),
+                valueMm: dimensions.widthMm
+            },
+            {
+                id: 'preview-right',
+                label: 'Right clearance',
+                start: raised(corners.wallEnd),
+                end: raised(wallEnd),
+                valueMm: dimensions.rightMm
+            }
+        ]);
+
+        measurements.refresh(project);
+    };
+
+    app.on('update', update);
+
+    return {
+        destroy() {
+            app.off('update', update);
+            measurements.destroy();
         }
     };
 }

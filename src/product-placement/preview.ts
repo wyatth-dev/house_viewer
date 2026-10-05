@@ -175,7 +175,7 @@ export function createPlacementPreview(
         },
         
         leave() {
-            if(!editingDimensions) return;
+            if(editingDimensions) return;
             pointer = undefined;
             render();
         },
@@ -189,7 +189,8 @@ export function createPlacementPreview(
 
             return {
                 wall: candidate.wall,
-                envelope: getPreviewDimensions(
+                envelope: candidate.envelope,
+                dimensions: getPreviewDimensions(
                     candidate.envelope,
                     candidate.wall,
                     previewParams.wallHeightMm
@@ -222,14 +223,14 @@ export function createPlacementPreview(
                     ...previewParams,
                     widthMm: edited.envelope.widthMm,
                     depthMm: edited.envelope.depthMm,
-                    wallHeighMm: edited.wallHeightMm,
+                    wallHeightMm: edited.wallHeightMm,
                 };
 
                 solveVarenda(nextParams);
 
                 candidate = {
                     wall: candidate.wall,
-                    envelope: candidate.envelope
+                    envelope: edited.envelope
                 };
                 previewParams = nextParams;
 

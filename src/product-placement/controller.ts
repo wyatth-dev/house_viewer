@@ -10,7 +10,11 @@ import type { Rect } from '../site-definition/types.ts';
 import { calculateEnvelopeCorners, solveInstallationAreas } from './geometry.ts';
 import { createPlacementPreview } from './preview.ts';
 import type { CustomizableEnvelope, InstallationWallFace } from './types.ts';
-import { createEnvelopeView, createAvailableAreaView } from './view.ts';
+import {
+    createEnvelopeView,
+    createAvailableAreaView,
+    createPreviewMeasurements
+} from './view.ts';
 
 /** Owns the current envelope editing prototype; product placement is not connected yet. */
 export function createPlacementController(
@@ -50,6 +54,13 @@ export function createPlacementController(
             feedback.textContent = message ?? '';
             feedback.hidden = !message;
         }
+    );
+
+    const previewMeasurements = createPreviewMeasurements(
+        app,
+        overlay,
+        project,
+        preview.getDimensionState
     );
 
     const syncPlacementMode = () => {
@@ -286,6 +297,7 @@ export function createPlacementController(
             viewport.removeEventListener('pointerleave', leaveViewport);
             window.removeEventListener('keydown', cancelPlacement);
             viewport.classList.remove('is-placing-product');
+            previewMeasurements.destroy();
             preview.destroy();
             feedback.remove();
             cursorIcon.remove();

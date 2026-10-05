@@ -429,6 +429,10 @@ h2 span {
 .editable-measurement {
     pointer-events: auto;
 }
+/* Read-only labels must not interrupt placement pointer tracking. */
+.editable-measurement:has(button:disabled) {
+    pointer-events: none;
+}
 .editable-measurement button {
     border: 0;
     background: transparent;
