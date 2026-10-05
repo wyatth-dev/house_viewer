@@ -12,5 +12,7 @@ export type SiteController = {
     getLayout(): Layout;
     getBounds(): Bounds3;
     refreshLabels(project: ProjectPoint): void;
+    setMeasurementsVisible(visible: boolean): void;
+    setDimensionEditor(editor: (side: SiteSide, valueMm: number) => string | undefined): void;
     destroy(): void;
 };

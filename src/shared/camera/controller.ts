@@ -5,7 +5,7 @@ import type { Bounds3, Viewport } from '../geometry/types.ts';
 
 import { fitOrthographic, fitPerspective, projectPoint } from './framing.ts';
 import type { Frame } from './framing.ts';
-import { transitionFrame, projectionMatrix } from './transition.ts';
+import { transitionFrame, projectionMatrix, projectionMix, focusHeight } from './transition.ts';
 import type { CameraController, CameraPreset } from './types.ts';
 export function createCameraController(
     app: AppBase,
@@ -117,6 +117,46 @@ export function createCameraController(
         },
         getState: () => ({ activePresetId: active }),
         project: (point) => (current ? projectPoint(point, current, viewport) : { x: 0, y: 0, visible: false }),
+        screenToGround(x, y, groundYMm = 0) {
+            if (
+                !current ||
+                ![x, y, groundYMm].every(Number.isFinite) ||
+                x < 0 ||
+                x > viewport.width ||
+                y < 0 ||
+                y > viewport.height
+            )
+                return undefined;
+            const frame = current,
+                mix = projectionMix(frame),
+                height = focusHeight(frame);
+            const horizontal = (((2 * x) / viewport.width - 1) * height * viewport.width) / viewport.height;
+            const vertical = (1 - (2 * y) / viewport.height) * height;
+            const offset = {
+                x: frame.right.x * horizontal + frame.up.x * vertical,
+                y: frame.right.y * horizontal + frame.up.y * vertical,
+                z: frame.right.z * horizontal + frame.up.z * vertical
+            };
+            const distance = Math.hypot(
+                frame.position.x - frame.center.x,
+                frame.position.y - frame.center.y,
+                frame.position.z - frame.center.z
+            );
+            const origin = {
+                x: frame.position.x + (1 - mix) * offset.x,
+                y: frame.position.y + (1 - mix) * offset.y,
+                z: frame.position.z + (1 - mix) * offset.z
+            };
+            const direction = {
+                x: -frame.out.x + (mix * offset.x) / distance,
+                y: -frame.out.y + (mix * offset.y) / distance,
+                z: -frame.out.z + (mix * offset.z) / distance
+            };
+            if (Math.abs(direction.y) < 1e-8) return undefined;
+            const travel = (groundYMm - origin.y) / direction.y;
+            if (travel < frame.near || travel > frame.far) return undefined;
+            return { x: origin.x + direction.x * travel, y: groundYMm, z: origin.z + direction.z * travel };
+        },
         onMove(listener) {
             listeners.add(listener);
             return () => {

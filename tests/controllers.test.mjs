@@ -59,6 +59,12 @@ test('site updates reuse four surfaces, hide zero regions, reject invalid dimens
     globalThis.document = {
         createElement() {
             return {
+                append() {
+                    /* DOM/engine stub for this test. */
+                },
+                setAttribute() {
+                    /* DOM/engine stub for this test. */
+                },
                 remove() {
                     /* Labels are not attached to a real DOM in this test. */
                 }
@@ -127,6 +133,56 @@ test('camera travels smoothly, retargets from its current pose, and finishes exa
             app.root.children.map((e) => e.enabled),
             [false, false, true]
         );
+    } finally {
+        camera.destroy();
+        app.destroy();
+    }
+});
+
+test('screen picking restores projected ground points across views, elevations and lens transitions', () => {
+    const app = createApp();
+    const camera = createCameraController(
+        app,
+        [
+            {
+                id: 'perspective',
+                label: 'Perspective',
+                projection: 'perspective',
+                direction: { x: 0.34, y: 0.84, z: 0.94 }
+            },
+            { id: 'orthographic', label: 'Orthographic', direction: { x: -1, y: 0.84, z: 0 } }
+        ],
+        { duration: 0.8 }
+    );
+    try {
+        const check = () => {
+            for (const point of [
+                { x: 1500, y: 0, z: 2500 },
+                { x: -2000, y: 300, z: -1000 }
+            ]) {
+                const projected = camera.project(point);
+                assert.equal(projected.visible, true);
+                const restored = camera.screenToGround(projected.x, projected.y, point.y);
+                assert.ok(restored);
+                for (const axis of ['x', 'y', 'z']) assert.ok(Math.abs(restored[axis] - point[axis]) < 1e-6);
+            }
+        };
+        for (const viewport of [
+            { width: 1000, height: 700 },
+            { width: 500, height: 900 }
+        ]) {
+            camera.fit({ min: { x: -10000, y: 0, z: -10000 }, max: { x: 10000, y: 8000, z: 10000 } }, viewport);
+            check();
+            camera.setView('orthographic');
+            app.fire('update', 0.4);
+            check();
+            app.fire('update', 0.4);
+            check();
+            camera.setView('perspective');
+            app.fire('update', 0.8);
+        }
+        assert.equal(camera.screenToGround(-1, 0), undefined);
+        assert.equal(camera.screenToGround(NaN, 0), undefined);
     } finally {
         camera.destroy();
         app.destroy();

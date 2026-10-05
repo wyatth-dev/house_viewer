@@ -11,6 +11,7 @@ import {
     createGraphicsDevice
 } from 'playcanvas';
 
+import { createPlacementController } from '../product-placement/controller.ts';
 import { loadHouse } from '../scene/house/house.ts';
 import { createLandscape, landscapeLayout } from '../scene/landscape/index.ts';
 import { createModelPreview } from '../scene/model-preview/index.ts';
@@ -24,21 +25,13 @@ import { createRendering, daylightConfig } from './rendering/index.ts';
 import { createSceneCoordinator } from './scene-controller.ts';
 import './style.css';
 
-import { calculateEnvelopeCorners } from '../product-placement/geometry.ts';
-import { createEnvelopeView } from '../product-placement/envelope-view.ts';
-import type {
-    CustomizableEnvelope,
-    InstallationWallFace
-} from '../product-placement/types.ts';
-
-
-
 export function startSiteDefinition() {
     const canvas = document.querySelector<HTMLCanvasElement>('#application-canvas')!;
     const viewport = document.querySelector<HTMLElement>('#viewport')!;
     const status = document.querySelector<HTMLElement>('#status')!;
     const panel = createPanel(document.querySelector<HTMLElement>('#panel')!);
     const lifetime = createLifetime();
+    lifetime.add(() => panel.destroy());
     const isDisposed = () => lifetime.signal.aborted;
     async function start() {
         const device = await createGraphicsDevice(canvas);
@@ -73,38 +66,37 @@ export function startSiteDefinition() {
         const site = createSiteController(app, house.footprint, document.querySelector<HTMLElement>('#measurements')!);
         lifetime.add(() => site.destroy());
 
-        // Temporary preview fixture; replace with calibrated wall data later.
-        const previewWall: InstallationWallFace = {
-            wallFaceId: 'preview-front',
-            structureId: 'house-1',
-            side: 'front',
-            originMm: {
-                x: -house.footprint.width / 2,
-                y: 0,
-                z: house.footprint.depth / 2
-            },
-            alongWallUnit: { x: 1, z: 0 },
-            outwardUnit: { x: 0, z: 1 },
-            lengthMm: house.footprint.width
-        };
+        const productChoice = document.querySelector<HTMLButtonElement>('#select-varenda')!;
+        const placement = createPlacementController(
+            app,
+            document.querySelector<HTMLElement>('#measurements')!,
+            house.footprint,
+            () => site.getLayout().property,
+            camera.project,
+            viewport,
+            productChoice,
+            camera.screenToGround,
+            lifetime.signal
+        );
+        lifetime.add(() => placement.destroy());
 
-        const previewEnvelope: CustomizableEnvelope = {
-            instanceId: 'preview-envelope',
-            productType: 'varenda',
-            attachment: {
-                kind: 'wall',
-                structureId: previewWall.structureId,
-                wallFaceId: previewWall.wallFaceId,
-                alongWallOffsetMm: (previewWall.lengthMm - 4000) / 2
-            },
-            widthMm: 4000,
-            depthMm: 2000
-        };
+        const selectProduct = () => placement.toggleProduct('varenda');
+        productChoice.addEventListener('click', selectProduct);
+        lifetime.add(() => productChoice.removeEventListener('click', selectProduct));
 
-        const envelopeView = createEnvelopeView(app);
-        lifetime.add(() => envelopeView.destroy());
-        envelopeView.update(
-            calculateEnvelopeCorners(previewEnvelope, previewWall)
+        lifetime.add(camera.onMove(placement.refreshLabels));
+        lifetime.add(
+            panel.onStepChange((step) => {
+                placement.setPlacementActive(step === 'placement');
+                site.setMeasurementsVisible(step === 'site');
+                // No prototype envelope is displayed before an actual placement exists.
+                placement.setVisible(false);
+                site.refreshLabels(camera.project);
+                document.title =
+                    step === 'placement'
+                        ? 'House & Ground — Product placement'
+                        : 'House & Ground — Define your property';
+            })
         );
 
         const landscape = createLandscape(app);
@@ -138,11 +130,22 @@ export function startSiteDefinition() {
                 if (!Object.keys(errors).length) {
                     dimensionControls.update(site.getLayout());
                     updateSiteContext();
+                    placement.refresh();
                 }
                 return errors;
             }
         );
         lifetime.add(() => dimensionControls.destroy());
+        site.setDimensionEditor((side, valueMm) => {
+            const candidate = { ...site.getState().dimensions, [side]: valueMm };
+            const errors = coordinator.setDimensions(candidate);
+            if (Object.keys(errors).length) return errors[side] ?? 'Invalid site dimensions.';
+            dimensionControls.syncDimensions(candidate);
+            dimensionControls.update(site.getLayout());
+            updateSiteContext();
+            placement.refresh();
+            return undefined;
+        });
         const viewControls = createCameraControls(panel.views, cameraPresets, (id) => {
             coordinator.setView(id);
             const preset = cameraPresets.find((candidate) => candidate.id === id)!;
@@ -160,6 +163,7 @@ export function startSiteDefinition() {
 
             app.resizeCanvas(width, height);
             coordinator.resize({ width, height });
+            placement.refreshLabels();
         };
 
         const observer = new ResizeObserver(resize);
@@ -205,6 +209,5 @@ export function startSiteDefinition() {
     if (import.meta.hot)
         import.meta.hot.dispose(() => {
             lifetime.dispose();
-            panel.destroy();
         });
 }

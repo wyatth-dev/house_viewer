@@ -51,6 +51,15 @@ export function createSiteControls(
     summaryHost.append(summary);
     host.append(root);
     return {
+        syncDimensions(value: Dimensions) {
+            for (const side of sides) {
+                drafts[side] = String(mmToMeters(value[side]));
+                const input = root.querySelector<HTMLInputElement>(`#dimension-${side}`)!;
+                input.value = drafts[side];
+                input.setAttribute('aria-invalid', 'false');
+                errors.get(side)!.textContent = '';
+            }
+        },
         update(layout: Layout) {
             summary.innerHTML = `<span>PROPERTY SIZE</span><strong>${mmToMeters(layout.width).toFixed(1)} <small>×</small> ${mmToMeters(layout.depth).toFixed(1)} <small>m</small></strong><span>${(mmToMeters(layout.width) * mmToMeters(layout.depth)).toFixed(1)} m² total area</span>`;
         },

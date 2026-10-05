@@ -410,3 +410,125 @@ h2 span {
 .typology-axon[hidden] {
     display: none;
 }
+
+.step-button {
+    width: 100%;
+    margin-top: 24px;
+    padding: 12px 16px;
+    border: 1px solid #233e34;
+    border-radius: 6px;
+    background: #233e34;
+    color: #fafbf7;
+}
+
+.step-button.secondary {
+    background: transparent;
+    color: #233e34;
+}
+
+.editable-measurement {
+    pointer-events: auto;
+}
+.editable-measurement button {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    padding: 0;
+}
+.editable-measurement button:disabled {
+    cursor: default;
+    opacity: 0.75;
+}
+.editable-measurement input {
+    width: 100px;
+    border: 1px solid #46846b;
+    border-radius: 3px;
+    padding: 3px 5px;
+}
+.measurement-error {
+    display: block;
+    white-space: normal;
+    max-width: 220px;
+    color: #a33c2e;
+}
+.measurement-error:empty {
+    display: none;
+}
+
+.product-catalog summary {
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 12px 0;
+}
+
+.product-option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #c9d4c7;
+    border-radius: 6px;
+    cursor: pointer;
+    width: 100%;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+}
+
+.product-placeholder {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    background: #e8ece8;
+    border-radius: 4px;
+    font-size: 24px;
+}
+
+.placed-products {
+    margin-top: 28px;
+}
+
+.product-option[aria-pressed='true'] {
+    border-color: #46846b;
+    background: #e6f0e9;
+}
+
+.placement-cursor {
+    position: absolute;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.placement-cursor[hidden] {
+    display: none;
+}
+
+.placement-cursor .product-placeholder {
+    background: #fafbf7ee;
+    border: 1px solid #46846b;
+    box-shadow: 0 3px 12px #233e3426;
+}
+
+#viewport.is-placing-product canvas {
+    cursor: crosshair;
+}
+
+.placement-feedback {
+    position: absolute;
+    left: 50%;
+    bottom: 60px;
+    transform: translateX(-50%);
+    padding: 10px 14px;
+    border: 1px solid #c9d4c7;
+    border-radius: 6px;
+    background: #fafbf7ee;
+    font-size: 12px;
+    pointer-events: none;
+    max-width: 80%;
+}
+.placement-feedback[hidden] {
+    display: none;
+}

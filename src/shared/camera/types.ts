@@ -12,6 +12,7 @@ export type CameraController = {
     fit(bounds: Bounds3, viewport: Viewport): void;
     getState(): CameraState;
     project: ProjectPoint;
+    screenToGround(x: number, y: number, groundYMm?: number): Point3 | undefined;
     onMove(listener: () => void): () => void;
     destroy(): void;
 };
