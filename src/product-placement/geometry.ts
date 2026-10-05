@@ -192,6 +192,7 @@ export function getPreviewDimensions(
     return {
         leftMm,
         rightMm: wall.lengthMm - leftMm - envelope.widthMm,
+        widthMm: envelope.widthMm,
         wallHeightMm
     };
 }
@@ -215,7 +216,7 @@ export function editPreviewDimension(
 
     switch (field) {
         case 'left':
-            offsetMm - valueMm;
+            offsetMm = valueMm;
             break;
 
         case 'right':
