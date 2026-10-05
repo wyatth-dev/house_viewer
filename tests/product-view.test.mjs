@@ -260,3 +260,33 @@ test('selecting components highlights their installed screws without selecting s
         assert.deepEqual(highlighted(cap.fastenerInstanceId, [cap.endCapHoleRef.partInstanceId]), [cap.fastenerInstanceId]);
     } finally { view.destroy(); scene.root.destroy(); }
 });
+
+
+test('rafter, end rafter and wall plate selections highlight their endcaps and screws', async () => {
+    const { BoundingBox, StandardMaterial } = await import('playcanvas');
+    const { solveVarenda } = await import('../src/products/parametric-engine/varenda/solution.ts');
+    const solution = solveVarenda(defaultVarendaParams);
+    const scene = { root: new Entity('scene') };
+    const view = await createVarendaView(scene, {
+        load: async () => ({ instantiateRenderEntity() {
+            const entity = new Entity('mesh');
+            entity.addChild(new Entity('5110010015 - Veranda Ring beam Swivel v2'));
+            entity.addChild(new Entity('5110010035 - Veranda Wallplate Swivel v2'));
+            Object.defineProperty(entity, 'render', { value: {
+                meshInstances: [{ material: new StandardMaterial(), aabb: new BoundingBox() }]
+            } });
+            return entity;
+        } })
+    });
+    try {
+        view.update(solution);
+        const caps = [...solution.rafterEndCaps.plates, ...solution.endCaps.plates];
+        for (const cap of caps) {
+            const owner = cap.rafterRef?.instanceId ?? `${cap.railRef.instanceId}-moving`;
+            view.select([owner]);
+            assert.equal(view.root.findByName(cap.instanceId).render.meshInstances[0].material.opacity, 1, owner);
+            const unrelated = caps.find(part => (part.rafterRef?.instanceId ?? `${part.railRef.instanceId}-moving`) !== owner);
+            assert.equal(view.root.findByName(unrelated.instanceId).render.meshInstances[0].material.opacity, 0.12);
+        }
+    } finally { view.destroy(); scene.root.destroy(); }
+});

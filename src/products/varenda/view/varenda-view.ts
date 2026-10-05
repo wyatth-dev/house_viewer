@@ -55,6 +55,7 @@ export async function createVarendaView(
     let registry = new Map<string, Entity[]>();
     let hardware: InstalledFastener[] = [];
     let installations = new Map<string, readonly string[]>();
+    let endCapIds = new Set<string>();
     let machining: VarendaGeometry['machining'];
     let fastenerAxesVisible = true;
     let selected = new Set<string>();
@@ -134,7 +135,7 @@ export async function createVarendaView(
                 if (visited.has(id)) continue;
                 visited.add(id);
                 for (const child of installations.get(id) ?? []) {
-                    if (fastenerIds.has(child)) selected.add(child);
+                    if (fastenerIds.has(child) || endCapIds.has(child)) selected.add(child);
                     pending.push(child);
                 }
             }
@@ -363,6 +364,14 @@ export async function createVarendaView(
             }
             hardware = getInstalledFasteners(solution);
             installations = buildInstallationMenus(solution);
+            endCapIds = new Set([
+                ...(solution.rafterEndCaps?.plates ?? []).map((cap) => cap.instanceId),
+                ...(solution.endCaps?.plates ?? []).map((cap) => cap.instanceId)
+            ]);
+            for (const cap of solution.endCaps?.plates ?? []) {
+                const owner = `${cap.railRef.instanceId}-moving`;
+                installations.set(owner, [...(installations.get(owner) ?? []), cap.instanceId]);
+            }
             machining = solution.machining;
         },
         destroy() {

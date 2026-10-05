@@ -88,8 +88,7 @@ async function fixture(run, withMeshes = false) {
             'products-empty',
             'placed-product-detail',
             'placed-product-detail-content',
-            'placed-production-list',
-            'placement-production',
+            'site-back',
             'placement-overview',
             'product-customization-navigation',
             'product-edit-exit',
@@ -241,6 +240,7 @@ test('further editing updates the placed instance and production list without le
         list.children[0].children[1].children.find((item) => item.title === 'Edit Varenda 1').onclick();
         const detail = elements.get('placed-product-detail');
         assert.equal(detail.hidden, false);
+        assert.equal(elements.get('site-back').hidden, true);
         const fields = elements.get('placed-product-detail-content').children[1].children[0];
         fields.children[2].children[0].value = '1200';
         fields.children[2].children[0].oninput();
@@ -248,10 +248,7 @@ test('further editing updates the placed instance and production list without le
         assert.equal(first.children[0].children.filter((entity) => entity.name.startsWith('post-column-')).length, 4);
         elements.get('product-edit-exit').onclick();
         assert.equal(detail.hidden, true);
-        elements.get('placement-production').onclick();
-        const production = elements.get('placed-production-list');
-        assert.equal(production.hidden, false);
-        assert.equal(production.children[2].children[0].textContent, 'Varenda 1');
+        assert.equal(elements.get('site-back').hidden, false);
         controller.setPlacementActive(false);
         controller.setPlacementActive(true);
         assert.equal(list.children.length, 1);

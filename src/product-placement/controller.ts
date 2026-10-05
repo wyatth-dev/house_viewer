@@ -63,7 +63,6 @@ export function createPlacementController(
     let pointerInside = false;
     let selectedId: string | undefined;
     let detailId: string | undefined;
-    let productionVisible = false;
     let disposed = false;
     let committing = false;
     let serial = 0;
@@ -81,8 +80,7 @@ export function createPlacementController(
     const exitEdit = document.querySelector<HTMLButtonElement>('#product-edit-exit')!;
     const parameterTab = document.querySelector<HTMLButtonElement>('#product-edit-parameters')!;
     const partsTab = document.querySelector<HTMLButtonElement>('#product-edit-parts')!;
-    const production = document.querySelector<HTMLElement>('#placed-production-list')!;
-    const productionButton = document.querySelector<HTMLButtonElement>('#placement-production')!;
+    const siteBack = document.querySelector<HTMLButtonElement>('#site-back')!;
 
     const cursorIcon = document.createElement('div');
     cursorIcon.className = 'placement-cursor';
@@ -175,7 +173,7 @@ export function createPlacementController(
     let refreshDetail: (() => void) | undefined;
     let editDetailParameter: ((key: keyof VarendaParams, valueMm: number) => string | undefined) | undefined;
     const readDimensionState = () => {
-        if (!placementActive || detailId || productionVisible) return undefined;
+        if (!placementActive || detailId) return undefined;
         if (isPlacing()) return preview.getDimensionState();
         const instance = selected();
         return instance
@@ -287,6 +285,7 @@ export function createPlacementController(
         detail.hidden = !customizing;
         editNavigation.hidden = !customizing;
         exitEdit.hidden = !customizing;
+        siteBack.hidden = !placementActive || customizing;
         if (!placementActive) return;
         const heading = document.querySelector<HTMLElement>('#step-heading')!;
         const title = document.querySelector<HTMLElement>('#step-title')!;
@@ -324,10 +323,6 @@ export function createPlacementController(
         selectedRow = undefined;
         menus.clear();
         syncDetailContext();
-    };
-    const closeProduction = () => {
-        productionVisible = false;
-        production.hidden = true;
     };
     const renderDetailParts = (instance: PlacedProduct, host: HTMLElement) => {
         syncDetailContext();
@@ -371,7 +366,6 @@ export function createPlacementController(
     };
     const openDetail = (instance: PlacedProduct) => {
         selectedProduct = undefined;
-        closeProduction();
         closeDetail();
         selectedId = instance.id;
         detailId = instance.id;
@@ -502,7 +496,6 @@ export function createPlacementController(
     function renderCards() {
         list.replaceChildren();
         empty.hidden = instances.size > 0;
-        productionButton.disabled = instances.size === 0;
         for (const instance of instances.values()) {
             const card = document.createElement('article');
             card.className = 'placed-product-card';
@@ -510,7 +503,6 @@ export function createPlacementController(
             const select = button('', () => {
                 selectedProduct = undefined;
                 closeDetail();
-                closeProduction();
                 selectedId = selectedId === instance.id ? undefined : instance.id;
                 syncPlacementMode();
                 refreshAvailableAreas();
@@ -540,7 +532,6 @@ export function createPlacementController(
                         'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7',
                         () => {
                             closeDetail();
-                            closeProduction();
                             instance.view.destroy();
                             instances.delete(instance.id);
                             selectedId = undefined;
@@ -556,40 +547,6 @@ export function createPlacementController(
             list.append(card);
         }
     }
-    const showProduction = () => {
-        selectedProduct = undefined;
-        closeDetail();
-        productionVisible = true;
-        syncPlacementMode();
-        refreshAvailableAreas();
-        production.replaceChildren();
-        production.hidden = false;
-        const title = document.createElement('h3');
-        title.textContent = 'Final production list';
-        production.append(
-            title,
-            button('Back to placement', () => {
-                closeProduction();
-                focus?.(undefined);
-            })
-        );
-        for (const instance of instances.values()) {
-            const section = document.createElement('section');
-            section.className = 'placed-production-product';
-            const heading = document.createElement('h4');
-            heading.textContent = instance.name;
-            const parts = document.createElement('div');
-            section.append(heading, parts);
-            production.append(section);
-            renderProductionList(
-                parts,
-                groupProductionRows(buildProductionList(solveVarenda(instance.params))),
-                undefined,
-                () => openDetail(instance)
-            );
-        }
-    };
-    productionButton.onclick = showProduction;
     const followPointer = (event: PointerEvent) => {
         if (event.pointerType === 'touch' || !isPlacing() || committing) return;
         const bounds = viewport.getBoundingClientRect();
@@ -655,7 +612,6 @@ export function createPlacementController(
             selectedId = undefined;
             selectedProduct = undefined;
             closeDetail();
-            closeProduction();
             renderCards();
             showFeedback();
         } catch (error) {
@@ -696,7 +652,6 @@ export function createPlacementController(
         setProduct(product: 'varenda' | undefined) {
             if (committing) return;
             closeDetail();
-            closeProduction();
             selectedProduct = product;
             if (product) {
                 selectedId = undefined;
@@ -710,7 +665,6 @@ export function createPlacementController(
         toggleProduct(product: 'varenda') {
             if (committing) return;
             closeDetail();
-            closeProduction();
             selectedProduct = selectedProduct === product ? undefined : product;
             if (selectedProduct) {
                 selectedId = undefined;
@@ -723,10 +677,10 @@ export function createPlacementController(
         },
         setPlacementActive(active: boolean) {
             placementActive = active;
+            siteBack.hidden = !active || Boolean(detailId);
             if (!active) {
                 selectedProduct = undefined;
                 closeDetail();
-                closeProduction();
             }
             syncPlacementMode();
             refreshAvailableAreas();
@@ -748,7 +702,6 @@ export function createPlacementController(
             viewport.removeEventListener('pointerdown', pointerDown);
             viewport.removeEventListener('pointerup', confirm);
             window.removeEventListener('keydown', cancelPlacement);
-            productionButton.onclick = null;
             exitEdit.onclick = null;
             parameterTab.onclick = null;
             partsTab.onclick = null;

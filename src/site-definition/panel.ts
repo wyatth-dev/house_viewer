@@ -8,6 +8,7 @@ export function createPanel(host: HTMLElement) {
         <fieldset id="shared-view-controls" disabled>
             <section>
                 <button type="button" id="product-edit-exit" class="product-edit-back" hidden><span aria-hidden="true">←</span> Exit product edit</button>
+                <button type="button" id="site-back" class="product-edit-back" hidden><span aria-hidden="true">←</span> Back to site setup</button>
                 <h2>Your perspective</h2>
                 <div id="view-controls"></div>
                 <p class="hint view-hint">Four fixed views. No dragging required.</p>
@@ -79,8 +80,6 @@ export function createPanel(host: HTMLElement) {
                 <div id="product-instance-list"></div>
             </section>
 
-                <button type="button" class="step-button" id="placement-production" disabled>Final production list</button>
-                <button type="button" class="step-button secondary" id="site-back">Back to site setup</button>
                 </div>
                 <section id="placed-product-detail" hidden>
         <div id="product-customization-navigation" class="product-customization-navigation" hidden>
@@ -89,7 +88,6 @@ export function createPanel(host: HTMLElement) {
         </div>
                     <div id="placed-product-detail-content"></div>
                 </section>
-                <section id="placed-production-list" hidden></section>
             </fieldset>
         </div>
     `;
@@ -109,6 +107,7 @@ export function createPanel(host: HTMLElement) {
         host.querySelector<HTMLElement>('#step-description')!.textContent = isSite
             ? 'Give your house room to grow.'
             : 'Select a product, then choose an available area.';
+        back.hidden = isSite;
         siteStep.hidden = step !== 'site';
         placementStep.hidden = step !== 'placement';
         host.scrollTop = 0;
