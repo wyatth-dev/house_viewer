@@ -11,6 +11,8 @@ import { applyTerrainSampling } from './terrain-sampling.ts';
 /** Own the realistic outer ring; the existing neutral ground remains the loading fallback. */
 export function createSurroundingsMaterial(app: AppBase) {
     const abort = new AbortController();
+    let visible = true;
+    let root: Entity | undefined;
     let latest: Bounds3 | undefined;
     let release: (() => void) | undefined;
     let updateMesh: ((bounds: Bounds3) => void) | undefined;
@@ -26,10 +28,11 @@ export function createSurroundingsMaterial(app: AppBase) {
                 return;
             }
             const mesh = new Mesh(app.graphicsDevice);
-            const root = new Entity('Realistic surroundings');
+            const entity = new Entity('Realistic surroundings');
+            root = entity;
             release = () => {
-                const meshOwnedByEntity = !!root.render;
-                root.destroy();
+                const meshOwnedByEntity = !!entity.render;
+                entity.destroy();
                 if (!meshOwnedByEntity) mesh.destroy();
                 asset.destroy();
             };
@@ -46,17 +49,17 @@ export function createSurroundingsMaterial(app: AppBase) {
                 mesh.update();
             };
             if (latest) updateMesh(latest);
-            root.addComponent('render', {
+            entity.addComponent('render', {
                 meshInstances: [new MeshInstance(mesh, asset.material)],
                 castShadows: false,
                 receiveShadows: true
             });
-            root.enabled = !!latest;
-            app.root.addChild(root);
+            entity.enabled = visible && !!latest;
+            app.root.addChild(entity);
             const update = updateMesh;
             updateMesh = (bounds) => {
                 update(bounds);
-                root.enabled = true;
+                entity.enabled = visible;
             };
         })
         .catch((error) => {
@@ -68,6 +71,10 @@ export function createSurroundingsMaterial(app: AppBase) {
         });
     return {
         ready,
+        setVisible(value: boolean) {
+            visible = value;
+            if (root) root.enabled = value && Boolean(latest);
+        },
         updateBounds(bounds: Bounds3) {
             latest = structuredClone(bounds);
             updateMesh?.(bounds);

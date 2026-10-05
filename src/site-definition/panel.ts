@@ -7,6 +7,7 @@ export function createPanel(host: HTMLElement) {
         </div>
         <fieldset id="shared-view-controls" disabled>
             <section>
+                <button type="button" id="product-edit-exit" class="product-edit-back" hidden><span aria-hidden="true">←</span> Exit product edit</button>
                 <h2>Your perspective</h2>
                 <div id="view-controls"></div>
                 <p class="hint view-hint">Four fixed views. No dragging required.</p>
@@ -42,6 +43,7 @@ export function createPanel(host: HTMLElement) {
         </div>
         <div id="placement-step" hidden>
             <fieldset id="placement-controls" disabled>
+                <div id="placement-overview">
                 
             <section>
                 <details class="product-catalog" open>
@@ -76,8 +78,18 @@ export function createPanel(host: HTMLElement) {
                 </p>
                 <div id="product-instance-list"></div>
             </section>
-            
+
+                <button type="button" class="step-button" id="placement-production" disabled>Final production list</button>
                 <button type="button" class="step-button secondary" id="site-back">Back to site setup</button>
+                </div>
+                <section id="placed-product-detail" hidden>
+        <div id="product-customization-navigation" class="product-customization-navigation" hidden>
+            <button type="button" id="product-edit-parameters" aria-pressed="true">Parameters</button>
+            <button type="button" id="product-edit-parts" aria-pressed="false">Production list</button>
+        </div>
+                    <div id="placed-product-detail-content"></div>
+                </section>
+                <section id="placed-production-list" hidden></section>
             </fieldset>
         </div>
     `;

@@ -31,6 +31,7 @@ export function createSiteController(app: AppBase, footprint: Footprint, overlay
             min: { x: layout.property.minX, y: 0, z: layout.property.minZ },
             max: { x: layout.property.maxX, y: 60, z: layout.property.maxZ }
         }),
+        setVisible: ground.setVisible,
         setMeasurementsVisible: measurements.setVisible,
         setDimensionEditor: measurements.setEditor,
         refreshLabels: (project) => measurements.refresh(project),

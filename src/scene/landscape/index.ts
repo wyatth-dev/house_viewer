@@ -87,6 +87,9 @@ export function createLandscape(app: AppBase) {
         root.addChild(entity);
     }
     return {
+        setVisible(value: boolean) {
+            root.enabled = value;
+        },
         updateBounds(property: Bounds3) {
             const layout = landscapeLayout(property);
             layout.trees.forEach((pose, i) => {

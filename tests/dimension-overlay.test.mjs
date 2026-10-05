@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { createDimensionOverlay } from '../src/shared/measurements/dimension-overlay.ts';
 
-function fixture(run) {
+function fixture(run, onInteractionChange) {
     const oldDocument = globalThis.document;
     const element = () => ({
         children: [],
@@ -47,7 +47,7 @@ function fixture(run) {
         }
     };
     const host = { ...element(), clientWidth: 800, clientHeight: 600 };
-    const view = createDimensionOverlay(app, host);
+    const view = createDimensionOverlay(app, host, onInteractionChange);
     try {
         run(view, host);
     } finally {
@@ -155,4 +155,75 @@ test('reference distances cannot open an editor', () =>
         assert.equal(button.disabled, true);
         button.onclick();
         assert.equal(input.hidden, true);
+    }));
+
+test('hover and editing keep placement frozen; Escape stops propagation and releases after leaving', () => {
+    const interactions = [];
+    fixture(
+        (view, host) => {
+            view.update([{ ...annotation, edit: () => undefined }]);
+            const root = host.children[0],
+                [button, input] = root.children;
+            root.onpointerenter();
+            assert.equal(interactions.at(-1), true);
+            button.onclick();
+            root.onpointerleave();
+            assert.equal(interactions.at(-1), true);
+            assert.equal(view.isEditing(), true);
+            let stopped = false;
+            input.onkeydown({
+                key: 'Escape',
+                preventDefault() {
+                    /* DOM test stub. */
+                },
+                stopPropagation() {
+                    stopped = true;
+                }
+            });
+            assert.equal(stopped, true);
+            assert.equal(view.isEditing(), false);
+            assert.equal(interactions.at(-1), false);
+        },
+        (active) => interactions.push(active)
+    );
+});
+
+test('dimension lock toggles independently and blocks editing until unlocked', () =>
+    fixture((view, host) => {
+        let locked = false;
+        const update = () => view.update([{ ...annotation, locked, edit: () => undefined,
+            toggleLock: () => { locked = !locked; update(); } }]);
+        update();
+        const [button, input, , lock] = host.children[0].children;
+        assert.ok(lock);
+        assert.equal(lock.hidden, false);
+        lock.onclick({ stopPropagation() { /* DOM test stub. */ } });
+        assert.equal(locked, true);
+        assert.equal(button.disabled, true);
+        button.onclick();
+        assert.equal(input.hidden, true);
+        lock.onclick({ stopPropagation() { /* DOM test stub. */ } });
+        assert.equal(button.disabled, false);
+        button.onclick();
+        assert.equal(input.hidden, false);
+    }));
+
+test('frame updates keep lock icon nodes stable throughout a pointer click', () =>
+    fixture((view, host) => {
+        const data = { ...annotation, edit: () => undefined, locked: false,
+            toggleLock() { /* DOM test stub. */ } };
+        view.update([data]);
+        const lock = host.children[0].children[3];
+        let writes = 0;
+        let markup = lock.innerHTML;
+        Object.defineProperty(lock, 'innerHTML', {
+            get: () => markup,
+            set: (value) => { writes++; markup = value; }
+        });
+        for (let frame = 0; frame < 10; frame++) view.update([data]);
+        assert.equal(writes, 0, 'pointer-down icon must survive until pointer-up');
+        view.update([{ ...data, locked: true }]);
+        assert.equal(writes, 1);
+        view.update([{ ...data, locked: true }]);
+        assert.equal(writes, 1);
     }));

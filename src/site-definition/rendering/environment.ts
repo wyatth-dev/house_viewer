@@ -76,6 +76,10 @@ export function createEnvironment(app: AppBase) {
     ground.setLocalScale(daylightConfig.groundSize, 1, daylightConfig.groundSize);
     app.root.addChild(ground);
     return {
+        setVisible(value: boolean) {
+            ground.enabled = value;
+            app.scene.skybox = value ? sky : null;
+        },
         updateBounds(bounds: Bounds3) {
             ground.setPosition(
                 (bounds.min.x + bounds.max.x) / 2,

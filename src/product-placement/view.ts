@@ -1,14 +1,13 @@
 import { BLEND_NORMAL, Color, Entity, StandardMaterial, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
+
+import type { VarendaParams } from '../products/parametric-engine/varenda/parameters.ts';
 import type { ProjectPoint } from '../shared/geometry/types.ts';
 import { createDimensionOverlay } from '../shared/measurements/dimension-overlay.ts';
-import type {
-    CustomizableEnvelope,
-    InstallationWallFace
-} from './types.ts';
 
-import { calculateEnvelopeCorners } from './geometry.ts';
+import { getPlacementDimensionPoints, getProductParameterDimensions } from './geometry.ts';
 import type { EnvelopeCorners } from './geometry.ts';
+import type { CustomizableEnvelope, InstallationWallFace } from './types.ts';
 
 export function createEnvelopeView(app: AppBase) {
     let points: Vec3[] = [];
@@ -151,23 +150,38 @@ export function createPreviewMeasurements(
     app: AppBase,
     overlay: HTMLElement,
     project: ProjectPoint,
-    readState: () => {
-        wall: InstallationWallFace;
-        envelope: CustomizableEnvelope;
-        dimensions: {
-            leftMm: number;
-            rightMm: number;
-            widthMm: number;
-        };
-    } | undefined
+    readState: () =>
+        | {
+              wall: InstallationWallFace;
+              envelope: CustomizableEnvelope;
+              showWidth?: boolean;
+              readOnly?: boolean;
+              lockedDimensions?: ReadonlySet<'left' | 'right' | 'width' | 'wallHeight'>;
+              dimensions: {
+                  leftMm: number;
+                  rightMm: number;
+                  widthMm: number;
+              };
+          }
+        | undefined,
+    edit?: (field: 'left' | 'right' | 'width', valueMm: number) => string | undefined,
+    onInteractionChange?: (active: boolean) => void,
+    toggleLock?: (field: 'left' | 'right' | 'width') => void
 ) {
-    const measurements = createDimensionOverlay(app, overlay);
+    const measurements = createDimensionOverlay(app, overlay, onInteractionChange);
     measurements.setVisible(false);
 
     let visible = false;
+    let stateKey: string | undefined;
 
     const update = () => {
         const state = readState();
+        const nextKey = state ? `${state.envelope.instanceId}:${state.wall.wallFaceId}` : undefined;
+        if (nextKey !== stateKey) {
+            measurements.setVisible(false);
+            visible = false;
+            stateKey = nextKey;
+        }
 
         if (Boolean(state) !== visible) {
             visible = Boolean(state);
@@ -177,45 +191,43 @@ export function createPreviewMeasurements(
         if (!state) return;
 
         const { wall, envelope, dimensions } = state;
-        const corners = calculateEnvelopeCorners(envelope, wall);
-
-        // Place the horizontal dimension chain beyond the product's outer edge.
-        const dimensionOffsetMm = envelope.depthMm + 600;
-        const raised = (point: typeof wall.originMm) => ({
-            x: point.x + wall.outwardUnit.x * dimensionOffsetMm,
-            y: point.y + 80,
-            z: point.z + wall.outwardUnit.z * dimensionOffsetMm
-        });
-
-        const wallEnd = {
-            x: wall.originMm.x + wall.alongWallUnit.x * wall.lengthMm,
-            y: wall.originMm.y,
-            z: wall.originMm.z + wall.alongWallUnit.z * wall.lengthMm
-        };
+        const points = getPlacementDimensionPoints(envelope, wall);
 
         measurements.update([
             {
                 id: 'preview-left',
                 label: 'Left clearance',
-                start: raised(wall.originMm),
-                end: raised(corners.wallStart),
-                valueMm: dimensions.leftMm
+                start: points.wallStart,
+                end: points.productStart,
+                numericOnly: state.readOnly,
+                valueMm: dimensions.leftMm,
+                edit: !state.readOnly && edit ? (value: number) => edit('left', value) : undefined,
+                locked: state.lockedDimensions?.has('left') ?? false,
+                toggleLock: !state.readOnly && toggleLock ? () => { toggleLock('left'); update(); } : undefined
             },
             {
                 id: 'preview-width',
                 label: 'Width',
-                start: raised(corners.wallStart),
-                end: raised(corners.wallEnd),
-                valueMm: dimensions.widthMm
+                start: points.productStart,
+                end: points.productEnd,
+                numericOnly: state.readOnly,
+                valueMm: dimensions.widthMm,
+                edit: !state.readOnly && edit ? (value: number) => edit('width', value) : undefined,
+                locked: state.lockedDimensions?.has('width') ?? false,
+                toggleLock: !state.readOnly && toggleLock ? () => { toggleLock('width'); update(); } : undefined
             },
             {
                 id: 'preview-right',
                 label: 'Right clearance',
-                start: raised(corners.wallEnd),
-                end: raised(wallEnd),
-                valueMm: dimensions.rightMm
+                start: points.productEnd,
+                end: points.wallEnd,
+                numericOnly: state.readOnly,
+                valueMm: dimensions.rightMm,
+                edit: !state.readOnly && edit ? (value: number) => edit('right', value) : undefined,
+                locked: state.lockedDimensions?.has('right') ?? false,
+                toggleLock: !state.readOnly && toggleLock ? () => { toggleLock('right'); update(); } : undefined
             }
-        ]);
+        ].filter((dimension) => state.showWidth !== false || dimension.id !== 'preview-width'));
 
         measurements.refresh(project);
     };
@@ -223,9 +235,45 @@ export function createPreviewMeasurements(
     app.on('update', update);
 
     return {
+        isEditing: measurements.isEditing,
         destroy() {
             app.off('update', update);
             measurements.destroy();
         }
     };
+}
+
+/** Reuses the same click editor and lock controls as placement annotations. */
+export function createProductParameterMeasurements(
+    app: AppBase, overlay: HTMLElement, project: ProjectPoint,
+    readState: () => { envelope: CustomizableEnvelope; wall: InstallationWallFace;
+        params: VarendaParams; locked: ReadonlySet<keyof VarendaParams> } | undefined,
+    edit: (key: keyof VarendaParams, valueMm: number) => string | undefined,
+    toggleLock: (key: keyof VarendaParams) => void
+) {
+    const measurements = createDimensionOverlay(app, overlay);
+    let instanceId: string | undefined;
+    let visible = false;
+    measurements.setVisible(false);
+    const update = () => {
+        const state = readState();
+        if (state?.envelope.instanceId !== instanceId) {
+            measurements.setVisible(false);
+            instanceId = state?.envelope.instanceId;
+            visible = false;
+        }
+        if (Boolean(state) !== visible) {
+            visible = Boolean(state);
+            measurements.setVisible(visible);
+        }
+        if (!state) return;
+        measurements.update(getProductParameterDimensions(state.envelope, state.wall, state.params).map((dimension) => ({
+            ...dimension, id: `product-parameter-${dimension.key}`,
+            edit: (value) => edit(dimension.key, value), locked: state.locked.has(dimension.key),
+            toggleLock: () => { toggleLock(dimension.key); update(); }
+        })));
+        measurements.refresh(project);
+    };
+    app.on('update', update);
+    return { destroy() { app.off('update', update); measurements.destroy(); } };
 }

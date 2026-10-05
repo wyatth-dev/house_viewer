@@ -12,7 +12,14 @@ export const focusHeight = (frame: Frame) =>
           ? length(frame.position, frame.center) * frame.tanHalfFov!
           : frame.halfHeight;
 /** Orbit on the shortest yaw arc; never lerp positions through the house. */
-export function transitionFrame(from: Frame, to: Frame, progress: number, bounds: Bounds3, viewport: Viewport): Frame {
+export function transitionFrame(
+    from: Frame,
+    to: Frame,
+    progress: number,
+    bounds: Bounds3,
+    viewport: Viewport,
+    containBounds = true
+): Frame {
     if (progress <= 0) return from;
     if (progress >= 1) return to;
     const t = progress * progress * (3 - 2 * progress);
@@ -37,12 +44,12 @@ export function transitionFrame(from: Frame, to: Frame, progress: number, bounds
                 points.push({ x: x - center.x, y: y - center.y, z: z - center.z });
     const maxDepth = Math.max(...points.map((p) => Math.abs(dot(p, out))));
     const distance = Math.max(
-        maxDepth + 1,
+        containBounds ? maxDepth + 1 : 1,
         lerp(length(from.position, from.center), length(to.position, to.center), t)
     );
     let halfHeight = lerp(focusHeight(from), focusHeight(to), t);
     const aspect = Math.max(1, viewport.width) / Math.max(1, viewport.height);
-    for (const p of points) {
+    for (const p of containBounds ? points : []) {
         const w = 1 - mix + (mix * (distance - dot(p, out))) / distance;
         halfHeight = Math.max(
             halfHeight,

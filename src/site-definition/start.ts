@@ -60,23 +60,36 @@ export function startSiteDefinition() {
         lifetime.add(() => rendering.destroy());
         const camera = createCameraController(app, cameraPresets, {
             ...daylightConfig.camera,
-            duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 0.8
+            duration: 0.8
         });
         lifetime.add(() => camera.destroy());
         const site = createSiteController(app, house.footprint, document.querySelector<HTMLElement>('#measurements')!);
         lifetime.add(() => site.destroy());
 
+        const landscape = createLandscape(app);
+        lifetime.add(() => landscape.destroy());
+
         const productChoice = document.querySelector<HTMLButtonElement>('#select-varenda')!;
         const placement = createPlacementController(
             app,
             document.querySelector<HTMLElement>('#measurements')!,
-            house.footprint,
             () => site.getLayout().property,
             camera.project,
             viewport,
             productChoice,
             camera.screenToGround,
-            lifetime.signal
+            lifetime.signal,
+            (bounds, basis) => {
+                const size = { width: viewport.clientWidth, height: viewport.clientHeight };
+                if (bounds) camera.fit(bounds, size, true, basis);
+                else coordinator.resize(size, true);
+            },
+            (visible) => {
+                house.entity.enabled = visible;
+                site.setVisible(visible);
+                landscape.setVisible(visible);
+                rendering.setContextVisible(visible);
+            }
         );
         lifetime.add(() => placement.destroy());
 
@@ -89,8 +102,7 @@ export function startSiteDefinition() {
             panel.onStepChange((step) => {
                 placement.setPlacementActive(step === 'placement');
                 site.setMeasurementsVisible(step === 'site');
-                // No prototype envelope is displayed before an actual placement exists.
-                placement.setVisible(false);
+                coordinator.resize({ width: viewport.clientWidth, height: viewport.clientHeight }, true);
                 site.refreshLabels(camera.project);
                 document.title =
                     step === 'placement'
@@ -98,9 +110,6 @@ export function startSiteDefinition() {
                         : 'House & Ground — Define your property';
             })
         );
-
-        const landscape = createLandscape(app);
-        lifetime.add(() => landscape.destroy());
 
         const updateSiteContext = () => {
             const bounds = site.getBounds();
@@ -163,6 +172,8 @@ export function startSiteDefinition() {
 
             app.resizeCanvas(width, height);
             coordinator.resize({ width, height });
+            const detailBounds = placement.focusBounds();
+            if (detailBounds) camera.fit(detailBounds, { width, height }, false, placement.focusBasis());
             placement.refreshLabels();
         };
 

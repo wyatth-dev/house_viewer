@@ -61,3 +61,27 @@ test('rendering context is the immediate navigation parent, including different 
     ]);
     assert.deepEqual(selectionContext(undefined, ['column-1']), []);
 });
+
+test('every screw selected from a Footplate menu keeps that Footplate as its parent', async () => {
+    const { navigateInstance, selectionContext } = await import('../src/customization/selection-state.ts');
+    let selected = navigateInstance(undefined, 'footplate-1', 'direct');
+    for (const id of ['screw-1', 'screw-2', 'screw-3', 'screw-1']) {
+        selected = navigateInstance(selected, id, 'related', 'footplate-1');
+        assert.deepEqual(selected.path, ['footplate-1', id]);
+        assert.deepEqual(selectionContext(selected, ['footplate-1', 'footplate-2']), ['footplate-1']);
+    }
+    const post = navigateInstance(undefined, 'post-1', 'direct');
+    const foot = navigateInstance(post, 'footplate-1', 'related', 'post-1');
+    const screw = navigateInstance(foot, 'screw-1', 'related', 'footplate-1');
+    assert.deepEqual(screw.path, ['post-1', 'footplate-1', 'screw-1']);
+    assert.deepEqual(selectionContext(screw, []), ['footplate-1']);
+});
+
+test('clicking a selected part returns to its parent, or its group for a root instance', async () => {
+    const { toggleInstance } = await import('../src/customization/selection-state.ts');
+    const foot = toggleInstance(undefined, 'foot-1', 'direct');
+    const screw = toggleInstance(foot, 'screw-1', 'related', 'foot-1');
+    assert.deepEqual(toggleInstance(screw, 'screw-1', 'related', 'foot-1'), foot);
+    assert.equal(toggleInstance(foot, 'foot-1', 'direct'), undefined);
+    assert.deepEqual(toggleInstance(screw, 'screw-2', 'related', 'foot-1').path, ['foot-1', 'screw-2']);
+});

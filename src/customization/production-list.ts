@@ -39,7 +39,7 @@ export function renderProductionList(
     selectedId: string | undefined,
     onSelect: (id: string, navigation?: InstanceNavigation) => void,
     instanceSelection?: InstanceSelection,
-    onInstance: (id: string, navigation?: InstanceNavigation, menuId?: string) => void = () => {
+    onInstance: (id: string, navigation?: InstanceNavigation, menuId?: string, parentId?: string) => void = () => {
         /* Optional instance navigation. */
     },
     menus: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
@@ -104,7 +104,7 @@ export function renderProductionList(
                         : id.startsWith('post-column-')
                           ? `Column ${id.slice('post-column-'.length)}`
                           : instanceLabel(id, rows);
-                    tag.setAttribute('aria-pressed', String(activeInstance === id));
+                    tag.setAttribute('aria-pressed', String(instanceSelection?.id === id));
                     tag.onclick = () => onInstance(id, 'direct', row.id);
                     instances.append(tag);
                 }
@@ -130,7 +130,7 @@ export function renderProductionList(
                         button.type = 'button';
                         button.textContent = `${part.label} · ${instanceLabel(id, rows)}`;
                         button.setAttribute('aria-pressed', String(instanceSelection.id === id));
-                        button.onclick = () => onInstance(id, 'related', row.id);
+                        button.onclick = () => onInstance(id, 'related', row.id, activeInstance);
                         parts.append(button);
                     }
                     if (!ids.length) {

@@ -21,9 +21,10 @@ export function createGround(app: AppBase) {
         root.addChild(e);
         planes.set(side, e);
     }
+    let visible = true;
     let layout: Layout | undefined;
     const draw = () => {
-        if (!layout) return;
+        if (!layout || !visible) return;
         const p = layout.property;
         const pts = [
             new Vec3(p.minX, 25, p.minZ),
@@ -35,6 +36,10 @@ export function createGround(app: AppBase) {
     };
     app.on('update', draw);
     return {
+        setVisible(value: boolean) {
+            visible = value;
+            root.enabled = value;
+        },
         update(next: Layout) {
             layout = next;
             for (const side of sides) {

@@ -55,7 +55,15 @@ test('container errors identify requested asset and cancellation rejects promptl
         /gutter.glb/
     );
     const abort = new AbortController();
-    const pending = loadContainer({ loadFromUrl() { /* Intentionally pending until cancellation. */ } }, 'post.glb', abort.signal);
+    const pending = loadContainer(
+        {
+            loadFromUrl() {
+                /* Intentionally pending until cancellation. */
+            }
+        },
+        'post.glb',
+        abort.signal
+    );
     abort.abort();
     await assert.rejects(pending, { name: 'AbortError' });
 });
@@ -91,7 +99,6 @@ test('product view keeps local geometry and independent roots without accumulati
     app.root.destroy();
 });
 
-
 test('moving rails rotate about stationary hinges and share one bearing plane', async () => {
     const app = { root: new Entity('scene') };
     const resources = { load: async () => ({ instantiateRenderEntity: () => new Entity('mesh') }) };
@@ -103,8 +110,14 @@ test('moving rails rotate about stationary hinges and share one bearing plane', 
         for (const changes of [{}, { wallHeightMm: 2200 }, { depthMm: 3000, widthMm: 5000 }]) {
             const params = { ...defaultVarendaParams, ...changes };
             const roofSlope = solveRoofSlope(params);
-            const gutter = { positionMm: { x: params.widthMm / 2, y: -params.depthMm + 75, z: params.undersideHeightMm }, lengthMm: params.widthMm };
-            const wallPiece = { positionMm: { x: params.widthMm / 2, y: 0, z: params.wallHeightMm }, lengthMm: params.widthMm };
+            const gutter = {
+                positionMm: { x: params.widthMm / 2, y: -params.depthMm + 75, z: params.undersideHeightMm },
+                lengthMm: params.widthMm
+            };
+            const wallPiece = {
+                positionMm: { x: params.widthMm / 2, y: 0, z: params.wallHeightMm },
+                lengthMm: params.widthMm
+            };
             view.update({ footings: { assemblies: [] }, posts: [], gutter, wallPiece, roofSlope });
             const parts = view.root.children[0];
             const contacts = [];
@@ -115,18 +128,33 @@ test('moving rails rotate about stationary hinges and share one bearing plane', 
                 const fixed = parts.findByName(`${name} fixed`);
                 const moving = parts.findByName(`${name} moving`);
                 const pivot = datum.pivotMm;
-                const expectedHinge = new Vec3(layout.positionMm.x, layout.positionMm.z + pivot.z, -(layout.positionMm.y + pivot.y));
+                const expectedHinge = new Vec3(
+                    layout.positionMm.x,
+                    layout.positionMm.z + pivot.z,
+                    -(layout.positionMm.y + pivot.y)
+                );
                 const sourceHinge = new Vec3(0, pivot.z, -pivot.y);
                 const worldHinge = moving.getWorldTransform().transformPoint(sourceHinge);
                 close(worldHinge.distance(expectedHinge), 0);
                 close(fixed.getEulerAngles().length(), 0);
-                const expectedDirection = new Vec3(0, Math.sin(roofSlope.slopeRadians), -Math.cos(roofSlope.slopeRadians));
-                const direction = moving.getWorldTransform().transformVector(new Vec3(0, 0, -1)).normalize();
+                const expectedDirection = new Vec3(
+                    0,
+                    Math.sin(roofSlope.slopeRadians),
+                    -Math.cos(roofSlope.slopeRadians)
+                );
+                const direction = moving
+                    .getWorldTransform()
+                    .transformVector(new Vec3(0, 0, -1))
+                    .normalize();
                 close(direction.distance(expectedDirection), 0, 0.000001);
                 close(moving.getLocalScale().x, params.widthMm / 100);
                 close(moving.getLocalScale().y, 1);
                 close(moving.getLocalScale().z, 1);
-                contacts.push(moving.getWorldTransform().transformPoint(new Vec3(0, pivot.z + datum.bearingNormalOffsetMm, -pivot.y)));
+                contacts.push(
+                    moving
+                        .getWorldTransform()
+                        .transformPoint(new Vec3(0, pivot.z + datum.bearingNormalOffsetMm, -pivot.y))
+                );
             }
             const normal = new Vec3(0, Math.cos(roofSlope.slopeRadians), Math.sin(roofSlope.slopeRadians));
             close(contacts[1].clone().sub(contacts[0]).dot(normal), 0);
@@ -137,4 +165,61 @@ test('moving rails rotate about stationary hinges and share one bearing plane', 
         view.destroy();
         app.root.destroy();
     }
+});
+
+test('placed products show fastener axes only when detail editing is enabled', async () => {
+    let draw;
+    let count = 0;
+    const scene = {
+        root: new Entity('scene'),
+        on: (_event, callback) => {
+            draw = callback;
+        },
+        off() {
+            /* Headless event cleanup. */
+        },
+        drawLine() {
+            count++;
+        }
+    };
+    const view = await createVarendaView(scene, {
+        load: async () => ({ instantiateRenderEntity: () => new Entity('mesh') })
+    });
+    const { solveVarenda } = await import('../src/products/parametric-engine/varenda/solution.ts');
+    view.update(solveVarenda(defaultVarendaParams));
+    view.setFastenerAxesVisible(false);
+    draw();
+    assert.equal(count, 0);
+    view.setFastenerAxesVisible(true);
+    draw();
+    assert.ok(count > 0);
+    const previous = count;
+    view.setFastenerAxesVisible(false);
+    draw();
+    assert.equal(count, previous);
+    view.destroy();
+    scene.root.destroy();
+});
+
+test('component perspective basis follows its world transform without inheriting stretch', async () => {
+    const root = new Entity('Scene');
+    const view = await createVarendaView({ root }, {
+        load: async () => ({ instantiateRenderEntity: () => new Entity('Asset') })
+    });
+    try {
+        const { solveVarenda } = await import('../src/products/parametric-engine/varenda/solution.ts');
+        view.update(solveVarenda(defaultVarendaParams));
+        view.root.setEulerAngles(0, 90, 0);
+        view.root.setLocalScale(1, 1, -1);
+        const foot = view.root.findByName('footing-column-1');
+        assert.ok(foot);
+        foot.setLocalEulerAngles(0, 30, 0);
+        foot.setLocalScale(2, 3, 4);
+        const basis = view.getViewBasis(foot.name);
+        const expected = foot.getWorldTransform().transformVector(new Vec3(0, 0, 1)).normalize();
+        assert.ok(new Vec3(basis.front.x, basis.front.y, basis.front.z).equalsApprox(expected));
+        for (const axis of Object.values(basis)) assert.ok(Math.abs(Math.hypot(axis.x, axis.y, axis.z) - 1) < 1e-6);
+        assert.deepEqual(view.getViewBasis('screw-axis', foot.name), basis);
+        assert.notDeepEqual(basis, view.getViewBasis());
+    } finally { view.destroy(); root.destroy(); }
 });

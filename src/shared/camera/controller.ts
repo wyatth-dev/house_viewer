@@ -18,7 +18,7 @@ export function createCameraController(
     let active = presets[0].id,
         viewport: Viewport = { width: 1, height: 1 };
     let bounds: Bounds3 | undefined, current: Frame | undefined;
-    let transition: { from: Frame; to: Frame; elapsed: number } | undefined;
+    let transition: { from: Frame; to: Frame; elapsed: number; containBounds: boolean } | undefined;
     const cameras = new Map<string, Entity>(),
         frames = new Map<string, Frame>(),
         listeners = new Set<() => void>();
@@ -79,7 +79,7 @@ export function createCameraController(
         if (!transition || !bounds) return;
         transition.elapsed += Math.max(0, dt);
         const progress = Math.min(1, transition.elapsed / duration);
-        current = transitionFrame(transition.from, transition.to, progress, bounds, viewport);
+        current = transitionFrame(transition.from, transition.to, progress, bounds, viewport, transition.containBounds);
         apply(active, current, progress < 1);
         if (progress === 1) transition = undefined;
         for (const listener of listeners) listener();
@@ -93,7 +93,7 @@ export function createCameraController(
             active = id;
             for (const [key, entity] of cameras) entity.enabled = key === active;
             if (current && target && duration > 0) {
-                transition = { from: current, to: target, elapsed: 0 };
+                transition = { from: current, to: target, elapsed: 0, containBounds: true };
                 apply(id, current, true);
             } else {
                 transition = undefined;
@@ -101,19 +101,34 @@ export function createCameraController(
                 if (target) apply(id, target);
             }
         },
-        fit(nextBounds, size) {
+        fit(nextBounds, size, animate = false, basis) {
+            const from = current;
             bounds = structuredClone(nextBounds);
             viewport = { ...size };
             transition = undefined;
             for (const preset of presets) {
+                const local = preset.direction;
+                const direction = basis ? {
+                    x: basis.right.x * local.x + basis.up.x * local.y + basis.front.x * local.z,
+                    y: basis.right.y * local.x + basis.up.y * local.y + basis.front.y * local.z,
+                    z: basis.right.z * local.x + basis.up.z * local.y + basis.front.z * local.z
+                } : local;
                 const frame =
                     preset.projection === 'perspective'
-                        ? fitPerspective(bounds, viewport, preset.direction, preset.fov ?? 45)
-                        : fitOrthographic(bounds, viewport, preset.direction);
+                        ? fitPerspective(bounds, viewport, direction, preset.fov ?? 45)
+                        : fitOrthographic(bounds, viewport, direction);
                 frames.set(preset.id, frame);
                 apply(preset.id, frame);
             }
-            current = frames.get(active);
+            const target = frames.get(active)!;
+            if (animate && from && duration > 0) {
+                current = from;
+                transition = { from, to: target, elapsed: 0, containBounds: false };
+                apply(active, from, true);
+            } else {
+                current = target;
+            }
+            for (const listener of listeners) listener();
         },
         getState: () => ({ activePresetId: active }),
         project: (point) => (current ? projectPoint(point, current, viewport) : { x: 0, y: 0, visible: false }),

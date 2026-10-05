@@ -1,5 +1,5 @@
-import { BLEND_NORMAL, Entity, StandardMaterial } from 'playcanvas';
-import type { AppBase, Material } from 'playcanvas';
+import { BLEND_NORMAL, CULLFACE_NONE, Entity, Layer, StandardMaterial } from 'playcanvas';
+import type { AppBase, CameraComponent, Material } from 'playcanvas';
 
 import { defaultVarendaParams } from '../products/parametric-engine/varenda/parameters.ts';
 import { solveVarenda } from '../products/parametric-engine/varenda/solution.ts';
@@ -8,14 +8,14 @@ import type { VarendaView } from '../products/varenda/view/varenda-view.ts';
 import { createProductAssetStore } from '../shared/assets/containers.ts';
 import type { Point3 } from '../shared/geometry/types.ts';
 
-import { 
-    calculateEnvelopeCorners, 
+import {
+    calculateEnvelopeCorners,
     solvePlacementCandidate,
     getPreviewDimensions,
-    editPreviewDimension,
-    type PreviewDimensionKey
+    editPreviewDimension
 } from './geometry.ts';
-import type { InstallationWallFace } from './types.ts';
+import type { PreviewDimensionKey } from './geometry.ts';
+import type { CustomizableEnvelope, InstallationWallFace } from './types.ts';
 
 /** Transient game-style preview. Owns no committed product instances or dimension UI. */
 export function createPlacementPreview(
@@ -24,13 +24,18 @@ export function createPlacementPreview(
     getProperty: () => { minX: number; maxX: number; minZ: number; maxZ: number },
     screenToGround: (x: number, y: number, groundYMm?: number) => Point3 | undefined,
     parentSignal: AbortSignal,
-    onFeedback: (message: string | undefined) => void
+    onFeedback: (message: string | undefined) => void,
+    getOccupied: () => readonly CustomizableEnvelope[] = () => []
 ) {
     const abort = new AbortController();
     const cancelLoading = () => abort.abort();
     parentSignal.addEventListener('abort', cancelLoading, { once: true });
     if (parentSignal.aborted) abort.abort();
     const assets = createProductAssetStore(app, abort.signal);
+    const previewLayer = new Layer({ name: 'Placement preview' });
+    app.scene.layers.push(previewLayer);
+    const cameras = app.root.findComponents('camera') as CameraComponent[];
+    for (const camera of cameras) camera.layers = [...camera.layers, previewLayer.id];
     let product: VarendaView | undefined;
     let loading: Promise<void> | undefined;
     let disposed = false;
@@ -38,8 +43,10 @@ export function createPlacementPreview(
     let pointer: { x: number; y: number } | undefined;
     let lastShape: string | undefined;
     let candidate: ReturnType<typeof solvePlacementCandidate>;
+    let pinnedCandidate: ReturnType<typeof solvePlacementCandidate>;
     let previewParams = { ...defaultVarendaParams };
     let editingDimensions = false;
+    const lockedDimensions = new Set<PreviewDimensionKey>();
 
     const materials = new Map<Material, StandardMaterial>();
     const clearMaterials = () => {
@@ -47,7 +54,6 @@ export function createPlacementPreview(
         materials.clear();
     };
     const render = () => {
-    
         if (!active || !pointer || disposed) {
             candidate = undefined;
             if (product) product.root.enabled = false;
@@ -56,25 +62,19 @@ export function createPlacementPreview(
         }
 
         // Freeze the current location while a dimension is being edited.
-        if (!editingDimensions) {
+        if (!editingDimensions && pinnedCandidate) candidate = pinnedCandidate;
+        if (!editingDimensions && !pinnedCandidate) {
             candidate = undefined;
 
             for (const wall of walls) {
-                const point = screenToGround(
-                    pointer.x,
-                    pointer.y,
-                    wall.originMm.y
-                );
+                const point = screenToGround(pointer.x, pointer.y, wall.originMm.y);
 
                 if (!point) continue;
 
-                candidate = solvePlacementCandidate(
-                    [wall],
-                    getProperty(),
-                    point,
-                    previewParams
-                );
+                candidate = solvePlacementCandidate([wall], getProperty(), point, previewParams, getOccupied());
 
+                if (candidate && lockedDimensions.has('width') && candidate.envelope.widthMm !== previewParams.widthMm)
+                    candidate = undefined;
                 if (candidate) break;
             }
         }
@@ -91,10 +91,10 @@ export function createPlacementPreview(
         try {
             const { envelope, wall } = candidate;
             const params = {
-                 ...previewParams,
-                  widthMm: envelope.widthMm, 
-                  depthMm: envelope.depthMm 
-                };
+                ...previewParams,
+                widthMm: envelope.widthMm,
+                depthMm: envelope.depthMm
+            };
             const shape = JSON.stringify(params);
             if (shape !== lastShape) {
                 const solution = solveVarenda(params);
@@ -103,15 +103,22 @@ export function createPlacementPreview(
                 clearMaterials();
                 product.root.forEach((node) => {
                     if (!(node instanceof Entity) || !node.render) return;
+                    node.render.layers = [previewLayer.id];
                     node.render.castShadows = false;
                     node.render.receiveShadows = false;
                     for (const mesh of node.render.meshInstances) {
                         const original = mesh.material;
                         let material = materials.get(original);
                         if (!material) {
-                            material = original instanceof StandardMaterial ? original.clone() : new StandardMaterial();
+                            material = new StandardMaterial();
                             material.blendType = BLEND_NORMAL;
-                            material.opacity = 0.32;
+                            material.opacity = 0.45;
+                            material.diffuse.set(0.12, 0.85, 0.28);
+                            material.useLighting = false;
+                            material.cull = CULLFACE_NONE;
+                            material.diffuseMap = null;
+                            material.emissiveMap = null;
+                            material.depthTest = false;
                             material.depthWrite = false;
                             material.update();
                             materials.set(original, material);
@@ -162,39 +169,55 @@ export function createPlacementPreview(
             });
     };
     return {
+        reset() {
+            previewParams = { ...defaultVarendaParams };
+            lockedDimensions.clear();
+            pinnedCandidate = undefined;
+            pointer = undefined;
+            candidate = undefined;
+            editingDimensions = false;
+            render();
+        },
         setActive(value: boolean) {
             active = value;
             if (!active) editingDimensions = false;
             if (active) ensureLoaded();
             render();
         },
-        
+
         move(x: number, y: number) {
             pointer = { x, y };
             render();
         },
-        
+
         leave() {
-            if(editingDimensions) return;
+            if (editingDimensions) return;
             pointer = undefined;
             render();
         },
-        
+
         refresh: render,
-        
+
         getCandidate: () => candidate,
-        
-        getDimensionState(){
+        getParams: () => ({ ...previewParams }),
+        getDimensionLocks: () => new Set(lockedDimensions),
+        toggleDimensionLock(field: PreviewDimensionKey) {
+            if (!candidate) return;
+            if (lockedDimensions.has(field)) lockedDimensions.delete(field);
+            else lockedDimensions.add(field);
+            pinnedCandidate = lockedDimensions.has('left') || lockedDimensions.has('right') ? candidate : undefined;
+        },
+
+        getDimensionState() {
             if (!candidate || !product?.root.enabled) return undefined;
 
             return {
                 wall: candidate.wall,
                 envelope: candidate.envelope,
-                dimensions: getPreviewDimensions(
-                    candidate.envelope,
-                    candidate.wall,
-                    previewParams.wallHeightMm
-                )
+                lockedDimensions,
+                showWidth: false,
+                readOnly: true,
+                dimensions: getPreviewDimensions(candidate.envelope, candidate.wall, previewParams.wallHeightMm)
             };
         },
 
@@ -202,10 +225,7 @@ export function createPlacementPreview(
             editingDimensions = value && Boolean(candidate);
         },
 
-        editDimensions(
-            field: PreviewDimensionKey,
-            valueMm: number
-        ): string | undefined {
+        editDimensions(field: PreviewDimensionKey, valueMm: number): string | undefined {
             if (!candidate || !product?.root.enabled) {
                 return 'Move onto an available area first.';
             }
@@ -216,14 +236,15 @@ export function createPlacementPreview(
                     candidate.wall,
                     previewParams.wallHeightMm,
                     field,
-                    valueMm
+                    valueMm,
+                    lockedDimensions
                 );
 
                 const nextParams = {
                     ...previewParams,
                     widthMm: edited.envelope.widthMm,
                     depthMm: edited.envelope.depthMm,
-                    wallHeightMm: edited.wallHeightMm,
+                    wallHeightMm: edited.wallHeightMm
                 };
 
                 solveVarenda(nextParams);
@@ -233,15 +254,15 @@ export function createPlacementPreview(
                     envelope: edited.envelope
                 };
                 previewParams = nextParams;
+                if (pinnedCandidate) pinnedCandidate = candidate;
 
                 const wasEditing = editingDimensions;
                 editingDimensions = true;
                 render();
                 editingDimensions = wasEditing;
-            } catch(error) {
-                return error instanceof Error
-                    ? error.message
-                    : 'Unable to update this dimension.';
+
+            } catch (error) {
+                return error instanceof Error ? error.message : 'Unable to update this dimension.';
             }
         },
 
@@ -251,6 +272,8 @@ export function createPlacementPreview(
             abort.abort();
             parentSignal.removeEventListener('abort', cancelLoading);
             product?.destroy();
+            for (const camera of cameras) camera.layers = camera.layers.filter((id) => id !== previewLayer.id);
+            app.scene.layers.remove(previewLayer);
             clearMaterials();
             assets.destroy();
         }

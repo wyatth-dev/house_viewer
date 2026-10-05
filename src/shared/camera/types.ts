@@ -6,10 +6,11 @@ export type CameraPreset = {
     projection?: 'orthographic' | 'perspective';
     fov?: number;
 };
+export type CameraBasis = { right: Point3; up: Point3; front: Point3 };
 export type CameraState = { activePresetId: string };
 export type CameraController = {
     setView(id: string): void;
-    fit(bounds: Bounds3, viewport: Viewport): void;
+    fit(bounds: Bounds3, viewport: Viewport, animate?: boolean, basis?: CameraBasis): void;
     getState(): CameraState;
     project: ProjectPoint;
     screenToGround(x: number, y: number, groundYMm?: number): Point3 | undefined;

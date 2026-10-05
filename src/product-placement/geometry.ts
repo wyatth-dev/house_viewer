@@ -1,3 +1,6 @@
+import type { VarendaParams } from '../products/parametric-engine/varenda/parameters.ts';
+import type { Bounds3 } from '../shared/geometry/types.ts';
+
 import type { CustomizableEnvelope, InstallationWallFace, PlacementPointMm } from './types.ts';
 
 export type EnvelopeCorners = Readonly<{
@@ -73,7 +76,8 @@ type PropertyBoundary = Readonly<{
 /** Candidate areas for the current axis-aligned house walls. */
 export function solveInstallationAreas(
     walls: readonly InstallationWallFace[],
-    property: PropertyBoundary
+    property: PropertyBoundary,
+    occupied: readonly CustomizableEnvelope[] = []
 ): InstallationArea[] {
     const areas: InstallationArea[] = [];
 
@@ -123,16 +127,42 @@ export function solveInstallationAreas(
             z: point.z + outwardUnit.z * depthMm
         });
 
-        areas.push({
-            wallFaceId: wall.wallFaceId,
-            depthMm,
-            corners: {
-                wallStart,
-                wallEnd,
-                outerEnd: outward(wallEnd),
-                outerStart: outward(wallStart)
-            }
+        let spans = [{ start: 0, end: lengthMm }];
+        for (const envelope of occupied) {
+            if (
+                envelope.attachment.wallFaceId !== wall.wallFaceId ||
+                envelope.attachment.structureId !== wall.structureId
+            )
+                continue;
+            const start = envelope.attachment.alongWallOffsetMm;
+            const end = start + envelope.widthMm;
+            spans = spans.flatMap((span) => {
+                if (end <= span.start || start >= span.end) return [span];
+                return [
+                    ...(start > span.start ? [{ start: span.start, end: start }] : []),
+                    ...(end < span.end ? [{ start: end, end: span.end }] : [])
+                ];
+            });
+        }
+        const alongPoint = (offset: number) => ({
+            x: originMm.x + alongWallUnit.x * offset,
+            y: originMm.y,
+            z: originMm.z + alongWallUnit.z * offset
         });
+        for (const span of spans) {
+            const start = alongPoint(span.start),
+                end = alongPoint(span.end);
+            areas.push({
+                wallFaceId: wall.wallFaceId,
+                depthMm,
+                corners: {
+                    wallStart: start,
+                    wallEnd: end,
+                    outerStart: outward(start),
+                    outerEnd: outward(end)
+                }
+            });
+        }
     }
 
     return areas;
@@ -143,17 +173,25 @@ export function solvePlacementCandidate(
     walls: readonly InstallationWallFace[],
     property: PropertyBoundary,
     point: PlacementPointMm,
-    defaults: Readonly<{ widthMm: number; depthMm: number }>
+    defaults: Readonly<{ widthMm: number; depthMm: number }>,
+    occupied: readonly CustomizableEnvelope[] = []
 ): { wall: InstallationWallFace; envelope: CustomizableEnvelope } | undefined {
     if (![point.x, point.y, point.z].every(Number.isFinite)) return undefined;
-    for (const area of solveInstallationAreas(walls, property)) {
+    for (const area of solveInstallationAreas(walls, property, occupied)) {
         const wall = walls.find((w) => w.wallFaceId === area.wallFaceId)!;
         const dx = point.x - wall.originMm.x,
             dz = point.z - wall.originMm.z;
         const along = dx * wall.alongWallUnit.x + dz * wall.alongWallUnit.z;
         const outward = dx * wall.outwardUnit.x + dz * wall.outwardUnit.z;
-        if (along < 0 || along > wall.lengthMm || outward < 0 || outward > area.depthMm) continue;
-        const widthMm = Math.min(defaults.widthMm, wall.lengthMm);
+        const areaStart =
+            (area.corners.wallStart.x - wall.originMm.x) * wall.alongWallUnit.x +
+            (area.corners.wallStart.z - wall.originMm.z) * wall.alongWallUnit.z;
+        const areaLength = Math.hypot(
+            area.corners.wallEnd.x - area.corners.wallStart.x,
+            area.corners.wallEnd.z - area.corners.wallStart.z
+        );
+        if (along < areaStart || along > areaStart + areaLength || outward < 0 || outward > area.depthMm) continue;
+        const widthMm = Math.min(defaults.widthMm, areaLength);
         const depthMm = Math.min(defaults.depthMm, area.depthMm);
         if (widthMm <= 0 || depthMm <= 0) continue;
         return {
@@ -165,7 +203,10 @@ export function solvePlacementCandidate(
                     kind: 'wall',
                     structureId: wall.structureId,
                     wallFaceId: wall.wallFaceId,
-                    alongWallOffsetMm: Math.max(0, Math.min(wall.lengthMm - widthMm, along - widthMm / 2))
+                    alongWallOffsetMm: Math.max(
+                        areaStart,
+                        Math.min(areaStart + areaLength - widthMm, along - widthMm / 2)
+                    )
                 },
                 widthMm,
                 depthMm
@@ -175,18 +216,10 @@ export function solvePlacementCandidate(
     return undefined;
 }
 
-export type PreviewDimensionKey =
-    | 'left'
-    | 'right'
-    | 'width'
-    | 'wallHeight';
+export type PreviewDimensionKey = 'left' | 'right' | 'width' | 'wallHeight';
 
 /** Left/right follow the installation wall's start-to-end direction. */
-export function getPreviewDimensions(
-    envelope: CustomizableEnvelope,
-    wall: InstallationWallFace,
-    wallHeightMm: number
-) {
+export function getPreviewDimensions(envelope: CustomizableEnvelope, wall: InstallationWallFace, wallHeightMm: number) {
     const leftMm = envelope.attachment.alongWallOffsetMm;
 
     return {
@@ -203,19 +236,25 @@ export function editPreviewDimension(
     wall: InstallationWallFace,
     wallHeightMm: number,
     field: PreviewDimensionKey,
-    valueMm: number    
+    valueMm: number,
+    locked: ReadonlySet<PreviewDimensionKey> = new Set()
 ): {
     envelope: CustomizableEnvelope;
     wallHeightMm: number;
-} { 
+} {
     if (!Number.isFinite(valueMm)) throw new Error('Enter a finite dimension.');
 
+    const before = getPreviewDimensions(envelope, wall, wallHeightMm);
+    if (locked.has(field) && Math.abs(before[`${field}Mm`] - valueMm) > 1e-6)
+        throw new Error('This dimension is locked. Unlock it before editing.');
     let offsetMm = envelope.attachment.alongWallOffsetMm;
     let widthMm = envelope.widthMm;
     let nextHeightMm = wallHeightMm;
+    const rightMm = wall.lengthMm - offsetMm - widthMm;
 
     switch (field) {
         case 'left':
+            if (locked.has('right')) widthMm = wall.lengthMm - rightMm - valueMm;
             offsetMm = valueMm;
             break;
 
@@ -223,12 +262,13 @@ export function editPreviewDimension(
             if (valueMm < 0) {
                 throw new Error('Right clearance cannot be negative.');
             }
-            offsetMm = wall.lengthMm - widthMm - valueMm;
+            if (locked.has('left')) widthMm = wall.lengthMm - offsetMm - valueMm;
+            else offsetMm = wall.lengthMm - widthMm - valueMm;
             break;
 
         case 'width':
-            // Keep the left edge fixed.
             widthMm = valueMm;
+            if (locked.has('right')) offsetMm = wall.lengthMm - rightMm - widthMm;
             break;
 
         case 'wallHeight':
@@ -249,6 +289,11 @@ export function editPreviewDimension(
         widthMm
     };
 
+    const after = getPreviewDimensions(candidate, wall, nextHeightMm);
+    for (const key of locked)
+        if (Math.abs(after[`${key}Mm`] - before[`${key}Mm`]) > 1e-6)
+            throw new Error('Locked dimensions conflict with this edit. Unlock a related dimension first.');
+
     // Reuse wall-reference, direction and along-wall range validation.
     calculateEnvelopeCorners(candidate, wall);
 
@@ -256,4 +301,90 @@ export function editPreviewDimension(
         envelope: candidate,
         wallHeightMm: nextHeightMm
     };
+}
+
+/** Shared world anchors for annotation rendering and placement camera framing. */
+export function getPlacementDimensionPoints(envelope: CustomizableEnvelope, wall: InstallationWallFace) {
+    const corners = calculateEnvelopeCorners(envelope, wall);
+    const offsetMm = envelope.depthMm + 600;
+    const dimensionPoint = (point: PlacementPointMm): PlacementPointMm => ({
+        x: point.x + wall.outwardUnit.x * offsetMm,
+        y: point.y + 80,
+        z: point.z + wall.outwardUnit.z * offsetMm
+    });
+    return {
+        wallStart: dimensionPoint(wall.originMm),
+        productStart: dimensionPoint(corners.wallStart),
+        productEnd: dimensionPoint(corners.wallEnd),
+        wallEnd: dimensionPoint({
+            x: wall.originMm.x + wall.alongWallUnit.x * wall.lengthMm,
+            y: wall.originMm.y,
+            z: wall.originMm.z + wall.alongWallUnit.z * wall.lengthMm
+        })
+    };
+}
+
+/** Frame the selected product and its actual dimension anchors together. */
+export function getPlacementFocusBounds(
+    envelope: CustomizableEnvelope,
+    wall: InstallationWallFace,
+    productBounds: Bounds3
+): Bounds3 {
+    const points = [
+        productBounds.min,
+        productBounds.max,
+        ...Object.values(getPlacementDimensionPoints(envelope, wall))
+    ];
+    return {
+        min: {
+            x: Math.min(...points.map((point) => point.x)),
+            y: Math.min(...points.map((point) => point.y)),
+            z: Math.min(...points.map((point) => point.z))
+        },
+        max: {
+            x: Math.max(...points.map((point) => point.x)),
+            y: Math.max(...points.map((point) => point.y)),
+            z: Math.max(...points.map((point) => point.z))
+        }
+    };
+}
+
+/** The sidebar and 3D labels share parameter names and order. */
+export const productParameterLabels = [
+    ['widthMm', 'Width'], ['depthMm', 'Depth'],
+    ['postInterval', 'Post spacing'], ['rafterInterval', 'Rafter spacing'],
+    ['undersideHeightMm', 'Underside height'], ['wallHeightMm', 'Wall height']
+] as const;
+
+/** Product dimensions in its installation basis, independent of world-facing direction. */
+export function getProductParameterDimensions(
+    envelope: CustomizableEnvelope, wall: InstallationWallFace, params: Readonly<VarendaParams>
+) {
+    const origin = calculateEnvelopeCorners(envelope, wall).wallStart;
+    const point = (along: number, outward: number, height: number): PlacementPointMm => ({
+        x: origin.x + wall.alongWallUnit.x * along + wall.outwardUnit.x * outward,
+        y: origin.y + height,
+        z: origin.z + wall.alongWallUnit.z * along + wall.outwardUnit.z * outward
+    });
+    const { widthMm: width, depthMm: depth, wallHeightMm: wallHeight, undersideHeightMm: underside } = params;
+    const starts: Record<keyof VarendaParams, PlacementPointMm> = {
+        widthMm: point(0, depth + 250, 80),
+        depthMm: point(width + 250, 0, 80),
+        postInterval: point((width - params.postInterval) / 2, depth + 120, underside + 200),
+        rafterInterval: point((width - params.rafterInterval) / 2, 0, wallHeight + 200),
+        undersideHeightMm: point(width + 250, depth, 0),
+        wallHeightMm: point(-250, 0, 0)
+    };
+    return productParameterLabels.map(([key, label]) => {
+        const start = starts[key];
+        const direction = key === 'depthMm' ? { ...wall.outwardUnit, y: 0 }
+            : key === 'wallHeightMm' || key === 'undersideHeightMm' ? { x: 0, y: 1, z: 0 }
+            : { ...wall.alongWallUnit, y: 0 };
+        const valueMm = params[key];
+        return { key, label, start, end: {
+            x: start.x + direction.x * valueMm,
+            y: start.y + direction.y * valueMm,
+            z: start.z + direction.z * valueMm
+        }, valueMm };
+    });
 }

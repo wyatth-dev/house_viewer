@@ -96,3 +96,131 @@ test('preview dimensions adapt to available depth and separate recessed walls', 
     assert.equal(match.wall.wallFaceId, 'recessed');
     assert.equal(solvePlacementCandidate([wall], property, { x: NaN, y: 300, z: 2500 }, defaults), undefined);
 });
+
+test('occupied wall spans split available areas and candidates cannot overlap them', async () => {
+    const { solveInstallationAreas, solvePlacementCandidate } = await import('../src/product-placement/geometry.ts');
+    const property = { minX: 0, maxX: 8000, minZ: 0, maxZ: 6000 };
+    const occupied = [{ ...envelope, widthMm: 2000, attachment: { ...envelope.attachment, alongWallOffsetMm: 2000 } }];
+    const areas = solveInstallationAreas([wall], property, occupied);
+    assert.equal(areas.length, 2);
+    assert.equal(areas[0].corners.wallEnd.x, 3000);
+    assert.equal(areas[1].corners.wallStart.x, 5000);
+    assert.equal(
+        solvePlacementCandidate(
+            [wall],
+            property,
+            { x: 4000, y: 300, z: 2500 },
+            { widthMm: 1000, depthMm: 2000 },
+            occupied
+        ),
+        undefined
+    );
+    const result = solvePlacementCandidate(
+        [wall],
+        property,
+        { x: 6000, y: 300, z: 2500 },
+        { widthMm: 4000, depthMm: 2000 },
+        occupied
+    );
+    assert.equal(result.envelope.attachment.alongWallOffsetMm, 4000);
+    assert.equal(result.envelope.widthMm, 2000);
+    assert.equal(result.wall, wall);
+});
+
+test('dimension edits keep width on moves and anchor the left edge on resize', async () => {
+    const { editPreviewDimension } = await import('../src/product-placement/geometry.ts');
+    const moved = editPreviewDimension(envelope, wall, 2500, 'right', 1000).envelope;
+    assert.equal(moved.widthMm, 4000);
+    assert.equal(moved.attachment.alongWallOffsetMm, 1000);
+    const resized = editPreviewDimension(envelope, wall, 2500, 'width', 3000).envelope;
+    assert.equal(resized.attachment.alongWallOffsetMm, 500);
+    assert.equal(envelope.widthMm, 4000);
+    assert.throws(() => editPreviewDimension(envelope, wall, 2500, 'left', 5000));
+});
+
+test('placement framing contains the product and all dimension anchors on every wall direction', async () => {
+    const { getPlacementDimensionPoints, getPlacementFocusBounds } =
+        await import('../src/product-placement/geometry.ts');
+    for (const [alongWallUnit, outwardUnit] of [
+        [
+            { x: 1, z: 0 },
+            { x: 0, z: 1 }
+        ],
+        [
+            { x: 1, z: 0 },
+            { x: 0, z: -1 }
+        ],
+        [
+            { x: 0, z: 1 },
+            { x: -1, z: 0 }
+        ],
+        [
+            { x: 0, z: -1 },
+            { x: 1, z: 0 }
+        ]
+    ]) {
+        const face = { ...wall, alongWallUnit, outwardUnit };
+        const corners = Object.values(calculateEnvelopeCorners(envelope, face));
+        const productBounds = {
+            min: {
+                x: Math.min(...corners.map((point) => point.x)),
+                y: 300,
+                z: Math.min(...corners.map((point) => point.z))
+            },
+            max: {
+                x: Math.max(...corners.map((point) => point.x)),
+                y: 2800,
+                z: Math.max(...corners.map((point) => point.z))
+            }
+        };
+        const anchors = getPlacementDimensionPoints(envelope, face);
+        const bounds = getPlacementFocusBounds(envelope, face, productBounds);
+        for (const point of [productBounds.min, productBounds.max, ...Object.values(anchors)]) {
+            for (const axis of ['x', 'y', 'z'])
+                assert.ok(point[axis] >= bounds.min[axis] && point[axis] <= bounds.max[axis]);
+        }
+        assert.equal(anchors.productStart.y, 380);
+        const start = calculateEnvelopeCorners(envelope, face).wallStart;
+        assert.equal(
+            (anchors.productStart.x - start.x) * outwardUnit.x + (anchors.productStart.z - start.z) * outwardUnit.z,
+            2600
+        );
+    }
+});
+
+ test('dimension edits preserve explicitly locked clearances or width', async () => {
+    const { editPreviewDimension, getPreviewDimensions } = await import('../src/product-placement/geometry.ts');
+    for (const [previous, field] of [['left', 'right'], ['right', 'left'], ['right', 'width'], ['left', 'width'], ['width', 'left'], ['width', 'right']]) {
+        const before = getPreviewDimensions(envelope, wall, 2500);
+        const edited = editPreviewDimension(envelope, wall, 2500, field, field === 'width' ? 3000 : 750, new Set([previous]));
+        const after = getPreviewDimensions(edited.envelope, wall, 2500);
+        assert.equal(after[`${previous}Mm`], before[`${previous}Mm`]);
+        assert.equal(after[`${field}Mm`], field === 'width' ? 3000 : 750);
+    }
+    assert.throws(() => editPreviewDimension(envelope, wall, 2500, 'right', wall.lengthMm, new Set(['left'])));
+});
+
+test('locked dimensions cannot change directly or through conflicting edits', async () => {
+    const { editPreviewDimension } = await import('../src/product-placement/geometry.ts');
+    assert.throws(() => editPreviewDimension(envelope, wall, 2500, 'width', 3000, new Set(['width'])), /locked/i);
+    assert.throws(() => editPreviewDimension(envelope, wall, 2500, 'width', 3000, new Set(['left', 'right'])), /locked/i);
+    assert.throws(() => editPreviewDimension(envelope, wall, 2500, 'left', 750, new Set(['width', 'right'])), /locked/i);
+    const free = editPreviewDimension(envelope, wall, 2500, 'left', 750, new Set()).envelope;
+    assert.equal(free.widthMm, envelope.widthMm);
+    assert.equal(envelope.attachment.alongWallOffsetMm, 500);
+});
+
+test('product editing dimensions follow the product wall basis and match all six parameters', async () => {
+    const { getProductParameterDimensions } = await import('../src/product-placement/geometry.ts');
+    const { defaultVarendaParams } = await import('../src/products/parametric-engine/varenda/parameters.ts');
+    for (const [alongWallUnit, outwardUnit] of [[{ x: 1, z: 0 }, { x: 0, z: 1 }], [{ x: 0, z: -1 }, { x: -1, z: 0 }]]) {
+        const params = { ...defaultVarendaParams };
+        const dimensions = getProductParameterDimensions(envelope, { ...wall, alongWallUnit, outwardUnit }, params);
+        assert.equal(dimensions.length, 6);
+        for (const dimension of dimensions) {
+            assert.equal(dimension.valueMm, params[dimension.key]);
+            const length = Math.hypot(dimension.end.x - dimension.start.x, dimension.end.y - dimension.start.y, dimension.end.z - dimension.start.z);
+            assert.ok(Math.abs(length - dimension.valueMm) < 1e-6);
+        }
+    }
+});

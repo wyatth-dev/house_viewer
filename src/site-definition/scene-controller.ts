@@ -10,7 +10,7 @@ export function createSceneCoordinator(
 ) {
     let viewport: Viewport = { width: 1, height: 1 };
     const refresh = () => site.refreshLabels(camera.project);
-    const fit = () => {
+    const fit = (animate = false) => {
         const ground = site.getBounds();
         const bounds: Bounds3 = {
             min: {
@@ -30,7 +30,7 @@ export function createSceneCoordinator(
                 bounds.min[axis] = Math.min(bounds.min[axis], context.min[axis]);
                 bounds.max[axis] = Math.max(bounds.max[axis], context.max[axis]);
             }
-        camera.fit(bounds, viewport);
+        camera.fit(bounds, viewport, animate);
         refresh();
     };
     return {
@@ -43,10 +43,10 @@ export function createSceneCoordinator(
             camera.setView(id);
             refresh();
         },
-        resize(size: Viewport) {
+        resize(size: Viewport, animate = false) {
             if (size.width <= 0 || size.height <= 0) return;
             viewport = { ...size };
-            fit();
+            fit(animate);
         },
         refresh
     };

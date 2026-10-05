@@ -6,7 +6,7 @@ export function createCustomizationPanel(
     host: HTMLElement,
     onSelect: (id: string, navigation?: InstanceNavigation) => void,
     onOverview: () => void,
-    onInstance: (id: string, navigation?: InstanceNavigation, menuId?: string) => void
+    onInstance: (id: string, navigation?: InstanceNavigation, menuId?: string, parentId?: string) => void
 ) {
     host.innerHTML = `<nav class="product-tabs" aria-label="Product steps"><button type="button" id="customization-tab" aria-pressed="true">01 Customization</button><button type="button" id="production-tab" aria-pressed="false">02 Production list</button></nav>
     <section id="parameter-panel"><div class="section-heading"><div><span class="eyebrow">CUSTOMIZATION</span><h1>Shape your veranda.</h1><p>Set the dimensions. See every component take its place.</p></div><span class="unit-label">DIMENSIONS IN MM</span></div><fieldset id="parameter-fields" disabled><div class="parameter-grid">

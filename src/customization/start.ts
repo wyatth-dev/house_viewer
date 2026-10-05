@@ -29,7 +29,7 @@ import { createProductCamera } from './product-camera.ts';
 import type { DisplayProductionRow } from './production-groups.ts';
 import { groupProductionRows } from './production-groups.ts';
 import type { InstanceNavigation, InstanceSelection } from './selection-state.ts';
-import { navigateInstance, reconcileSelection, selectionContext, toggleGroup } from './selection-state.ts';
+import { toggleInstance, reconcileSelection, selectionContext, toggleGroup } from './selection-state.ts';
 import './style.css';
 
 export function startCustomization() {
@@ -44,14 +44,14 @@ export function startCustomization() {
     let overview: () => void = () => {
         /* Inputs are disabled until the scene is ready. */
     };
-    let selectInstance: (id: string, navigation?: InstanceNavigation, menuId?: string) => void = () => {
+    let selectInstance: (id: string, navigation?: InstanceNavigation, menuId?: string, parentId?: string) => void = () => {
         /* Scene is loading. */
     };
     const panel = createCustomizationPanel(
         document.querySelector<HTMLElement>('#product-panel')!,
         (id) => selectRow(id),
         () => overview(),
-        (id, navigation, menuId) => selectInstance(id, navigation, menuId)
+        (id, navigation, menuId, parentId) => selectInstance(id, navigation, menuId, parentId)
     );
     lifetime.add(() => panel.destroy());
 
@@ -130,7 +130,7 @@ export function startCustomization() {
             panel.update(rows, selectedId, instanceSelection, menus, installations);
             if (bounds) productCamera.focus(bounds);
         };
-        selectInstance = (id, navigation = 'direct', menuId = selectedId) => {
+        selectInstance = (id, navigation = 'direct', menuId = selectedId, parentId) => {
             const row = rows.find((candidate) => candidate.instanceIds.includes(id));
             if (!row || !rows.some((candidate) => candidate.instanceIds.includes(id))) return;
             if (menuId) {
@@ -141,11 +141,18 @@ export function startCustomization() {
                 }
             }
             // Instance focus does not change the expanded HUD group.
-            instanceSelection = navigateInstance(instanceSelection, id, navigation);
+            instanceSelection = toggleInstance(instanceSelection, id, navigation, parentId);
             const group = rows.find((candidate) => candidate.id === selectedId);
-            const bounds = product.select([id], selectionContext(instanceSelection, group?.instanceIds ?? []));
-            const part = rows.find((candidate) => candidate.instanceIds.includes(id))!;
-            caption.textContent = `${part.label} · ${id}`;
+            const bounds = product.select(
+                instanceSelection ? [instanceSelection.id] : group?.instanceIds ?? [],
+                selectionContext(instanceSelection, group?.instanceIds ?? [])
+            );
+            const part = instanceSelection
+                ? rows.find((candidate) => candidate.instanceIds.includes(instanceSelection?.id ?? ''))
+                : group;
+            caption.textContent = instanceSelection
+                ? `${part?.label} · ${instanceSelection.id}`
+                : `${group?.label} · ${group?.quantity} selected`;
             panel.update(rows, selectedId, instanceSelection, menus, installations);
             if (bounds) productCamera.focus(bounds);
         };

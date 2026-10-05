@@ -1,7 +1,8 @@
-import { Color, Entity } from 'playcanvas';
+import { Color, Entity, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
 import type { ProductAssetStore } from '../../../shared/assets/containers.ts';
+import type { CameraBasis } from '../../../shared/camera/types.ts';
 import { roofJointDatums, rafterDatums, glazingGasketDatums } from '../../parametric-engine/varenda/datums.ts';
 import { getInstalledFasteners } from '../../parametric-engine/varenda/production-list.ts';
 import type { InstalledFastener } from '../../parametric-engine/varenda/production-list.ts';
@@ -50,6 +51,7 @@ export async function createVarendaView(
     let destroyed = false;
     let registry = new Map<string, Entity[]>();
     let hardware: InstalledFastener[] = [];
+    let fastenerAxesVisible = true;
     let selected = new Set<string>();
     let context = new Set<string>();
     const materials = createSelectionMaterials();
@@ -64,6 +66,7 @@ export async function createVarendaView(
         refreshDetails();
     };
     const drawAxes = () => {
+        if (!fastenerAxesVisible) return;
         for (const fastener of hardware) {
             const [a, b] = axisEndpoints(root, fastener);
             const active = selected.has(fastener.instanceId);
@@ -85,6 +88,16 @@ export async function createVarendaView(
     return {
         root,
         clearSelection,
+        getViewBasis(instanceId?: string, parentId?: string): CameraBasis {
+            // Hardware axes inherit the component they were selected from.
+            const entity = registry.get(instanceId ?? '')?.[0] ?? registry.get(parentId ?? '')?.[0] ?? root;
+            const matrix = entity.getWorldTransform();
+            const axis = (x: number, y: number, z: number) => {
+                const value = matrix.transformVector(new Vec3(x, y, z)).normalize();
+                return { x: value.x, y: value.y, z: value.z };
+            };
+            return { right: axis(1, 0, 0), up: axis(0, 1, 0), front: axis(0, 0, 1) };
+        },
         getBounds() {
             return entityBounds(root);
         },
@@ -106,6 +119,9 @@ export async function createVarendaView(
                 ...entities.map(entityBounds),
                 ...hardware.filter((h) => selected.has(h.instanceId)).map((h) => axisBounds(root, h))
             ]);
+        },
+        setFastenerAxesVisible(visible: boolean) {
+            fastenerAxesVisible = visible;
         },
         setGlazingDetailVisible(visible: boolean) {
             glazingDetailVisible = visible;

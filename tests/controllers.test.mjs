@@ -59,6 +59,7 @@ test('site updates reuse four surfaces, hide zero regions, reject invalid dimens
     globalThis.document = {
         createElement() {
             return {
+                style: {},
                 append() {
                     /* DOM/engine stub for this test. */
                 },
@@ -94,6 +95,14 @@ test('site updates reuse four surfaces, hide zero regions, reject invalid dimens
         assert.equal(root.children.length, 4);
         site.setDimensions({ front: 0, back: 0, left: 0, right: 0 });
         assert.ok(root.children.every((e) => !e.enabled));
+        site.setVisible(false);
+        assert.equal(root.enabled, false);
+        site.setDimensions({ front: 1000, back: 0, left: 0, right: 0 });
+        assert.equal(root.enabled, false, 'layout updates must not reveal an isolated site');
+        site.setVisible(true);
+        assert.equal(root.enabled, true);
+        assert.equal(root.children.filter((entity) => entity.enabled).length, 1);
+        site.setDimensions({ front: 0, back: 0, left: 0, right: 0 });
         assert.deepEqual(site.getBounds(), { min: { x: -4000, y: 0, z: -5000 }, max: { x: 4000, y: 60, z: 5000 } });
     } finally {
         site.destroy();
@@ -187,4 +196,82 @@ test('screen picking restores projected ground points across views, elevations a
         camera.destroy();
         app.destroy();
     }
+});
+
+test('product focus and overview animate from the rendered pose and can retarget into a view change', () => {
+    const app = createApp();
+    const camera = createCameraController(
+        app,
+        [
+            { id: 'front', label: 'Front', projection: 'perspective', direction: { x: 0.3, y: 0.8, z: 1 } },
+            { id: 'back', label: 'Back', projection: 'perspective', direction: { x: -0.3, y: 0.8, z: -1 } }
+        ],
+        { duration: 0.8 }
+    );
+    const sceneBounds = { min: { x: -20000, y: 0, z: -30000 }, max: { x: 20000, y: 8000, z: 30000 } };
+    const productBounds = { min: { x: 1000, y: 0, z: 25000 }, max: { x: 5000, y: 2500, z: 27000 } };
+    const viewport = { width: 1000, height: 800 };
+    try {
+        camera.fit(sceneBounds, viewport);
+        const front = app.root.children[0],
+            back = app.root.children[1];
+        const initial = front.getPosition().clone();
+        camera.fit(productBounds, viewport, true);
+        assert.ok(front.getPosition().equals(initial), 'focus starts at the displayed camera pose');
+        app.fire('update', 0.4);
+        const middle = front.getPosition().clone();
+        assert.ok(!middle.equals(initial));
+        camera.setView('back');
+        assert.ok(back.getPosition().equals(middle), 'perspective switch retargets without a jump');
+        app.fire('update', 0.8);
+        const focused = back.getPosition().clone();
+        camera.fit(sceneBounds, viewport, true);
+        assert.ok(back.getPosition().equals(focused));
+        app.fire('update', 0.1);
+        assert.ok(!back.getPosition().equals(focused));
+        assert.ok(
+            back.getPosition().distance(focused) < focused.distance(initial) / 2,
+            'overview must not jump to its full framing on the first frame'
+        );
+        app.fire('update', 0.8);
+        assert.equal(back.camera.calculateProjection, null);
+    } finally {
+        camera.destroy();
+        app.destroy();
+    }
+});
+
+ test('camera presets follow a rotated component basis and restore world directions for overview', () => {
+    const app = createApp();
+    const c = createCameraController(app, [
+        { id: 'front', label: 'Front', direction: { x: 0, y: 1, z: 1 } },
+        { id: 'right', label: 'Right', direction: { x: 1, y: 1, z: 0 } }
+    ], { duration: 0.8 });
+    const bounds = { min: { x: 400, y: 0, z: 800 }, max: { x: 600, y: 200, z: 1000 } };
+    const size = { width: 800, height: 600 };
+    try {
+        for (const angle of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+            const basis = {
+                right: { x: Math.cos(angle), y: 0, z: -Math.sin(angle) },
+                up: { x: 0, y: 1, z: 0 },
+                front: { x: Math.sin(angle), y: 0, z: Math.cos(angle) }
+            };
+            c.setView('front');
+            c.fit(bounds, size, false, basis);
+            const front = app.root.children[0].getPosition();
+            const dx = front.x - 500, dz = front.z - 900;
+            assert.ok(Math.abs(dx * basis.front.z - dz * basis.front.x) < 0.01);
+            assert.ok(dx * basis.front.x + dz * basis.front.z > 0);
+            c.setView('right');
+            app.fire('update', 1);
+            const right = app.root.children[1].getPosition();
+            assert.ok((right.x - 500) * basis.right.x + (right.z - 900) * basis.right.z > 0);
+            assert.ok(Math.abs((right.x - 500) * basis.right.z - (right.z - 900) * basis.right.x) < 0.01);
+        }
+        c.setView('front');
+        c.fit(bounds, size, true);
+        app.fire('update', 1);
+        assert.ok(Math.abs(app.root.children[0].getPosition().x - 500) < 0.01);
+        assert.ok(app.root.children[0].getPosition().z > 900);
+    } finally { c.destroy(); app.destroy(); }
 });
