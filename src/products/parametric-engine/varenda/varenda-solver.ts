@@ -2,6 +2,7 @@ import { varendaCatalog } from './catalog.ts';
 import { 
     varendaDatums,
     railEndCapDatums,
+    rafterEndCapDatums,
     postHoleDatums, 
     roofJointDatums, 
     rafterDatums 
@@ -43,6 +44,10 @@ export type FastenerInstance = {
 export type InstalledFastener = FastenerInstance & Readonly<{
     positionMm: ProductPointMm;
     axisUnit: ProductPointMm;
+    /** Mesh origin displacement along the theoretical hole axis; hole data stays fixed. */
+    modelOffsetMm?: number;
+    /** Shaft/bore endpoints measured along axisUnit from positionMm; not a drilling depth. */
+    axialExtentMm?: readonly [number, number];
 }>;
 
 /** 关系只保存在这里，构件和螺丝不重复存储反向引用。 */
@@ -737,4 +742,70 @@ export function solveRafters(
             mirrorX: isRightEnd
         }
     });
+}
+
+
+export type RafterEndCapInstance = Readonly<{
+    instanceId: string;
+    catalogProductId: string;
+    rafterRef: Readonly<{ instanceId: string; end: 'front' }>;
+    positionMm: ProductPointMm;
+    slopeRadians: number;
+    mirrorX: boolean;
+    thicknessMm: number;
+    holes: readonly HoleOperation[];
+}>;
+
+/** Front-only, rigid caps. Gable lower connection inherits regular-rafter data by request. */
+export function solveRafterEndCaps(rafters: ReturnType<typeof solveRafters>) {
+    const plates: RafterEndCapInstance[] = [];
+    const fasteners: InstalledFastener[] = [];
+    const connections: Readonly<{
+        connectionId: string;
+        endCapHoleRef: HoleRef;
+        rafterRef: Readonly<{ instanceId: string; end: 'front'; featureId: string }>;
+        fastenerInstanceId: string;
+        alignment: 'coaxial';
+        featureStatus: 'measured' | 'inherited-pending';
+    }>[] = [];
+    const ids = new Set<string>();
+    for (const rafter of rafters) {
+        if (ids.has(rafter.instanceId) || !Number.isFinite(rafter.slopeRadians) ||
+            !Object.values(rafter.frontMm).every(Number.isFinite)) throw new Error('Invalid rafter endcap installation');
+        ids.add(rafter.instanceId);
+        const datum = rafterEndCapDatums;
+        const c = Math.cos(rafter.slopeRadians), s = Math.sin(rafter.slopeRadians);
+        const sign = rafter.mirrorX ? -1 : 1;
+        const instanceId = `${rafter.instanceId}-endcap-front`;
+        const positionMm = {
+            x: rafter.frontMm.x + sign * datum.anchorXZMm.x,
+            y: rafter.frontMm.y - s * datum.anchorXZMm.z,
+            z: rafter.frontMm.z + c * datum.anchorXZMm.z
+        };
+        const holes: HoleOperation[] = datum.holes.map((hole, i) => ({
+            operationId: `hole-${i + 1}`, faceId: 'contact-face',
+            centerMm: { x: hole.x, y: 0, z: hole.z },
+            axisUnit: { x: 0, y: 1, z: 0 }, diameterMm: hole.diameterMm,
+            extent: { kind: 'through', wallIds: ['endcap-plate'] }
+        }));
+        plates.push({ instanceId, catalogProductId: varendaCatalog.rafterEndCap.catalogProductId,
+            rafterRef: { instanceId: rafter.instanceId, end: 'front' }, positionMm,
+            slopeRadians: rafter.slopeRadians, mirrorX: rafter.mirrorX, thicknessMm: datum.thicknessMm, holes });
+        for (const [i, hole] of holes.entries()) {
+            const fastenerInstanceId = `${instanceId}-screw-${i + 1}`;
+            fasteners.push({ instanceId: fastenerInstanceId,
+                catalogProductId: varendaCatalog.screwWaferHead4_2x16.catalogProductId,
+                positionMm: {
+                    x: positionMm.x + sign * hole.centerMm.x,
+                    y: positionMm.y - s * hole.centerMm.z - c * datum.thicknessMm,
+                    z: positionMm.z + c * hole.centerMm.z - s * datum.thicknessMm
+                }, axisUnit: { x: 0, y: c, z: s } });
+            connections.push({ connectionId: `${instanceId}-connection-${i + 1}`,
+                endCapHoleRef: { partInstanceId: instanceId, operationId: hole.operationId },
+                rafterRef: { instanceId: rafter.instanceId, end: 'front', featureId: `screw-channel-${i + 1}` },
+                fastenerInstanceId, alignment: 'coaxial',
+                featureStatus: rafter.bodyKind === 'end' && i === 2 ? 'inherited-pending' : 'measured' });
+        }
+    }
+    return { plates, fasteners, connections };
 }

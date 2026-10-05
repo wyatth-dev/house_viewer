@@ -257,3 +257,14 @@ export const glazingGasketDatums = {
     supportTopZMm: 9.200542,
     sourceGlassRightGasketCorrectionMm: 8.75
 } as const;
+
+/** Origin: left upper screw axis on the contact plane; +Y points into the front cut. */
+export const rafterEndCapDatums = {
+    thicknessMm: 2,
+    anchorXZMm: { x: -20.5, z: 30.2 },
+    holes: [
+        { x: 0, z: 0, diameterMm: 3.6 },
+        { x: 41, z: 0, diameterMm: 3.6 },
+        { x: 20.488998291600982, z: -25.4, diameterMm: 3.6 }
+    ]
+} as const;

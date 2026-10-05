@@ -43,7 +43,7 @@ test('installed bolt and nut share the measured mirrored bore axis across slopes
         }
         assert.equal(
             hardware.length,
-            solution.endCaps.fasteners.length + solution.rafters.length * 4 + solution.posts.length * 10
+            solution.endCaps.fasteners.length + solution.rafterEndCaps.fasteners.length + solution.rafters.length * 4 + solution.posts.length * 10
         );
     }
 });

@@ -34,6 +34,7 @@ export function solveColumnFasteners(
                     y: post.positionMm.y + hole.centerMm.y,
                     z: post.positionMm.z + hole.centerMm.z
                 },
+                modelOffsetMm: bottom ? 0 : hole.faceId === 'y-positive' ? -5.9125710834 : -6.1125710834,
                 axisUnit: bottom
                     ? { x: hole.faceId === 'x-positive' ? -1 : 1, y: 0, z: 0 }
                     : { x: 0, y: hole.faceId === 'y-positive' ? -1 : 1, z: 0 }

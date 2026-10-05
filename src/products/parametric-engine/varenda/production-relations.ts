@@ -29,6 +29,11 @@ export function buildProductionRelations(solution: VarendaGeometry): Map<string,
             for (const a of plate.fasteners) for (const b of plate.fasteners) connect(a.instanceId, b.instanceId);
         }
     }
+    for (const plate of solution.rafterEndCaps?.plates ?? []) connect(plate.rafterRef.instanceId, plate.instanceId);
+    for (const connection of solution.rafterEndCaps?.connections ?? []) {
+        connect(connection.endCapHoleRef.partInstanceId, connection.fastenerInstanceId);
+        connect(connection.rafterRef.instanceId, connection.fastenerInstanceId);
+    }
     for (const connection of solution.endCaps?.connections ?? []) {
         connect(connection.endCapHoleRef.partInstanceId, connection.fastenerInstanceId);
     }
@@ -37,6 +42,11 @@ export function buildProductionRelations(solution: VarendaGeometry): Map<string,
         const rail = support === 'gutter' || support === 'wallpiece' ? `${support}-moving` : support;
         connect(installation.gasketInstanceId, rail);
         if (installation.glassRef) connect(installation.gasketInstanceId, installation.glassRef.instanceId);
+    }
+    for (const connection of solution.machining?.connections ?? []) {
+        const owners = [...new Set(connection.featureRefs.map(ref => ref.partInstanceId))];
+        for (const owner of owners) for (const hardware of connection.fastenerInstanceIds) connect(owner, hardware);
+        for (const a of owners) for (const b of owners) connect(a, b);
     }
     return new Map([...graph].map(([id, targets]) => [id, [...targets]]));
 }
@@ -63,6 +73,9 @@ export function buildInstallationMenus(solution: VarendaGeometry): Map<string, r
             for (const hardware of plate.fasteners) add(plate.instanceId, hardware.instanceId);
         }
     }
+    for (const plate of solution.rafterEndCaps?.plates ?? []) add(plate.rafterRef.instanceId, plate.instanceId);
+    for (const connection of solution.rafterEndCaps?.connections ?? [])
+        add(connection.endCapHoleRef.partInstanceId, connection.fastenerInstanceId);
     for (const connection of solution.endCaps?.connections ?? [])
         add(connection.endCapHoleRef.partInstanceId, connection.fastenerInstanceId);
     for (const installation of solution.glazing?.installations ?? []) {
@@ -73,5 +86,8 @@ export function buildInstallationMenus(solution: VarendaGeometry): Map<string, r
         );
         if (installation.glassRef) add(installation.glassRef.instanceId, installation.gasketInstanceId);
     }
+    for (const connection of solution.machining?.connections ?? [])
+        for (const ref of connection.featureRefs)
+            for (const hardware of connection.fastenerInstanceIds) add(ref.partInstanceId, hardware);
     return new Map([...menus].map(([id, parts]) => [id, [...parts]]));
 }

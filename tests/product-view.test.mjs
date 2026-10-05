@@ -223,3 +223,40 @@ test('component perspective basis follows its world transform without inheriting
         assert.notDeepEqual(basis, view.getViewBasis());
     } finally { view.destroy(); root.destroy(); }
 });
+
+
+test('selecting components highlights their installed screws without selecting siblings or parents', async () => {
+    const { solveVarenda } = await import('../src/products/parametric-engine/varenda/solution.ts');
+    const { getInstalledFasteners } = await import('../src/products/parametric-engine/varenda/production-list.ts');
+    const solution = solveVarenda(defaultVarendaParams);
+    const hardware = getInstalledFasteners(solution);
+    let draw;
+    const colors = [];
+    const scene = {
+        root: new Entity('scene'),
+        on: (_event, callback) => { draw = callback; },
+        off() { /* Headless event cleanup. */ },
+        drawLine: (_a, _b, color) => colors.push(color)
+    };
+    const view = await createVarendaView(scene, {
+        load: async () => ({ instantiateRenderEntity: () => new Entity('mesh') })
+    });
+    const highlighted = (id, context = []) => {
+        view.select([id], context);
+        colors.length = 0;
+        draw();
+        return hardware.filter((_part, i) => colors.at(-hardware.length + i).r === 1).map(part => part.instanceId);
+    };
+    try {
+        view.update(solution);
+        const cap = solution.endCaps.connections[0];
+        assert.ok(highlighted(cap.endCapHoleRef.partInstanceId).includes(cap.fastenerInstanceId));
+        const rafter = solution.rafters[0];
+        const active = highlighted(rafter.instanceId);
+        for (const stand of [rafter.stands.front, rafter.stands.rear])
+            for (const screw of stand.fasteners) assert.ok(active.includes(screw.instanceId));
+        for (const screw of solution.rafters[1].stands.front.fasteners)
+            assert.equal(active.includes(screw.instanceId), false);
+        assert.deepEqual(highlighted(cap.fastenerInstanceId, [cap.endCapHoleRef.partInstanceId]), [cap.fastenerInstanceId]);
+    } finally { view.destroy(); scene.root.destroy(); }
+});

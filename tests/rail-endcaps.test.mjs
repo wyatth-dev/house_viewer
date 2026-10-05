@@ -56,7 +56,7 @@ test('rendered endcaps stay rigid and mirrored at rail ends across width and slo
             const endCaps = solveRailEndCaps(gutter, wallPiece);
             view.update({ footings: { assemblies: [] }, posts: [], gutter, wallPiece,
                 roofSlope: { slopeDegrees: 35 }, endCaps });
-            assert.equal(view.root.children[0].children.length, 8);
+            assert.equal(view.root.children[0].children.length, 8 + endCaps.fasteners.length);
             for (const plate of endCaps.plates) {
                 const e = view.root.findByName(plate.instanceId);
                 assert.equal(e.assetUrl, `/models/varenda/${plate.railRef.instanceId}-endcap.glb`);

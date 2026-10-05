@@ -14,6 +14,12 @@ export const varendaCatalog = {
     wallpieceMoving: { catalogProductId: 'varenda-wallpiece-moving', productName: null, kind: 'profile', status: 'pending' },
     rafterRegular: { catalogProductId: 'varenda-rafter-regular', productName: null, kind: 'profile', status: 'pending' },
     rafterEnd: { catalogProductId: 'varenda-rafter-end', productName: null, kind: 'profile', status: 'pending' },
+    rafterEndCap: {
+        catalogProductId: 'varenda-rafter-endcap',
+        productName: '5140010020 - Veranda Rafter End Cap v2',
+        kind: 'plate',
+        status: 'pending'
+    },
     gutterEndCap: {
         catalogProductId: 'varenda-gutter-endcap',
         productName: '5140010010 Veranda ring beam End Cap',

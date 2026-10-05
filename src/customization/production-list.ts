@@ -9,11 +9,14 @@ export function specificationLabel(row: ProductionRow): string {
         widthMm: 'W',
         depthMm: 'D',
         thicknessMm: 'T',
-        diameterMm: 'Ø'
+        diameterMm: 'Ø',
+        holeCount: 'Holes',
+        channelCount: 'Channels',
+        pendingHoleDepthCount: 'Depth pending'
     };
     return Object.entries(row.specification)
         .map(([key, value]) =>
-            typeof value === 'number' ? `${labels[key] ?? key} ${Number(value.toFixed(2))} mm` : value
+            typeof value === 'number' ? `${labels[key] ?? key} ${Number(value.toFixed(2))}${key.endsWith('Count') ? '' : ' mm'}` : value
         )
         .join(' · ');
 }

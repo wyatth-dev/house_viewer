@@ -2,6 +2,8 @@ import { solveColumnFasteners } from './column-fasteners.ts';
 import { varendaDatums } from './datums.ts';
 import { solveGlazing } from './glazing-solver.ts';
 import type { GlazingSolution } from './glazing-solver.ts';
+import type { MachiningInventory } from './machining.ts';
+import { buildMachiningInventory } from './machining.ts';
 import type { VarendaParams } from './parameters.ts';
 import {
     solveColumnLayout,
@@ -11,12 +13,14 @@ import {
     solveWallPieceLayout,
     solveRoofSlope,
     solveRafters,
-    solveRailEndCaps
+    solveRailEndCaps,
+    solveRafterEndCaps
 } from './varenda-solver.ts';
 import type { FootingSolution, PostInstance, GutterLayout, WallPieceLayout } from './varenda-solver.ts';
 
 /** Engineering data shared by list and renderer; no rendering dependency. */
 export type VarendaGeometry = Readonly<{
+    machining?: MachiningInventory;
     footings: FootingSolution;
     posts: readonly PostInstance[];
     gutter: GutterLayout;
@@ -24,6 +28,7 @@ export type VarendaGeometry = Readonly<{
     roofSlope: Readonly<{ slopeDegrees: number }>;
     rafters?: ReturnType<typeof solveRafters>;
     endCaps?: ReturnType<typeof solveRailEndCaps>;
+    rafterEndCaps?: ReturnType<typeof solveRafterEndCaps>;
     glazing?: GlazingSolution;
     columnFasteners?: ReturnType<typeof solveColumnFasteners>;
 }>;
@@ -35,7 +40,7 @@ export function solveVarenda(params: Readonly<VarendaParams>) {
     const rafters = solveRafters(params);
     const footings = solveFootings(columnLayout, varendaDatums);
     const posts = solvePosts(columnLayout, params, varendaDatums);
-    return {
+    const solution = {
         columnLayout,
         footings,
         posts,
@@ -45,6 +50,8 @@ export function solveVarenda(params: Readonly<VarendaParams>) {
         rafters,
         roofSlope: solveRoofSlope(params),
         endCaps: solveRailEndCaps(gutter, wallPiece),
+        rafterEndCaps: solveRafterEndCaps(rafters),
         glazing: solveGlazing(params, rafters)
     };
+    return { ...solution, machining: buildMachiningInventory(solution) };
 }

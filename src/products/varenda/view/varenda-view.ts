@@ -1,4 +1,4 @@
-import { Color, Entity, Vec3 } from 'playcanvas';
+import { Quat, Color, Entity, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
 import type { ProductAssetStore } from '../../../shared/assets/containers.ts';
@@ -6,10 +6,11 @@ import type { CameraBasis } from '../../../shared/camera/types.ts';
 import { roofJointDatums, rafterDatums, glazingGasketDatums } from '../../parametric-engine/varenda/datums.ts';
 import { getInstalledFasteners } from '../../parametric-engine/varenda/production-list.ts';
 import type { InstalledFastener } from '../../parametric-engine/varenda/production-list.ts';
+import { buildInstallationMenus } from '../../parametric-engine/varenda/production-relations.ts';
 import type { VarendaGeometry } from '../../parametric-engine/varenda/solution.ts';
 import type { ProductPointMm } from '../../parametric-engine/varenda/varenda-solver.ts';
 
-import { varendaAssets } from './assets.ts';
+import { hardwareAssets, varendaAssets } from './assets.ts';
 import { axisBounds, axisEndpoints } from './fastener-axes.ts';
 import { combineBounds, createSelectionMaterials, entityBounds, meshTargets } from './selection.ts';
 
@@ -26,12 +27,14 @@ export async function createVarendaView(
     app: Pick<AppBase, 'root'> & Partial<Pick<AppBase, 'drawLine' | 'on' | 'off'>>,
     assets: ProductAssetStore
 ) {
+    const hardwareModels = new Map(await Promise.all(Object.entries(hardwareAssets).map(async ([id, url]) => [id, await assets.load(url)] as const)));
     const footplate = await assets.load(varendaAssets.footplate);
     const postBody = await assets.load(varendaAssets.postBody);
     const gutterFixed = await assets.load(varendaAssets.gutterFixed);
     const gutterMoving = await assets.load(varendaAssets.gutterMoving);
     const wallPieceFixed = await assets.load(varendaAssets.wallPieceFixed);
     const wallPieceMoving = await assets.load(varendaAssets.wallPieceMoving);
+    const rafterEndCap = await assets.load(varendaAssets.rafterEndCap);
     const rafterBody = await assets.load(varendaAssets.rafterBody);
     const rafterEndBody = await assets.load(varendaAssets.rafterEndBody);
     const rafterStand = await assets.load(varendaAssets.rafterStand);
@@ -51,6 +54,8 @@ export async function createVarendaView(
     let destroyed = false;
     let registry = new Map<string, Entity[]>();
     let hardware: InstalledFastener[] = [];
+    let installations = new Map<string, readonly string[]>();
+    let machining: VarendaGeometry['machining'];
     let fastenerAxesVisible = true;
     let selected = new Set<string>();
     let context = new Set<string>();
@@ -66,6 +71,20 @@ export async function createVarendaView(
         refreshDetails();
     };
     const drawAxes = () => {
+        if (fastenerAxesVisible) {
+            for (const part of machining?.parts ?? []) for (const hole of part.features) {
+                if (hole.kind !== 'hole') continue;
+                const n = new Vec3(hole.worldAxisUnit.x, hole.worldAxisUnit.z, -hole.worldAxisUnit.y).normalize();
+                const u = new Vec3().cross(n, Math.abs(n.y) < 0.9 ? Vec3.UP : Vec3.RIGHT).normalize();
+                const v = new Vec3().cross(n, u).normalize();
+                const center = new Vec3(hole.worldCenterMm.x, hole.worldCenterMm.z, -hole.worldCenterMm.y);
+                const radius = hole.diameterMm / 2;
+                for (let i = 0; i < 32; i++) {
+                    const point = (angle: number) => root.getWorldTransform().transformPoint(center.clone().add(u.clone().mulScalar(radius * Math.cos(angle))).add(v.clone().mulScalar(radius * Math.sin(angle))));
+                    app.drawLine?.(point(i * Math.PI / 16), point((i + 1) * Math.PI / 16), selected.has(part.partInstanceId) ? new Color(1, 0.52, 0.05) : new Color(0.2, 0.6, 0.9), true);
+                }
+            }
+        }
         if (!fastenerAxesVisible) return;
         for (const fastener of hardware) {
             const [a, b] = axisEndpoints(root, fastener);
@@ -106,9 +125,22 @@ export async function createVarendaView(
             const valid = instanceIds.filter((id) => registry.has(id) || hardware.some((h) => h.instanceId === id));
             if (!valid.length) return undefined;
             selected = new Set(valid);
+            // Follow installation ownership only: supporting parents and sibling parts stay separate.
+            const fastenerIds = new Set(hardware.map((part) => part.instanceId));
+            const visited = new Set<string>();
+            const pending = [...valid];
+            while (pending.length) {
+                const id = pending.pop()!;
+                if (visited.has(id)) continue;
+                visited.add(id);
+                for (const child of installations.get(id) ?? []) {
+                    if (fastenerIds.has(child)) selected.add(child);
+                    pending.push(child);
+                }
+            }
             context = new Set(contextIds);
             refreshDetails();
-            const entities = valid.flatMap((id) => registry.get(id) ?? []);
+            const entities = [...selected].flatMap((id) => registry.get(id) ?? []);
             const contextEntities = contextIds.flatMap((id) => registry.get(id) ?? []);
             materials.apply(
                 root,
@@ -235,6 +267,15 @@ export async function createVarendaView(
                     entity.setLocalScale(plate.mirrorX ? -1 : 1, 1, 1);
                 }
 
+                for (const plate of solution.rafterEndCaps?.plates ?? []) {
+                    const entity = rafterEndCap.instantiateRenderEntity();
+                    entity.name = plate.instanceId;
+                    next.addChild(entity);
+                    placeProductEntity(entity, plate.positionMm);
+                    entity.setLocalEulerAngles(plate.slopeRadians * 180 / Math.PI, 0, 0);
+                    entity.setLocalScale(plate.mirrorX ? -1 : 1, 1, 1);
+                }
+
                 for (const rafter of solution.rafters ?? []) {
                     const bodyAsset = rafter.bodyKind === 'end' ? rafterEndBody : rafterBody;
 
@@ -267,6 +308,22 @@ export async function createVarendaView(
                         // Rhino Y 对应 PlayCanvas Z。
                         stand.setLocalScale(placement.mirrorX ? -1 : 1, 1, placement.mirrorY ? -1 : 1);
                     }
+                }
+                for (const fastener of getInstalledFasteners(solution)) {
+                    const model = hardwareModels.get(fastener.catalogProductId);
+                    if (!model) throw new Error(`Missing hardware model: ${fastener.catalogProductId}`);
+                    const entity = model.instantiateRenderEntity();
+                    entity.name = fastener.instanceId;
+                    next.addChild(entity);
+                    const offset = fastener.modelOffsetMm ?? 0;
+                    placeProductEntity(entity, {
+                        x: fastener.positionMm.x + offset * fastener.axisUnit.x,
+                        y: fastener.positionMm.y + offset * fastener.axisUnit.y,
+                        z: fastener.positionMm.z + offset * fastener.axisUnit.z
+                    });
+                    const target = new Vec3(fastener.axisUnit.x, fastener.axisUnit.z, -fastener.axisUnit.y);
+                    const rotation = new Quat().setFromDirections(new Vec3(0, 0, -1), target);
+                    entity.setLocalRotation(rotation);
                 }
             } catch (error) {
                 next.destroy();
@@ -305,6 +362,8 @@ export async function createVarendaView(
                 if (target instanceof Entity) registry.set(gasket.instanceId, [target]);
             }
             hardware = getInstalledFasteners(solution);
+            installations = buildInstallationMenus(solution);
+            machining = solution.machining;
         },
         destroy() {
             if (destroyed) return;

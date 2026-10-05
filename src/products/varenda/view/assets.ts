@@ -19,7 +19,16 @@ export const varendaAssets = {
     wallPieceSourceLengthMm: 100,
     wallPieceEndCap: '/models/varenda/wallpiece-endcap.glb',
     // rafter
+    rafterEndCap: '/models/varenda/rafter-endcap.glb',
     rafterBody: '/models/varenda/rafter-body.glb',
     rafterEndBody: '/models/varenda/rafter-end-body.glb',
     rafterStand: '/models/varenda/rafter-stand.glb'
 } as const;
+
+/** Hardware geometry references engineer seating planes; local Rhino +Y is the screw axis. */
+export const hardwareAssets: Readonly<Record<string, string>> = {
+    'fastener-wafer-head-self-drilling-4-2-16': '/models/varenda/wafer-screw.glb',
+    'fastener-m6-16-din7500c-a2-v1': '/models/varenda/m6-screw.glb',
+    'varenda-rafter-stand-bolt': '/models/varenda/stand-bolt.glb',
+    'varenda-rafter-stand-nut': '/models/varenda/stand-nut.glb'
+};

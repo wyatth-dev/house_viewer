@@ -19,6 +19,7 @@ export type ProductionRow = Readonly<{
 export function getInstalledFasteners(solution: VarendaGeometry): InstalledFastener[] {
     const installed: InstalledFastener[] = [
         ...(solution.endCaps?.fasteners ?? []),
+        ...(solution.rafterEndCaps?.fasteners ?? []),
         ...(solution.columnFasteners?.fasteners ?? [])
     ];
     for (const rafter of solution.rafters ?? []) {
@@ -35,7 +36,12 @@ export function getInstalledFasteners(solution: VarendaGeometry): InstalledFaste
                 installed.push({ ...hardware, positionMm, axisUnit: { x: 0, y: -s, z: c } });
         }
     }
-    return installed;
+    return installed.map(hardware => {
+        const offset = hardware.modelOffsetMm ?? 0;
+        const range: readonly [number, number] = hardware.catalogProductId === 'varenda-rafter-stand-bolt'
+            ? [-11.5, 8.5] : hardware.catalogProductId === 'varenda-rafter-stand-nut' ? [0, 6.6666667] : [0, 16];
+        return { ...hardware, axialExtentMm: [offset + range[0], offset + range[1]] as const };
+    });
 }
 
 const pendingLabels: Record<string, string> = {
@@ -50,6 +56,11 @@ const pendingLabels: Record<string, string> = {
     'varenda-glass-panel': 'Roof glass'
 };
 export function buildProductionList(solution: VarendaGeometry): ProductionRow[] {
+    const counts = new Map((solution.machining?.parts ?? []).map(p => [p.partInstanceId, {
+        holeCount: p.features.filter(f => f.kind === 'hole').length,
+        channelCount: p.features.filter(f => f.kind === 'channel').length,
+        pendingHoleDepthCount: p.features.filter(f => f.kind === 'hole' && f.extent.kind === 'pending').length
+    }]));
     const groups = new Map<string, { row: Omit<ProductionRow, 'quantity' | 'instanceIds'>; ids: Set<string> }>();
     const add = (
         catalogProductId: string,
@@ -57,6 +68,8 @@ export function buildProductionList(solution: VarendaGeometry): ProductionRow[] 
         category: string,
         specification: Record<string, number | string> = { detail: 'Specification pending' }
     ) => {
+        const featureCounts = counts.get(instanceId);
+        if (featureCounts) specification = { ...specification, ...featureCounts };
         const material =
             catalogProductId === 'varenda-rafter-stand-nut' || catalogProductId === 'fastener-m6-16-din7500c-a2-v1'
                 ? 'Stainless steel A2'
@@ -94,7 +107,7 @@ export function buildProductionList(solution: VarendaGeometry): ProductionRow[] 
         for (const plate of [rafter.stands.front, rafter.stands.rear])
             add(plate.catalogProductId, plate.instanceId, 'Plates', { widthMm: 80, depthMm: 28.5, thicknessMm: 3 });
     }
-    for (const part of solution.endCaps?.plates ?? [])
+    for (const part of [...(solution.endCaps?.plates ?? []), ...(solution.rafterEndCaps?.plates ?? [])])
         add(part.catalogProductId, part.instanceId, 'Plates', { thicknessMm: part.thicknessMm });
     for (const part of solution.glazing?.glass ?? [])
         add(part.catalogProductId, part.instanceId, 'Glass', {
