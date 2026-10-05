@@ -100,7 +100,17 @@ test('selection clones shared materials and clearing restores exact original ref
 });
 
 test('moving metal profiles and embedded gaskets have exclusive selection targets', async () => {
-    const canvas = { id: 'rail-test', width: 100, height: 100, addEventListener() { /* Headless canvas. */ }, removeEventListener() { /* Headless canvas. */ } };
+    const canvas = {
+        id: 'rail-test',
+        width: 100,
+        height: 100,
+        addEventListener() {
+            /* Headless canvas. */
+        },
+        removeEventListener() {
+            /* Headless canvas. */
+        }
+    };
     const scene = new AppBase(canvas),
         options = new AppOptions();
     options.graphicsDevice = new NullGraphicsDevice(canvas);
@@ -147,6 +157,56 @@ test('moving metal profiles and embedded gaskets have exclusive selection target
         assert.equal(metal.material.opacity, 0.12);
         assert.ok(seal.material.opacity >= 0.85);
     }
+    view.destroy();
+    scene.destroy();
+});
+
+test('context parent keeps original material while selected child highlights and other parts fade', async () => {
+    const canvas = {
+        id: 'context-test',
+        width: 100,
+        height: 100,
+        addEventListener() {
+            /* Headless. */
+        },
+        removeEventListener() {
+            /* Headless. */
+        }
+    };
+    const scene = new AppBase(canvas),
+        options = new AppOptions();
+    options.graphicsDevice = new NullGraphicsDevice(canvas);
+    options.componentSystems = [RenderComponentSystem];
+    scene.init(options);
+    const view = await createVarendaView(scene, {
+        load: async () => ({
+            instantiateRenderEntity() {
+                const entity = new Entity();
+                entity.addComponent('render', { type: 'box' });
+                return entity;
+            }
+        })
+    });
+    const solution = solveVarenda(defaultVarendaParams);
+    view.update(solution);
+    const post = view.root.findByName(solution.posts[0].instanceId).render.meshInstances[0];
+    const footing = view.root.findByName(solution.footings.assemblies[0].instanceId).render.meshInstances[0];
+    const postOriginal = post.material,
+        footingOriginal = footing.material;
+    const screw = solution.columnFasteners.fasteners[0].instanceId;
+    const bounds = view.select([screw], [solution.posts[0].instanceId]);
+    assert.ok(bounds);
+    assert.equal(post.material, postOriginal);
+    assert.equal(footing.material.opacity, 0.12);
+    view.select([screw], [solution.footings.assemblies[0].instanceId]);
+    assert.equal(footing.material, footingOriginal);
+    assert.equal(post.material.opacity, 0.12);
+    view.select([solution.posts[0].instanceId], [solution.posts[0].instanceId]);
+    assert.notEqual(post.material, postOriginal);
+    assert.ok(post.material.opacity >= 0.85);
+    view.clearSelection();
+    assert.equal(post.material, postOriginal);
+    assert.equal(footing.material, footingOriginal);
     view.destroy();
     scene.destroy();
 });

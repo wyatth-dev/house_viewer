@@ -37,3 +37,13 @@ export function toggleGroup(menus: Map<string, Set<string>>, rowId: string) {
     menus.clear();
     if (!wasOpen) menus.set(rowId, new Set());
 }
+
+/** The immediate navigation parent supplies rendering context; ancestors stay faded. */
+export function selectionContext(
+    current: InstanceSelection | undefined,
+    groupInstanceIds: readonly string[]
+): readonly string[] {
+    if (!current) return [];
+    const parent = current.path.at(-2);
+    return parent ? [parent] : groupInstanceIds;
+}

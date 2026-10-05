@@ -42,3 +42,22 @@ test('group clicks toggle closed and switching groups closes the previous group'
     toggleGroup(menus, 'post');
     assert.deepEqual([...menus.keys()], ['post']);
 });
+
+test('rendering context is the immediate navigation parent, including different paths to a shared screw', async () => {
+    const { selectionContext } = await import('../src/customization/selection-state.ts');
+    assert.deepEqual(selectionContext({ id: 'screw-1', path: ['column-1', 'screw-1'] }, ['column-1', 'column-2']), [
+        'column-1'
+    ]);
+    assert.deepEqual(
+        selectionContext({ id: 'screw-1', path: ['footplate-1', 'screw-1'] }, ['footplate-1', 'footplate-2']),
+        ['footplate-1']
+    );
+    assert.deepEqual(selectionContext({ id: 'bolt-1', path: ['rafter-1', 'plate-1', 'bolt-1'] }, ['rafter-1']), [
+        'plate-1'
+    ]);
+    assert.deepEqual(selectionContext({ id: 'column-1', path: ['column-1'] }, ['column-1', 'column-2']), [
+        'column-1',
+        'column-2'
+    ]);
+    assert.deepEqual(selectionContext(undefined, ['column-1']), []);
+});

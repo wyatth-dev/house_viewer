@@ -51,12 +51,15 @@ export async function createVarendaView(
     let registry = new Map<string, Entity[]>();
     let hardware: InstalledFastener[] = [];
     let selected = new Set<string>();
+    let context = new Set<string>();
     const materials = createSelectionMaterials();
     const refreshDetails = () => {
-        for (const entity of gasketEntities) entity.enabled = glazingDetailVisible || selected.has(entity.name);
+        for (const entity of gasketEntities)
+            entity.enabled = glazingDetailVisible || selected.has(entity.name) || context.has(entity.name);
     };
     const clearSelection = () => {
         selected.clear();
+        context.clear();
         materials.clear();
         refreshDetails();
     };
@@ -71,7 +74,7 @@ export async function createVarendaView(
                     active ? 1 : 0.32,
                     active ? 0.52 : 0.48,
                     active ? 0.05 : 0.4,
-                    selected.size && !active ? 0.12 : 1
+                    selected.size && !active && !context.has(fastener.instanceId) ? 0.12 : 1
                 ),
                 !active
             );
@@ -85,14 +88,20 @@ export async function createVarendaView(
         getBounds() {
             return entityBounds(root);
         },
-        select(instanceIds: readonly string[]) {
+        select(instanceIds: readonly string[], contextIds: readonly string[] = []) {
             clearSelection();
             const valid = instanceIds.filter((id) => registry.has(id) || hardware.some((h) => h.instanceId === id));
             if (!valid.length) return undefined;
             selected = new Set(valid);
+            context = new Set(contextIds);
             refreshDetails();
             const entities = valid.flatMap((id) => registry.get(id) ?? []);
-            materials.apply(root, new Set(entities.flatMap(meshTargets)));
+            const contextEntities = contextIds.flatMap((id) => registry.get(id) ?? []);
+            materials.apply(
+                root,
+                new Set(entities.flatMap(meshTargets)),
+                new Set(contextEntities.flatMap(meshTargets))
+            );
             return combineBounds([
                 ...entities.map(entityBounds),
                 ...hardware.filter((h) => selected.has(h.instanceId)).map((h) => axisBounds(root, h))

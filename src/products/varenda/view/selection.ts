@@ -52,10 +52,11 @@ export function createSelectionMaterials() {
     };
     return {
         clear,
-        apply(root: Entity, selected: ReadonlySet<MeshInstance>) {
+        apply(root: Entity, selected: ReadonlySet<MeshInstance>, context: ReadonlySet<MeshInstance> = new Set()) {
             clear();
             const cache = new Map<Material, Map<boolean, StandardMaterial>>();
             for (const mesh of meshTargets(root)) {
+                if (context.has(mesh) && !selected.has(mesh)) continue;
                 const original = mesh.material;
                 originals.set(mesh, original);
                 const active = selected.has(mesh);

@@ -29,7 +29,7 @@ import { createProductCamera } from './product-camera.ts';
 import type { DisplayProductionRow } from './production-groups.ts';
 import { groupProductionRows } from './production-groups.ts';
 import type { InstanceNavigation, InstanceSelection } from './selection-state.ts';
-import { navigateInstance, reconcileSelection, toggleGroup } from './selection-state.ts';
+import { navigateInstance, reconcileSelection, selectionContext, toggleGroup } from './selection-state.ts';
 import './style.css';
 
 export function startCustomization() {
@@ -118,10 +118,14 @@ export function startCustomization() {
         selectRow = (id) => {
             const row = rows.find((candidate) => candidate.id === id);
             if (!row) return;
+            toggleGroup(menus, id);
+            if (!menus.has(id)) {
+                overview();
+                return;
+            }
             instanceSelection = undefined;
             const bounds = product.select(row.instanceIds);
             selectedId = id;
-            toggleGroup(menus, id);
             caption.textContent = `${row.label} · ${row.quantity} selected`;
             panel.update(rows, selectedId, instanceSelection, menus, installations);
             if (bounds) productCamera.focus(bounds);
@@ -138,7 +142,8 @@ export function startCustomization() {
             }
             // Instance focus does not change the expanded HUD group.
             instanceSelection = navigateInstance(instanceSelection, id, navigation);
-            const bounds = product.select([id]);
+            const group = rows.find((candidate) => candidate.id === selectedId);
+            const bounds = product.select([id], selectionContext(instanceSelection, group?.instanceIds ?? []));
             const part = rows.find((candidate) => candidate.instanceIds.includes(id))!;
             caption.textContent = `${part.label} · ${id}`;
             panel.update(rows, selectedId, instanceSelection, menus, installations);
@@ -179,7 +184,11 @@ export function startCustomization() {
                     ...instanceSelection,
                     path: instanceSelection.path.filter((id) => rows.some((row) => row.instanceIds.includes(id)))
                 };
-            if (retained) product.select(instanceSelection ? [instanceSelection.id] : retained.instanceIds);
+            if (retained)
+                product.select(
+                    instanceSelection ? [instanceSelection.id] : retained.instanceIds,
+                    selectionContext(instanceSelection, retained.instanceIds)
+                );
             caption.textContent = instanceSelection
                 ? instanceSelection.id
                 : retained
@@ -210,7 +219,10 @@ export function startCustomization() {
             app.resizeCanvas(width, height);
             const active = reconcileSelection(rows, selectedId);
             const bounds = active
-                ? product.select(instanceSelection ? [instanceSelection.id] : active.instanceIds)
+                ? product.select(
+                      instanceSelection ? [instanceSelection.id] : active.instanceIds,
+                      selectionContext(instanceSelection, active.instanceIds)
+                  )
                 : product.getBounds();
             if (bounds) productCamera.focus(bounds, false);
         };
