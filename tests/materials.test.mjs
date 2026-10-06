@@ -7,10 +7,10 @@ import { createPbrMaterial } from '../src/site-definition/materials/material.ts'
 import { surroundingGeometry } from '../src/site-definition/rendering/ground-geometry.ts';
 
 const sample = JSON.parse(
-    readFileSync(new URL('../public/site-definition/materials/leafy-grass/material.json', import.meta.url), 'utf8')
+    readFileSync(new URL('../public/site-definition/materials/short-grass/material.json', import.meta.url), 'utf8')
 );
 test('material validation rejects wrong color space, scale, channel convention and escaped URLs', () => {
-    assert.deepEqual(parseMaterialManifest(sample).tileMeters, [2, 2]);
+    assert.deepEqual(parseMaterialManifest(sample).tileMeters, [1.4, 1.4]);
     for (const change of [
         (v) => {
             v.tileMeters[0] = 0;
@@ -57,7 +57,7 @@ test('PBR material maps ORM channels correctly and preserves physical scale with
             material.aoMapTiling,
             material.metalnessMapTiling
         ])
-            assert.deepEqual([tiling.x, tiling.y], [0.0005, 0.0005]);
+            assert.deepEqual([tiling.x, tiling.y], [1 / 1400, 1 / 1400]);
     } finally {
         material.destroy();
     }

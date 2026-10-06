@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { landscapeLayout } from '../src/scene/landscape/layout.ts';
-import { treeGeometry } from '../src/scene/landscape/tree-geometry.ts';
 import { fitOrthographic, fitPerspective, projectPoint } from '../src/shared/camera/framing.ts';
 import { defaults, calculateLayout, validateDimensions } from '../src/site-definition/layout.ts';
 import { createPbrMaterial } from '../src/site-definition/materials/material.ts';
@@ -15,12 +14,10 @@ test('a 43m house and default yards are calculated entirely in mm', () => {
     assert.deepEqual(validateDimensions({ front: 50000, back: 0, left: 0, right: 0 }), {});
     assert.ok(validateDimensions({ front: 50001, back: 0, left: 0, right: 0 }).front);
 });
-test('context road and tree geometry have engineering dimensions', () => {
+test('context road has engineering dimensions', () => {
     const layout = landscapeLayout({ min: { x: -23500, y: 0, z: -35500 }, max: { x: 23500, y: 60, z: 33500 } });
     assert.equal(layout.road.z, 38000);
     assert.equal(layout.road.width, 6000);
-    const ys = treeGeometry().bark.positions.filter((_, i) => i % 3 === 1);
-    assert.ok(Math.max(...ys) > 8000);
 });
 test('millimeter detail can be framed without a meter-sized minimum radius', () => {
     const b = { min: { x: -0.5, y: 0, z: -0.5 }, max: { x: 0.5, y: 0.5, z: 0.5 } };

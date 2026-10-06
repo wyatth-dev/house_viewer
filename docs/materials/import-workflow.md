@@ -10,7 +10,7 @@ Site Definition owns the current grass textures, source records and runtime surf
 - `src/site-definition/rendering/`: site terrain, daylight and environment application.
 - `scripts/site-definition/check-materials.mjs`: offline manifest and texture integrity checker.
 
-The active site material is short grass from ambientCG Grass001, with a 1.4 × 1.4 m repeat. The retained leafy-grass reference is from Poly Haven, with a 2 × 2 m repeat. Detailed source and license records are preserved in the source JSON files and runtime manifests.
+The active site material is short grass from ambientCG Grass001, with a 1.4 × 1.4 m repeat. Detailed source and license records are preserved in the source JSON files and runtime manifests.
 
 ## Runtime conventions
 

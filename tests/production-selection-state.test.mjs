@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { reconcileSelection } from '../src/customization/selection-state.ts';
+import { reconcileSelection } from '../src/product-placement/selection-state.ts';
 
 test('selection resolves fresh instances and clears rows removed by parameter edits', () => {
     const fresh = { id: 'bolt', instanceIds: ['new-1', 'new-2'], quantity: 2 };
@@ -11,7 +11,7 @@ test('selection resolves fresh instances and clears rows removed by parameter ed
 });
 
 test('parent navigation follows the actual selection path and avoids cycles', async () => {
-    const { navigateInstance } = await import('../src/customization/selection-state.ts');
+    const { navigateInstance } = await import('../src/product-placement/selection-state.ts');
     const first = navigateInstance(undefined, 'rafter-2', 'direct');
     const plate = navigateInstance(first, 'plate-2', 'related');
     const screw = navigateInstance(plate, 'screw-2', 'related');
@@ -21,7 +21,7 @@ test('parent navigation follows the actual selection path and avoids cycles', as
 });
 
 test('expanding or focusing another component preserves every already open menu', async () => {
-    const { expandMenu } = await import('../src/customization/selection-state.ts');
+    const { expandMenu } = await import('../src/product-placement/selection-state.ts');
     const menus = new Map();
     expandMenu(menus, 'wall-piece', 'wallpiece-moving');
     expandMenu(menus, 'wall-piece', 'gasket-1');
@@ -32,7 +32,7 @@ test('expanding or focusing another component preserves every already open menu'
 });
 
 test('group clicks toggle closed and switching groups closes the previous group', async () => {
-    const { toggleGroup } = await import('../src/customization/selection-state.ts');
+    const { toggleGroup } = await import('../src/product-placement/selection-state.ts');
     const menus = new Map();
     toggleGroup(menus, 'plate');
     assert.equal(menus.has('plate'), true);
@@ -44,7 +44,7 @@ test('group clicks toggle closed and switching groups closes the previous group'
 });
 
 test('rendering context is the immediate navigation parent, including different paths to a shared screw', async () => {
-    const { selectionContext } = await import('../src/customization/selection-state.ts');
+    const { selectionContext } = await import('../src/product-placement/selection-state.ts');
     assert.deepEqual(selectionContext({ id: 'screw-1', path: ['column-1', 'screw-1'] }, ['column-1', 'column-2']), [
         'column-1'
     ]);
@@ -63,7 +63,7 @@ test('rendering context is the immediate navigation parent, including different 
 });
 
 test('every screw selected from a Footplate menu keeps that Footplate as its parent', async () => {
-    const { navigateInstance, selectionContext } = await import('../src/customization/selection-state.ts');
+    const { navigateInstance, selectionContext } = await import('../src/product-placement/selection-state.ts');
     let selected = navigateInstance(undefined, 'footplate-1', 'direct');
     for (const id of ['screw-1', 'screw-2', 'screw-3', 'screw-1']) {
         selected = navigateInstance(selected, id, 'related', 'footplate-1');
@@ -78,7 +78,7 @@ test('every screw selected from a Footplate menu keeps that Footplate as its par
 });
 
 test('clicking a selected part returns to its parent, or its group for a root instance', async () => {
-    const { toggleInstance } = await import('../src/customization/selection-state.ts');
+    const { toggleInstance } = await import('../src/product-placement/selection-state.ts');
     const foot = toggleInstance(undefined, 'foot-1', 'direct');
     const screw = toggleInstance(foot, 'screw-1', 'related', 'foot-1');
     assert.deepEqual(toggleInstance(screw, 'screw-1', 'related', 'foot-1'), foot);

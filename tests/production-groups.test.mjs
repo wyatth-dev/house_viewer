@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { groupProductionRows } from '../src/customization/production-groups.ts';
+import { groupProductionRows } from '../src/product-placement/production-groups.ts';
 import { defaultVarendaParams } from '../src/products/parametric-engine/varenda/parameters.ts';
 import { buildProductionList } from '../src/products/parametric-engine/varenda/production-list.ts';
 import { solveVarenda } from '../src/products/parametric-engine/varenda/solution.ts';

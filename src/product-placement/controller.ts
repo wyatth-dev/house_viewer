@@ -1,14 +1,5 @@
 import type { AppBase } from 'playcanvas';
 
-import { groupProductionRows } from '../customization/production-groups.ts';
-import { renderProductionList } from '../customization/production-list.ts';
-import {
-    toggleInstance,
-    reconcileSelection,
-    selectionContext,
-    toggleGroup
-} from '../customization/selection-state.ts';
-import type { InstanceSelection } from '../customization/selection-state.ts';
 import type { VarendaParams } from '../products/parametric-engine/varenda/parameters.ts';
 import { buildProductionList } from '../products/parametric-engine/varenda/production-list.ts';
 import { buildInstallationMenus } from '../products/parametric-engine/varenda/production-relations.ts';
@@ -31,6 +22,15 @@ import {
 } from './geometry.ts';
 import type { PreviewDimensionKey } from './geometry.ts';
 import { createPlacementPreview } from './preview.ts';
+import { groupProductionRows } from './production-groups.ts';
+import { renderProductionList } from './production-list.ts';
+import type { InstanceSelection } from './selection-state.ts';
+import {
+    toggleInstance,
+    reconcileSelection,
+    selectionContext,
+    toggleGroup
+} from './selection-state.ts';
 import type { CustomizableEnvelope, InstallationWallFace } from './types.ts';
 import { createAvailableAreaView, createPreviewMeasurements, createProductParameterMeasurements } from './view.ts';
 

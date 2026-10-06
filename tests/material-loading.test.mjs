@@ -7,7 +7,7 @@ import { NullGraphicsDevice } from 'playcanvas';
 import { loadPbrMaterial } from '../src/site-definition/materials/load.ts';
 
 const manifest = JSON.parse(
-    readFileSync(new URL('../public/site-definition/materials/leafy-grass/material.json', import.meta.url), 'utf8')
+    readFileSync(new URL('../public/site-definition/materials/short-grass/material.json', import.meta.url), 'utf8')
 );
 test('partial material download failure releases decoded textures and bitmaps', async () => {
     const keys = ['window', 'fetch', 'ImageBitmap', 'HTMLVideoElement', 'createImageBitmap'];
@@ -50,16 +50,24 @@ test('partial material download failure releases decoded textures and bitmaps', 
             return { ok: true, blob: async () => new Blob() };
         };
         await assert.rejects(
-            loadPbrMaterial(device, '/site-definition/materials/leafy-grass/material.json', '1k', new AbortController().signal)
+            loadPbrMaterial(
+                device,
+                '/site-definition/materials/short-grass/material.json',
+                '1k',
+                new AbortController().signal
+            )
         );
         assert.ok(bitmaps.length > 0);
         assert.ok(bitmaps.every((bitmap) => bitmap.closed));
         assert.equal(device.textures.length, before);
         const abort = new AbortController();
         abort.abort();
-        await assert.rejects(loadPbrMaterial(device, '/site-definition/materials/leafy-grass/material.json', '1k', abort.signal), {
-            name: 'AbortError'
-        });
+        await assert.rejects(
+            loadPbrMaterial(device, '/site-definition/materials/short-grass/material.json', '1k', abort.signal),
+            {
+                name: 'AbortError'
+            }
+        );
     } finally {
         device.destroy();
         for (const [key, descriptor] of originals) {
