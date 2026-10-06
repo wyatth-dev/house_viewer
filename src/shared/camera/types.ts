@@ -11,6 +11,8 @@ export type CameraState = { activePresetId: string };
 export type CameraController = {
     setView(id: string): void;
     fit(bounds: Bounds3, viewport: Viewport, animate?: boolean, basis?: CameraBasis): void;
+    orbit(yawDelta: number, pitchDelta: number): void;
+    zoom(factor: number): void;
     getState(): CameraState;
     project: ProjectPoint;
     screenToGround(x: number, y: number, groundYMm?: number): Point3 | undefined;

@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import { AppBase, AppOptions, CameraComponentSystem, NullGraphicsDevice, RenderComponentSystem } from 'playcanvas';
 
 import { createCameraController } from '../src/shared/camera/index.ts';
+import * as cameraModule from '../src/shared/camera/index.ts';
 import { createSiteController } from '../src/site-definition/index.ts';
 function createApp() {
     const canvas = {
@@ -24,6 +25,113 @@ function createApp() {
     app.init(options);
     return app;
 }
+test('canvas mouse controls rotate and zoom, ignore other buttons and browser zoom, and release listeners', () => {
+    const app = createApp();
+    const camera = createCameraController(app, [{ id: 'a', label: 'A', projection: 'perspective', direction: { x: 0, y: 1, z: 1 } }]);
+    const canvas = new EventTarget();
+    canvas.style = { cursor: '' };
+    canvas.setPointerCapture = () => {};
+    canvas.releasePointerCapture = () => {};
+    canvas.hasPointerCapture = () => true;
+    canvas.clientHeight = 600;
+    const dispatch = (name, values = {}) => {
+        const event = Object.assign(new Event(name, { cancelable: true }), { pointerId: 1, button: 0, pointerType: 'mouse', clientX: 10, clientY: 10, ...values });
+        canvas.dispatchEvent(event);
+        return event;
+    };
+    let controls;
+    try {
+        camera.fit({ min: { x: -1000, y: 0, z: -1000 }, max: { x: 1000, y: 2000, z: 1000 } }, { width: 800, height: 600 });
+        controls = cameraModule.createOrbitControls(canvas, camera);
+        const entity = app.root.children[0];
+        const before = entity.getPosition().clone();
+        dispatch('pointerdown', { button: 2 });
+        dispatch('pointermove', { clientX: 100 });
+        assert.ok(entity.getPosition().equals(before));
+        dispatch('pointerdown');
+        dispatch('pointermove', { clientX: 12 });
+        assert.ok(entity.getPosition().equals(before), 'click jitter must not orbit');
+        dispatch('pointermove', { clientX: 100 });
+        assert.ok(!entity.getPosition().equals(before));
+        dispatch('pointerup', { clientX: 100 });
+        assert.equal(canvas.style.cursor, '');
+        const orbitPose = entity.getPosition().clone();
+        const browserZoom = dispatch('wheel', { deltaY: 100, deltaMode: 0, ctrlKey: true });
+        assert.equal(browserZoom.defaultPrevented, false);
+        assert.ok(entity.getPosition().equals(orbitPose));
+        const wheel = dispatch('wheel', { deltaY: -100, deltaMode: 0 });
+        assert.equal(wheel.defaultPrevented, true);
+        assert.ok(entity.getPosition().distance({ x: 0, y: 1000, z: 0 }) < orbitPose.distance({ x: 0, y: 1000, z: 0 }));
+        controls.destroy();
+        const stopped = entity.getPosition().clone();
+        dispatch('wheel', { deltaY: 100, deltaMode: 0 });
+        dispatch('pointerdown');
+        dispatch('pointermove', { clientX: 200 });
+        assert.ok(entity.getPosition().equals(stopped));
+    } finally { controls?.destroy(); camera.destroy(); app.destroy(); }
+});
+test('manual orbit and zoom preserve the focused target and projected picking in both lenses', () => {
+    const app = createApp();
+    const camera = createCameraController(app, [
+        { id: 'perspective', label: 'Perspective', projection: 'perspective', direction: { x: 0.3, y: 0.8, z: 1 } },
+        { id: 'orthographic', label: 'Orthographic', direction: { x: 1, y: 0.8, z: 0 } }
+    ], { duration: 0 });
+    const viewport = { width: 1000, height: 800 };
+    try {
+        for (const bounds of [
+            { min: { x: -20000, y: 0, z: -30000 }, max: { x: 20000, y: 8000, z: 30000 } },
+            { min: { x: 1000, y: 0, z: 25000 }, max: { x: 5000, y: 2500, z: 27000 } }
+        ]) {
+            const center = Object.fromEntries(['x', 'y', 'z'].map(axis => [axis, (bounds.min[axis] + bounds.max[axis]) / 2]));
+            for (const id of ['perspective', 'orthographic']) {
+                camera.setView(id);
+                camera.fit(bounds, viewport);
+                const entity = app.root.children.find(e => e.enabled);
+                const before = entity.getPosition().clone();
+                camera.orbit(0.4, 0.1);
+                assert.ok(!entity.getPosition().equals(before));
+                assert.ok(Math.abs(entity.getPosition().distance(center) - before.distance(center)) < 0.01);
+                const projected = camera.project(center);
+                assert.ok(Math.abs(projected.x - 500) < 1e-6 && Math.abs(projected.y - 400) < 1e-6);
+                const height = entity.camera.orthoHeight;
+                const distance = entity.getPosition().distance(center);
+                camera.zoom(0.5);
+                if (id === 'perspective') assert.ok(entity.getPosition().distance(center) < distance);
+                else assert.ok(entity.camera.orthoHeight < height);
+                const point = { x: center.x + 100, y: 0, z: center.z + 100 };
+                const screen = camera.project(point);
+                const restored = camera.screenToGround(screen.x, screen.y, 0);
+                assert.ok(restored);
+                for (const axis of ['x', 'y', 'z']) assert.ok(Math.abs(restored[axis] - point[axis]) < 1e-6);
+            }
+        }
+    } finally { camera.destroy(); app.destroy(); }
+});
+
+test('manual input interrupts view animation and notifies labels without later snapping back', () => {
+    const app = createApp();
+    const camera = createCameraController(app, [
+        { id: 'a', label: 'A', projection: 'perspective', direction: { x: 0, y: 1, z: 1 } },
+        { id: 'b', label: 'B', direction: { x: 1, y: 1, z: 0 } }
+    ]);
+    try {
+        camera.fit({ min: { x: -1000, y: 0, z: -1000 }, max: { x: 1000, y: 2000, z: 1000 } }, { width: 800, height: 600 });
+        camera.setView('b');
+        app.fire('update', 0.4);
+        let changes = 0;
+        camera.onMove(() => changes++);
+        camera.orbit(0.2, 0);
+        camera.zoom(0.9);
+        const entity = app.root.children.find(e => e.enabled);
+        const pose = entity.getPosition().clone();
+        app.fire('update', 1);
+        assert.ok(entity.getPosition().equals(pose));
+        assert.equal(changes, 2);
+        camera.setView('b');
+        app.fire('update', 1);
+        assert.equal(entity.camera.calculateProjection, null);
+    } finally { camera.destroy(); app.destroy(); }
+});
 test('camera controller enables only the selected camera, rejects unknown IDs, and isolates snapshots', () => {
     const app = createApp();
     const c = createCameraController(app, [

@@ -14,7 +14,7 @@ import {
 import { createPlacementController } from '../product-placement/controller.ts';
 import { loadHouse } from '../scene/house/house.ts';
 import { createModelPreview } from '../scene/model-preview/index.ts';
-import { createCameraController, createCameraControls } from '../shared/camera/index.ts';
+import { createCameraController, createCameraControls, createOrbitControls } from '../shared/camera/index.ts';
 import { createLifetime } from '../shared/lifetime.ts';
 
 import { cameraPresets } from './camera-presets.ts';
@@ -62,6 +62,8 @@ export function startSiteDefinition() {
             duration: 0.8
         });
         lifetime.add(() => camera.destroy());
+        const orbitControls = createOrbitControls(canvas, camera);
+        lifetime.add(() => orbitControls.destroy());
         const site = createSiteController(app, house.footprint, document.querySelector<HTMLElement>('#measurements')!);
         lifetime.add(() => site.destroy());
 

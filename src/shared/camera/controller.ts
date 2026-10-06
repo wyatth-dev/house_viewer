@@ -18,6 +18,7 @@ export function createCameraController(
     let active = presets[0].id,
         viewport: Viewport = { width: 1, height: 1 };
     let bounds: Bounds3 | undefined, current: Frame | undefined;
+    let manuallyChanged = false;
     let transition: { from: Frame; to: Frame; elapsed: number; containBounds: boolean } | undefined;
     const cameras = new Map<string, Entity>(),
         frames = new Map<string, Frame>(),
@@ -85,10 +86,20 @@ export function createCameraController(
         for (const listener of listeners) listener();
     };
     app.on('update', update);
+    const applyManual = (frame: Frame) => {
+        transition = undefined;
+        manuallyChanged = true;
+        const distance = Math.hypot(frame.position.x - frame.center.x, frame.position.y - frame.center.y, frame.position.z - frame.center.z);
+        const radius = bounds ? Math.hypot(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z) / 2 : 1;
+        current = { ...frame, near: Math.max(0.01, distance - radius * 1.2), far: distance + radius * 1.2 + 1 };
+        apply(active, current, current.projectionMix !== undefined);
+        for (const listener of listeners) listener();
+    };
     return {
         setView(id) {
             if (!cameras.has(id)) throw new Error(`Unknown camera: ${id}`);
-            if (id === active) return;
+            if (id === active && !manuallyChanged) return;
+            manuallyChanged = false;
             const target = frames.get(id);
             active = id;
             for (const [key, entity] of cameras) entity.enabled = key === active;
@@ -102,6 +113,7 @@ export function createCameraController(
             }
         },
         fit(nextBounds, size, animate = false, basis) {
+            manuallyChanged = false;
             const from = current;
             bounds = structuredClone(nextBounds);
             viewport = { ...size };
@@ -129,6 +141,31 @@ export function createCameraController(
                 current = target;
             }
             for (const listener of listeners) listener();
+        },
+        orbit(yawDelta, pitchDelta) {
+            if (!current || ![yawDelta, pitchDelta].every(Number.isFinite)) return;
+            const yaw = Math.atan2(current.out.x, current.out.z) + yawDelta;
+            const pitch = Math.max(-Math.PI / 2 + 0.02, Math.min(Math.PI / 2 - 0.02, Math.asin(current.out.y) + pitchDelta));
+            const out = { x: Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
+            const right = { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) };
+            const up = { x: -Math.sin(yaw) * Math.sin(pitch), y: Math.cos(pitch), z: -Math.cos(yaw) * Math.sin(pitch) };
+            const distance = Math.hypot(current.position.x - current.center.x, current.position.y - current.center.y, current.position.z - current.center.z);
+            const center = current.center;
+            applyManual({ ...current, out, right, up, position: { x: center.x + out.x * distance, y: center.y + out.y * distance, z: center.z + out.z * distance } });
+        },
+        zoom(factor) {
+            if (!current || !Number.isFinite(factor) || factor <= 0) return;
+            const baseline = frames.get(active);
+            if (!baseline) return;
+            const height = focusHeight(current);
+            const targetHeight = Math.max(focusHeight(baseline) * 0.1, Math.min(focusHeight(baseline) * 10, height * factor));
+            const ratio = targetHeight / height;
+            const center = current.center;
+            applyManual({ ...current, halfHeight: current.halfHeight * ratio, position: {
+                x: center.x + (current.position.x - center.x) * ratio,
+                y: center.y + (current.position.y - center.y) * ratio,
+                z: center.z + (current.position.z - center.z) * ratio
+            } });
         },
         getState: () => ({ activePresetId: active }),
         project: (point) => (current ? projectPoint(point, current, viewport) : { x: 0, y: 0, visible: false }),
