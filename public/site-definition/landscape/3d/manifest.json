@@ -1,0 +1,71 @@
+{
+  "units": "millimeters",
+  "upAxis": "Y",
+  "origin": "ground-level trunk center",
+  "style": "muted architectural low-poly",
+  "assets": [
+    {
+      "id": "cypress-a",
+      "file": "cypress-a.glb",
+      "type": "cypress",
+      "heightMm": 6800.0,
+      "triangles": 340,
+      "castShadows": true,
+      "receiveShadows": true
+    },
+    {
+      "id": "cypress-b",
+      "file": "cypress-b.glb",
+      "type": "cypress",
+      "heightMm": 6800.0,
+      "triangles": 340,
+      "castShadows": true,
+      "receiveShadows": true
+    },
+    {
+      "id": "sage-tree-a",
+      "file": "sage-tree-a.glb",
+      "type": "sage",
+      "heightMm": 5210.425165360054,
+      "triangles": 988,
+      "castShadows": true,
+      "receiveShadows": true
+    },
+    {
+      "id": "sage-tree-b",
+      "file": "sage-tree-b.glb",
+      "type": "sage",
+      "heightMm": 5198.42829533399,
+      "triangles": 988,
+      "castShadows": true,
+      "receiveShadows": true
+    },
+    {
+      "id": "yellow-tree",
+      "file": "yellow-tree.glb",
+      "type": "yellow",
+      "heightMm": 5184.623810762339,
+      "triangles": 988,
+      "castShadows": true,
+      "receiveShadows": true
+    },
+    {
+      "id": "shrub-cluster",
+      "file": "shrub-cluster.glb",
+      "type": "shrub",
+      "heightMm": 910.0,
+      "triangles": 360,
+      "castShadows": true,
+      "receiveShadows": true
+    },
+    {
+      "id": "shrub-brown",
+      "file": "shrub-brown.glb",
+      "type": "shrub-brown",
+      "heightMm": 910.0,
+      "triangles": 360,
+      "castShadows": true,
+      "receiveShadows": true
+    }
+  ]
+}

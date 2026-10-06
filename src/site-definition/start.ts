@@ -78,7 +78,7 @@ export function startSiteDefinition() {
             grassMode.setAttribute('aria-pressed', String(enabled));
             rendering.setGrassVisible(enabled);
         };
-        for (const [button, label] of [[whiteMode, 'White model'], [grassMode, 'White model with site grass']] as const) {
+        for (const [button, label] of [[whiteMode, 'White model'], [grassMode, 'Site grass and grouped trees']] as const) {
             button.removeAttribute('aria-disabled');
             button.setAttribute('aria-label', label);
             button.title = label;
@@ -159,6 +159,7 @@ export function startSiteDefinition() {
         );
 
         const updateSiteContext = () => {
+            rendering.updateLayout(site.getLayout());
             const bounds = site.getBounds();
             rendering.updateBounds({
                 min: { ...bounds.min },
