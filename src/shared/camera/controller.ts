@@ -10,7 +10,14 @@ import type { CameraController, CameraPreset } from './types.ts';
 export function createCameraController(
     app: AppBase,
     presets: CameraPreset[],
-    options: { duration?: number; minimumFarClip?: number; maximumNearClip?: number; toneMapping?: number } = {}
+    options: {
+        duration?: number;
+        minimumFarClip?: number;
+        maximumNearClip?: number;
+        minimumNearClip?: number;
+        toneMapping?: number;
+        minimumCameraY?: number;
+    } = {}
 ): CameraController {
     if (!presets.length || new Set(presets.map((p) => p.id)).size !== presets.length)
         throw new Error('Camera presets must have unique IDs');
@@ -28,7 +35,7 @@ export function createCameraController(
         entity.addComponent('camera', {
             projection: preset.projection === 'perspective' ? PROJECTION_PERSPECTIVE : PROJECTION_ORTHOGRAPHIC,
             fov: preset.fov ?? 45,
-            clearColor: new Color(0.91, 0.925, 0.91)
+            clearColor: new Color(0.98, 0.984, 0.988)
         });
         if (options.toneMapping !== undefined) entity.camera!.toneMapping = options.toneMapping;
         entity.enabled = preset.id === active;
@@ -52,7 +59,19 @@ export function createCameraController(
         entity.setPosition(frame.position.x, frame.position.y, frame.position.z);
         entity.lookAt(frame.center.x, frame.center.y, frame.center.z);
         camera.orthoHeight = frame.halfHeight;
-        camera.nearClip = Math.min(frame.near, options.maximumNearClip ?? Infinity);
+        // Keep foreground ground in front of the near plane at low elevations.
+        // Higher views retain a useful near distance for depth-buffer precision.
+        const groundNearLimit = options.minimumCameraY === undefined ? Infinity : Math.max(1, frame.position.y * 0.25);
+        const focusDistance = Math.hypot(
+            frame.position.x - frame.center.x,
+            frame.position.y - frame.center.y,
+            frame.position.z - frame.center.z
+        );
+        const nearFloor = Math.min(options.minimumNearClip ?? 0.01, focusDistance * 0.01);
+        camera.nearClip = Math.max(
+            nearFloor,
+            Math.min(frame.near, options.maximumNearClip ?? Infinity, groundNearLimit)
+        );
         camera.farClip = Math.max(frame.far, options.minimumFarClip ?? 0);
         camera.calculateProjection = custom
             ? (matrix) => {
@@ -89,8 +108,30 @@ export function createCameraController(
     const applyManual = (frame: Frame) => {
         transition = undefined;
         manuallyChanged = true;
-        const distance = Math.hypot(frame.position.x - frame.center.x, frame.position.y - frame.center.y, frame.position.z - frame.center.z);
-        const radius = bounds ? Math.hypot(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z) / 2 : 1;
+        const distance = Math.hypot(
+            frame.position.x - frame.center.x,
+            frame.position.y - frame.center.y,
+            frame.position.z - frame.center.z
+        );
+        if (options.minimumCameraY !== undefined && frame.position.y < options.minimumCameraY) {
+            const yaw = Math.atan2(frame.out.x, frame.out.z);
+            const pitch = Math.asin(Math.max(-1, Math.min(1, (options.minimumCameraY - frame.center.y) / distance)));
+            const out = { x: Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
+            frame = {
+                ...frame,
+                out,
+                right: { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) },
+                up: { x: -Math.sin(yaw) * Math.sin(pitch), y: Math.cos(pitch), z: -Math.cos(yaw) * Math.sin(pitch) },
+                position: {
+                    x: frame.center.x + out.x * distance,
+                    y: frame.center.y + out.y * distance,
+                    z: frame.center.z + out.z * distance
+                }
+            };
+        }
+        const radius = bounds
+            ? Math.hypot(bounds.max.x - bounds.min.x, bounds.max.y - bounds.min.y, bounds.max.z - bounds.min.z) / 2
+            : 1;
         current = { ...frame, near: Math.max(0.01, distance - radius * 1.2), far: distance + radius * 1.2 + 1 };
         apply(active, current, current.projectionMix !== undefined);
         for (const listener of listeners) listener();
@@ -120,11 +161,13 @@ export function createCameraController(
             transition = undefined;
             for (const preset of presets) {
                 const local = preset.direction;
-                const direction = basis ? {
-                    x: basis.right.x * local.x + basis.up.x * local.y + basis.front.x * local.z,
-                    y: basis.right.y * local.x + basis.up.y * local.y + basis.front.y * local.z,
-                    z: basis.right.z * local.x + basis.up.z * local.y + basis.front.z * local.z
-                } : local;
+                const direction = basis
+                    ? {
+                          x: basis.right.x * local.x + basis.up.x * local.y + basis.front.x * local.z,
+                          y: basis.right.y * local.x + basis.up.y * local.y + basis.front.y * local.z,
+                          z: basis.right.z * local.x + basis.up.z * local.y + basis.front.z * local.z
+                      }
+                    : local;
                 const frame =
                     preset.projection === 'perspective'
                         ? fitPerspective(bounds, viewport, direction, preset.fov ?? 45)
@@ -145,27 +188,51 @@ export function createCameraController(
         orbit(yawDelta, pitchDelta) {
             if (!current || ![yawDelta, pitchDelta].every(Number.isFinite)) return;
             const yaw = Math.atan2(current.out.x, current.out.z) + yawDelta;
-            const pitch = Math.max(-Math.PI / 2 + 0.02, Math.min(Math.PI / 2 - 0.02, Math.asin(current.out.y) + pitchDelta));
+            const pitch = Math.max(
+                -Math.PI / 2 + 0.02,
+                Math.min(Math.PI / 2 - 0.02, Math.asin(current.out.y) + pitchDelta)
+            );
             const out = { x: Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: Math.cos(yaw) * Math.cos(pitch) };
             const right = { x: Math.cos(yaw), y: 0, z: -Math.sin(yaw) };
             const up = { x: -Math.sin(yaw) * Math.sin(pitch), y: Math.cos(pitch), z: -Math.cos(yaw) * Math.sin(pitch) };
-            const distance = Math.hypot(current.position.x - current.center.x, current.position.y - current.center.y, current.position.z - current.center.z);
+            const distance = Math.hypot(
+                current.position.x - current.center.x,
+                current.position.y - current.center.y,
+                current.position.z - current.center.z
+            );
             const center = current.center;
-            applyManual({ ...current, out, right, up, position: { x: center.x + out.x * distance, y: center.y + out.y * distance, z: center.z + out.z * distance } });
+            applyManual({
+                ...current,
+                out,
+                right,
+                up,
+                position: {
+                    x: center.x + out.x * distance,
+                    y: center.y + out.y * distance,
+                    z: center.z + out.z * distance
+                }
+            });
         },
         zoom(factor) {
             if (!current || !Number.isFinite(factor) || factor <= 0) return;
             const baseline = frames.get(active);
             if (!baseline) return;
             const height = focusHeight(current);
-            const targetHeight = Math.max(focusHeight(baseline) * 0.1, Math.min(focusHeight(baseline) * 10, height * factor));
+            const targetHeight = Math.max(
+                focusHeight(baseline) * 0.1,
+                Math.min(focusHeight(baseline) * 10, height * factor)
+            );
             const ratio = targetHeight / height;
             const center = current.center;
-            applyManual({ ...current, halfHeight: current.halfHeight * ratio, position: {
-                x: center.x + (current.position.x - center.x) * ratio,
-                y: center.y + (current.position.y - center.y) * ratio,
-                z: center.z + (current.position.z - center.z) * ratio
-            } });
+            applyManual({
+                ...current,
+                halfHeight: current.halfHeight * ratio,
+                position: {
+                    x: center.x + (current.position.x - center.x) * ratio,
+                    y: center.y + (current.position.y - center.y) * ratio,
+                    z: center.z + (current.position.z - center.z) * ratio
+                }
+            });
         },
         getState: () => ({ activePresetId: active }),
         project: (point) => (current ? projectPoint(point, current, viewport) : { x: 0, y: 0, visible: false }),

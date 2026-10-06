@@ -59,13 +59,31 @@ export function startSiteDefinition() {
         lifetime.add(() => rendering.destroy());
         const camera = createCameraController(app, cameraPresets, {
             ...daylightConfig.camera,
-            duration: 0.8
+            duration: 0.8,
+            minimumCameraY: 100
         });
         lifetime.add(() => camera.destroy());
         const orbitControls = createOrbitControls(canvas, camera);
         lifetime.add(() => orbitControls.destroy());
         const site = createSiteController(app, house.footprint, document.querySelector<HTMLElement>('#measurements')!);
         lifetime.add(() => site.destroy());
+
+        let contextVisible = true;
+        const updateHouseVisibility = () => {
+            const activeCamera = app.root.findComponents('camera').find((component) => component.entity.enabled);
+            const position = activeCamera?.entity.getPosition();
+            const { min, max } = house.bounds;
+            const inside =
+                position &&
+                position.x >= min.x &&
+                position.x <= max.x &&
+                position.y >= min.y &&
+                position.y <= max.y &&
+                position.z >= min.z &&
+                position.z <= max.z;
+            house.entity.enabled = contextVisible && !inside;
+        };
+        lifetime.add(camera.onMove(updateHouseVisibility));
 
         const productChoice = document.querySelector<HTMLButtonElement>('#select-varenda')!;
         const placement = createPlacementController(
@@ -83,7 +101,8 @@ export function startSiteDefinition() {
                 else coordinator.resize(size, true);
             },
             (visible) => {
-                house.entity.enabled = visible;
+                contextVisible = visible;
+                updateHouseVisibility();
                 site.setVisible(visible);
                 rendering.setContextVisible(visible);
             }
@@ -118,12 +137,7 @@ export function startSiteDefinition() {
         updateSiteContext();
 
         // Coordination: scene bounds and camera policy stay outside product rendering.
-        const coordinator = createSceneCoordinator(
-            site,
-            camera,
-            house.bounds,
-            () => site.getBounds()
-        );
+        const coordinator = createSceneCoordinator(site, camera, house.bounds, () => site.getBounds());
         lifetime.add(camera.onMove(coordinator.refresh));
         // Controls: site dimensions and camera presets
         const dimensionControls = createSiteControls(

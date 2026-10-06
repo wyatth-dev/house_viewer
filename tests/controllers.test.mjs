@@ -383,3 +383,52 @@ test('product focus and overview animate from the rendered pose and can retarget
         assert.ok(app.root.children[0].getPosition().z > 900);
     } finally { c.destroy(); app.destroy(); }
 });
+
+test('low orbit and repeated wheel zoom keep the camera above the ground without moving its focus', () => {
+    const app = createApp();
+    const camera = createCameraController(app, [{ id: 'a', label: 'A', projection: 'perspective', direction: { x: 0, y: 1, z: 1 } }], { minimumCameraY: 100 });
+    try {
+        camera.fit({ min: { x: -1000, y: 0, z: -1000 }, max: { x: 1000, y: 2000, z: 1000 } }, { width: 800, height: 600 });
+        for (const factor of [1, 0.1, 10, 10, 0.01]) {
+            camera.orbit(0.1, -Math.PI);
+            camera.zoom(factor);
+            assert.ok(app.root.children[0].getPosition().y >= 100 - 1e-6);
+            const focus = camera.project({ x: 0, y: 1000, z: 0 });
+            assert.ok(Math.abs(focus.x - 400) < 1e-6);
+            assert.ok(Math.abs(focus.y - 300) < 1e-6);
+        }
+    } finally {
+        camera.destroy();
+        app.destroy();
+    }
+});
+
+test('scene camera near clipping stays below ground clearance at low angles and after zoom', async () => {
+    const { daylightConfig } = await import('../src/site-definition/rendering/config.ts');
+    const app = createApp();
+    const camera = createCameraController(app, [{ id: 'a', label: 'A', projection: 'perspective', direction: { x: 0, y: 1, z: 1 } }], { ...daylightConfig.camera, minimumCameraY: 100 });
+    try {
+        camera.fit({ min: { x: -25000, y: 0, z: -35000 }, max: { x: 25000, y: 20000, z: 35000 } }, { width: 570, height: 880 });
+        for (const zoom of [1, 0.8, 2]) {
+            camera.orbit(0, -Math.PI);
+            camera.zoom(zoom);
+            const view = app.root.children[0];
+            assert.ok(view.getPosition().y >= 100 - 1e-6);
+            assert.ok(view.camera.nearClip <= view.getPosition().y * 0.25 + 1e-6, `near clip ${view.camera.nearClip} cuts foreground at ground-level view`);
+        }
+    } finally { camera.destroy(); app.destroy(); }
+});
+
+test('zooming inside product bounds preserves a usable near plane instead of collapsing depth precision', async () => {
+    const { daylightConfig } = await import('../src/site-definition/rendering/config.ts');
+    const app = createApp();
+    const camera = createCameraController(app, [{ id: 'a', label: 'A', projection: 'perspective', direction: { x: 0, y: 1, z: 1 } }], { ...daylightConfig.camera, minimumCameraY: 100 });
+    try {
+        camera.fit({ min: { x: -2000, y: 0, z: 0 }, max: { x: 2000, y: 3000, z: 2000 } }, { width: 560, height: 880 });
+        camera.zoom(0.1);
+        for (let i=0;i<20;i++) {
+            camera.orbit(0.05, -0.03);
+            assert.ok(app.root.children[0].camera.nearClip >= 10, `near plane ${app.root.children[0].camera.nearClip} loses depth precision when enlarged`);
+        }
+    } finally { camera.destroy(); app.destroy(); }
+});

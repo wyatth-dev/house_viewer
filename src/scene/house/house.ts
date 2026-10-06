@@ -4,6 +4,7 @@ import type { AppBase, BoundingBox, ContainerResource } from 'playcanvas';
 import { loadContainer } from '../../shared/assets/containers.ts';
 import type { Bounds3 } from '../../shared/geometry/types.ts';
 
+import { createHouseEdges } from './edges.ts';
 import { houseConfig } from './house-config.ts';
 export async function loadHouse(app: AppBase, signal: AbortSignal) {
     const { actualWidthMm, sourceFootprint: source } = houseConfig;
@@ -38,6 +39,7 @@ export async function loadHouse(app: AppBase, signal: AbortSignal) {
         const min = bounds.getMin(),
             max = bounds.getMax();
         const renderBounds: Bounds3 = { min: { x: min.x, y: min.y, z: min.z }, max: { x: max.x, y: max.y, z: max.z } };
+        const removeEdges = createHouseEdges(app, house);
         let destroyed = false;
         return {
             entity: house,
@@ -46,6 +48,7 @@ export async function loadHouse(app: AppBase, signal: AbortSignal) {
             destroy() {
                 if (destroyed) return;
                 destroyed = true;
+                removeEdges();
                 house.destroy();
                 asset.unload();
                 app.assets.remove(asset);

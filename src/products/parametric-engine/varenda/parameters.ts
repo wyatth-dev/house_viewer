@@ -11,7 +11,7 @@ export const defaultVarendaParams: Readonly<VarendaParams> = {
     widthMm: 4000,
     depthMm: 2000,
     wallHeightMm: 2500,
-    undersideHeightMm: 1600,
+    undersideHeightMm: 1800,
     postInterval: 1000,
     rafterInterval: 500
 };

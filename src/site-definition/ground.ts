@@ -2,16 +2,19 @@ import { Color, Entity, StandardMaterial, Vec3 } from 'playcanvas';
 import type { AppBase } from 'playcanvas';
 
 import { sides } from './layout.ts';
+import { whiteModelPalette } from './rendering/config.ts';
 import type { Layout, SiteSide } from './types.ts';
 export function createGround(app: AppBase) {
     const root = new Entity('Site ground');
     app.root.addChild(root);
     const front = new StandardMaterial();
-    front.diffuse = new Color().fromString('#B8AA91');
+    front.name = 'WhiteModel_Site_Front';
+    front.diffuse = new Color().fromString(whiteModelPalette.ground);
     front.gloss = 0;
     front.update();
     const shared = new StandardMaterial();
-    shared.diffuse = new Color().fromString('#71866A');
+    shared.name = 'WhiteModel_Site_Ground';
+    shared.diffuse = new Color().fromString(whiteModelPalette.ground);
     shared.gloss = 0;
     shared.update();
     const planes = new Map<SiteSide, Entity>();
@@ -32,7 +35,7 @@ export function createGround(app: AppBase) {
             new Vec3(p.maxX, 25, p.maxZ),
             new Vec3(p.minX, 25, p.maxZ)
         ];
-        for (let i = 0; i < 4; i++) app.drawLine(pts[i], pts[(i + 1) % 4], new Color(0.23, 0.32, 0.28), true);
+        for (let i = 0; i < 4; i++) app.drawLine(pts[i], pts[(i + 1) % 4], new Color().fromString(whiteModelPalette.boundary), true);
     };
     app.on('update', draw);
     return {

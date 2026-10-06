@@ -9,15 +9,15 @@ export function createDaylight(app: AppBase) {
     const sun = new Entity('Environment sunlight');
     sun.addComponent('light', {
         type: 'directional',
-        color: new Color(1, 0.985, 0.96),
+        color: new Color(1, 1, 1),
         intensity: daylightConfig.sun.intensity,
         castShadows: true,
         shadowType: SHADOW_PCF5,
         shadowResolution: daylightConfig.sun.shadowResolution,
         shadowDistance: 600000,
         numCascades: 1,
-        shadowBias: 0.2,
-        normalOffsetBias: 80
+        shadowBias: 0.02,
+        normalOffsetBias: 8
     });
     // The component clamps its UI bias; the engine bias is scaled to preserve world-space depth offset.
     sun.light!.light.shadowBias *= 1000;
