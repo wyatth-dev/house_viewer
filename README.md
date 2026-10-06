@@ -32,9 +32,9 @@ The front yard uses the paving material across the full property width, includin
 
 ## Model and calibration
 
-The model is `public/models/house-edit.glb`. Original mesh hierarchy and materials are preserved.
+The model is `public/scenes/typology/fairy-house/model.glb`. Original mesh hierarchy and materials are preserved.
 
-Calibration lives in `src/scene/house/house-config.ts`:
+Calibration lives in `public/scenes/typology/fairy-house/scene.json`; `src/scene/house/house-config.ts` reads the default typology:
 
 - Confirmed exterior width: **43 m** (user reference, 2026-09-28).
 - Raw GLB width: 43,000 mm; applied scale: **1**. Scene coordinates and internal lengths use millimetres.
@@ -132,3 +132,11 @@ See [the material import workflow](docs/materials/import-workflow.md) for textur
 Customization uses a left 3D preview and right parameter panel, matching Site Definition. Its Production List tab switches to a sticky preview above an expandable list. Installed components are grouped by material and specification, with placeholder thumbnails and explicit pending metadata. Selecting a row frames and highlights its instances, fades other components, and animates the camera for 0.8 seconds. Overview resets selection. Fasteners appear as lines through their installed bore axes; no screw model is required. Invalid parameter drafts retain the last valid product and list. This independent entry is not integrated into the main workflow.
 
 Expanded production rows support individual instance focus (including each Post column). Related-part navigation follows shared column IDs, fixing-plate fastener references, end-cap connections and glazing installations. Each related component can be focused separately and navigated back to the originating instance or the full group. Post fastening schedules remain undefined, so post connections currently expose the matching footing only.
+
+## Typology scene inputs
+
+`public/scenes/typology/index.json` lists available house types and the default ID. Each type owns a folder containing `scene.json` and `model.glb`. Runtime metadata is imported through `src/scenes/typology/index.ts`; the panel, house calibration and installation walls use the same default definition.
+
+Version 1 manifests declare `id`, `name`, a relative `model` path, millimetre units, +Y up and +Z front axes, preview mode, calibration and installation faces. Wall origins and lengths use the original model coordinates, before centering and scaling; the loader applies the same calibration as the house. Wall IDs must be unique; along-wall and outward directions must be perpendicular unit vectors. These describe wall geometry, not verified structural attachment suitability. Preview mode is currently `generated`, using the existing model preview renderer; no placeholder thumbnail is required.
+
+To add a type, create its folder and manifest, add its entry to `index.json`, and register its JSON import in `src/scenes/typology/index.ts`. Set `defaultTypologyId` to activate it. Interactive type switching is not yet implemented. Version 1 requires zero yaw because site boundaries and placement directions are axis-aligned; orient the exported model accordingly. Invalid calibration or installation-wall data fails at startup.

@@ -1,0 +1,10 @@
+{
+    "schemaVersion": 1,
+    "defaultTypologyId": "fairy-house",
+    "typologies": [
+        {
+            "id": "fairy-house",
+            "manifest": "fairy-house/scene.json"
+        }
+    ]
+}

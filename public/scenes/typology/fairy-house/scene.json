@@ -1,0 +1,117 @@
+{
+    "schemaVersion": 1,
+    "id": "fairy-house",
+    "name": "Fairy house",
+    "model": "model.glb",
+    "units": "mm",
+    "axes": {
+        "up": "+Y",
+        "front": "+Z"
+    },
+    "preview": {
+        "mode": "generated"
+    },
+    "calibration": {
+        "actualWidthMm": 43000,
+        "sourceFootprint": {
+            "minX": -43000,
+            "maxX": 0,
+            "minZ": -57000,
+            "maxZ": 0
+        },
+        "groundY": 0,
+        "yawDegrees": 0
+    },
+    "installationFaces": [
+        {
+            "wallFaceId": "front-main",
+            "side": "front",
+            "originMm": {
+                "x": -22000,
+                "y": 0,
+                "z": 0
+            },
+            "lengthMm": 22000,
+            "alongWallUnit": {
+                "x": 1,
+                "z": 0
+            },
+            "outwardUnit": {
+                "x": 0,
+                "z": 1
+            }
+        },
+        {
+            "wallFaceId": "back-main",
+            "side": "back",
+            "originMm": {
+                "x": -12000,
+                "y": 0,
+                "z": -57000
+            },
+            "lengthMm": 12000,
+            "alongWallUnit": {
+                "x": 1,
+                "z": 0
+            },
+            "outwardUnit": {
+                "x": 0,
+                "z": -1
+            }
+        },
+        {
+            "wallFaceId": "back-recessed",
+            "side": "back",
+            "originMm": {
+                "x": -43006.79296875,
+                "y": 0,
+                "z": -48000
+            },
+            "lengthMm": 12006.75390625,
+            "alongWallUnit": {
+                "x": 1,
+                "z": 0
+            },
+            "outwardUnit": {
+                "x": 0,
+                "z": -1
+            }
+        },
+        {
+            "wallFaceId": "left-main",
+            "side": "left",
+            "originMm": {
+                "x": -43000,
+                "y": 0,
+                "z": -48000
+            },
+            "lengthMm": 31500,
+            "alongWallUnit": {
+                "x": 0,
+                "z": 1
+            },
+            "outwardUnit": {
+                "x": -1,
+                "z": 0
+            }
+        },
+        {
+            "wallFaceId": "right-main",
+            "side": "right",
+            "originMm": {
+                "x": 0,
+                "y": 0,
+                "z": -57000
+            },
+            "lengthMm": 57000,
+            "alongWallUnit": {
+                "x": 0,
+                "z": 1
+            },
+            "outwardUnit": {
+                "x": 1,
+                "z": 0
+            }
+        }
+    ]
+}

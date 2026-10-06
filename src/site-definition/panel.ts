@@ -1,3 +1,5 @@
+import { defaultTypology } from '../scenes/typology/index.ts';
+
 export function createPanel(host: HTMLElement) {
     host.innerHTML = `
         <div class="panel-heading">
@@ -20,10 +22,10 @@ export function createPanel(host: HTMLElement) {
                 <section class="typology-section">
                     <h2><span>01</span> Typology</h2>
                     <p class="hint">Your house base model.</p>
-                    <figure class="typology-option" aria-label="Current base model: Fairy house">
-                        <img class="typology-axon" alt="Fairy house model in axonometric view" hidden>
+                    <figure class="typology-option" aria-label="Current base model:">
+                        <img class="typology-axon" alt="House model in axonometric view" hidden>
                         <span id="preview-status" class="hint">Generating model preview…</span>
-                        <figcaption>Fairy house</figcaption>
+                        <figcaption></figcaption>
                     </figure>
                 </section>
                 <section>
@@ -91,6 +93,9 @@ export function createPanel(host: HTMLElement) {
             </fieldset>
         </div>
     `;
+    host.querySelector('.typology-option')!.setAttribute('aria-label', `Current base model: ${defaultTypology.name}`);
+    host.querySelector('.typology-axon')!.setAttribute('alt', `${defaultTypology.name} model in axonometric view`);
+    host.querySelector('.typology-option figcaption')!.textContent = defaultTypology.name;
     const siteStep = host.querySelector<HTMLElement>('#site-step')!;
     const placementStep = host.querySelector<HTMLElement>('#placement-step')!;
     const next = host.querySelector<HTMLButtonElement>('#placement-next')!;
