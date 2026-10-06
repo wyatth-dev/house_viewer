@@ -22,7 +22,7 @@ node -v
 
 - Front yard, Back yard, Left clearance, Right clearance: meters from the house's rectangular **outer wall envelope** to the property boundary. Range 0–50 m; step 0.1 m.
 - Defaults: front 5 m, back 7 m, left 2 m, right 2 m.
-- Front / Back: angled perspective cameras (20° side angle, 40° elevation, 45° vertical field of view). Left / Right: retain the original orthographic cameras. No orbit or mouse navigation.
+- Front / Back: angled perspective cameras (20° side angle, 40° elevation, 45° vertical field of view). Left / Right: retain the original orthographic cameras. Drag with the left mouse button to orbit around the current focus; use the wheel to zoom. Right/middle buttons do not pan. Clicking a view button restores its preset, including the active view after manual navigation.
 - Panel order: Property size → Typology → Perspective → Yard dimensions. Typology currently offers the selected Fairy house base model.
 - View changes animate over 0.8 seconds, including the perspective/orthographic lens transition. Labels follow the camera; repeated clicks continue from the current pose. Reduced-motion preferences disable animation. Resizing or editing dimensions fits the selected view immediately.
 - Invalid or empty field drafts show an error and retain the last valid site. Zero hides the corresponding ground region.
@@ -106,7 +106,7 @@ Tests use Node's native test runner and TypeScript stripping, with no extra test
 
 ## Scope and limitations
 
-The main workflow defines the site and supports Varenda placement, parameter editing and production-part inspection. It does not persist edits across reloads, modify the house mesh, support sloped terrain or irregular boundaries, place furniture, or provide orbit controls. Measurement lines are drawn over geometry so they stay legible; they are explanatory overlays, not visibility/occlusion measurements. Ground colors are configured in `src/site-definition/ground.ts`. Remote Google Fonts enhance typography; system sans-serif fonts remain usable offline.
+The main workflow defines the site and supports Varenda placement, parameter editing and production-part inspection. It does not persist edits across reloads, modify the house mesh, support sloped terrain or irregular boundaries, place furniture, or provide panning. Measurement lines are drawn over geometry so they stay legible; they are explanatory overlays, not visibility/occlusion measurements. Ground colors are configured in `src/site-definition/ground.ts`. Remote Google Fonts enhance typography; system sans-serif fonts remain usable offline.
 
 See [the implementation plan](docs/plans/2026-09-28-house-scene-configuration.md) and [execution notes](docs/plans/2026-09-28-house-scene-configuration-progress.md).
 

@@ -30,8 +30,8 @@ test('canvas mouse controls rotate and zoom, ignore other buttons and browser zo
     const camera = createCameraController(app, [{ id: 'a', label: 'A', projection: 'perspective', direction: { x: 0, y: 1, z: 1 } }]);
     const canvas = new EventTarget();
     canvas.style = { cursor: '' };
-    canvas.setPointerCapture = () => {};
-    canvas.releasePointerCapture = () => {};
+    canvas.setPointerCapture = () => { /* No native pointer capture in the headless test. */ };
+    canvas.releasePointerCapture = () => { /* No native pointer capture in the headless test. */ };
     canvas.hasPointerCapture = () => true;
     canvas.clientHeight = 600;
     const dispatch = (name, values = {}) => {
