@@ -32,9 +32,9 @@ export const landscapeConfig = {
         seed: 4207,
         range: 50000, // 场地向外延伸 50m
         clearance: 6500,
-        maxGroups: 8,
+        maxGroups: 13,
         densityFalloff: 14000, // 越小越集中在近处
-        minimumSpacing: 7500,
+        minimumSpacing: 9500,
         distanceSpacing: 0.22,
         columnGroupChance: 0.45,
         yellowTreeChance: 0.15,
