@@ -13,7 +13,6 @@ import {
 
 import { createPlacementController } from '../product-placement/controller.ts';
 import { loadHouse } from '../scene/house/house.ts';
-import { createLandscape, landscapeLayout } from '../scene/landscape/index.ts';
 import { createModelPreview } from '../scene/model-preview/index.ts';
 import { createCameraController, createCameraControls } from '../shared/camera/index.ts';
 import { createLifetime } from '../shared/lifetime.ts';
@@ -55,7 +54,7 @@ export function startSiteDefinition() {
         lifetime.add(house.destroy);
         lifetime.signal.throwIfAborted();
 
-        // Scene services: rendering, camera, site and landscape
+        // Scene services: rendering, camera and site
         const rendering = createRendering(app);
         lifetime.add(() => rendering.destroy());
         const camera = createCameraController(app, cameraPresets, {
@@ -65,9 +64,6 @@ export function startSiteDefinition() {
         lifetime.add(() => camera.destroy());
         const site = createSiteController(app, house.footprint, document.querySelector<HTMLElement>('#measurements')!);
         lifetime.add(() => site.destroy());
-
-        const landscape = createLandscape(app);
-        lifetime.add(() => landscape.destroy());
 
         const productChoice = document.querySelector<HTMLButtonElement>('#select-varenda')!;
         const placement = createPlacementController(
@@ -87,7 +83,6 @@ export function startSiteDefinition() {
             (visible) => {
                 house.entity.enabled = visible;
                 site.setVisible(visible);
-                landscape.setVisible(visible);
                 rendering.setContextVisible(visible);
             }
         );
@@ -113,7 +108,6 @@ export function startSiteDefinition() {
 
         const updateSiteContext = () => {
             const bounds = site.getBounds();
-            landscape.updateBounds(bounds);
             rendering.updateBounds({
                 min: { ...bounds.min },
                 max: { ...bounds.max, y: house.bounds.max.y }
@@ -126,7 +120,7 @@ export function startSiteDefinition() {
             site,
             camera,
             house.bounds,
-            () => landscapeLayout(site.getBounds()).bounds
+            () => site.getBounds()
         );
         lifetime.add(camera.onMove(coordinator.refresh));
         // Controls: site dimensions and camera presets
