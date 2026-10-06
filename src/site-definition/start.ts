@@ -31,6 +31,21 @@ export function startSiteDefinition() {
     const panel = createPanel(document.querySelector<HTMLElement>('#panel')!);
     const lifetime = createLifetime();
     lifetime.add(() => panel.destroy());
+    const renderModes = document.createElement('div');
+    renderModes.className = 'render-mode-controls';
+    renderModes.setAttribute('role', 'group');
+    renderModes.setAttribute('aria-label', 'Scene rendering modes (not connected yet)');
+    for (const [id, label] of [['white', 'White model'], ['watercolor', 'Watercolor'], ['full', 'Full render']]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `render-mode-swatch ${id}`;
+        button.title = `${label} — not connected yet`;
+        button.setAttribute('aria-label', label!);
+        button.setAttribute('aria-disabled', 'true');
+        renderModes.append(button);
+    }
+    viewport.append(renderModes);
+    lifetime.add(() => renderModes.remove());
     const isDisposed = () => lifetime.signal.aborted;
     async function start() {
         const device = await createGraphicsDevice(canvas);
