@@ -34,7 +34,7 @@ export function startSiteDefinition() {
     const renderModes = document.createElement('div');
     renderModes.className = 'render-mode-controls';
     renderModes.setAttribute('role', 'group');
-    renderModes.setAttribute('aria-label', 'Scene rendering modes (not connected yet)');
+    renderModes.setAttribute('aria-label', 'Scene rendering modes');
     for (const [id, label] of [['white', 'White model'], ['watercolor', 'Watercolor'], ['full', 'Full render']]) {
         const button = document.createElement('button');
         button.type = 'button';
@@ -71,6 +71,22 @@ export function startSiteDefinition() {
 
         // Scene services: rendering, camera and site
         const rendering = createRendering(app);
+        const whiteMode = renderModes.querySelector<HTMLButtonElement>('.white')!;
+        const grassMode = renderModes.querySelector<HTMLButtonElement>('.watercolor')!;
+        const selectGrassMode = (enabled: boolean) => {
+            whiteMode.setAttribute('aria-pressed', String(!enabled));
+            grassMode.setAttribute('aria-pressed', String(enabled));
+            rendering.setGrassVisible(enabled);
+        };
+        for (const [button, label] of [[whiteMode, 'White model'], [grassMode, 'White model with site grass']] as const) {
+            button.removeAttribute('aria-disabled');
+            button.setAttribute('aria-label', label);
+            button.title = label;
+        }
+        whiteMode.onclick = () => selectGrassMode(false);
+        grassMode.onclick = () => selectGrassMode(true);
+        selectGrassMode(false);
+        lifetime.add(() => { whiteMode.onclick = null; grassMode.onclick = null; });
         lifetime.add(() => rendering.destroy());
         const camera = createCameraController(app, cameraPresets, {
             ...daylightConfig.camera,

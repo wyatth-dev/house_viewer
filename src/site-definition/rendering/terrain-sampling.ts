@@ -53,7 +53,7 @@ vec4 terrainSample(sampler2D map, vec2 uv, float bias) {
         if (slot === 'DIFFUSE')
             replacement = replacement.replace(
                 'dAlbedo *= albedoTexture;',
-                'dAlbedo *= mix(terrainAverageColor, albedoTexture, 0.35 * terrainDetailWeight({STD_DIFFUSE_TEXTURE_UV}));'
+                'dAlbedo *= mix(terrainAverageColor, albedoTexture, 0.12 * terrainDetailWeight({STD_DIFFUSE_TEXTURE_UV}));'
             );
         if (slot === 'NORMAL')
             replacement = replacement.replace(
@@ -63,6 +63,6 @@ vec4 terrainSample(sampler2D map, vec2 uv, float bias) {
         chunks.set(chunk, '#include "terrainSamplingPS"\n' + replacement);
     }
     // A muted linear-space green for subpixel detail; it is an art-direction setting, not a source edit.
-    material.setParameter('terrainAverageColor', [0.16, 0.185, 0.14]);
+    material.setParameter('terrainAverageColor', [0.29, 0.34, 0.23]);
     material.update();
 }

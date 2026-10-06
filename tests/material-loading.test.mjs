@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { NullGraphicsDevice } from 'playcanvas';
+import { Entity, NullGraphicsDevice, StandardMaterial } from 'playcanvas';
 
 import { loadPbrMaterial } from '../src/site-definition/materials/load.ts';
+import { createSiteGrass } from '../src/site-definition/rendering/ground-material.ts';
 
 const manifest = JSON.parse(
     readFileSync(new URL('../public/site-definition/materials/short-grass/material.json', import.meta.url), 'utf8')
@@ -74,5 +75,44 @@ test('partial material download failure releases decoded textures and bitmaps', 
             if (descriptor) Object.defineProperty(globalThis, key, descriptor);
             else delete globalThis[key];
         }
+    }
+});
+
+
+test('grass mode changes the actual site yards and restores white without changing the front or world', async () => {
+    const savedFetch = globalThis.fetch, savedWindow = globalThis.window;
+    const device = new NullGraphicsDevice({ width: 10, height: 10 });
+    const root = new Entity('Scene');
+    const originals = new Map();
+    for (const name of ['back yard', 'left yard', 'right yard', 'front yard', 'Environment ground']) {
+        const entity = new Entity(name);
+        const material = new StandardMaterial();
+        Object.defineProperty(entity, 'render', { value: { meshInstances: [{ material }] } });
+        root.addChild(entity); originals.set(name, material);
+    }
+    globalThis.window = { location: { href: 'http://localhost/' } };
+    globalThis.fetch = async () => { throw new Error('Test loading fallback'); };
+    const previousWarn = console.warn;
+    console.warn = () => { /* Expected simulated load failure. */ };
+    const grass = createSiteGrass({ root, graphicsDevice: device });
+    try {
+        grass.updateBounds({ min: { x: -10, y: 0, z: -10 }, max: { x: 10, y: 0, z: 10 } });
+        grass.setVisible(true);
+        for (const side of ['back', 'left', 'right']) {
+            const mesh = root.findByName(`${side} yard`).render.meshInstances[0];
+            assert.notEqual(mesh.material, originals.get(`${side} yard`));
+            assert.ok(mesh.material.diffuse.g > mesh.material.diffuse.r);
+        }
+        for (const name of ['front yard', 'Environment ground'])
+            assert.equal(root.findByName(name).render.meshInstances[0].material, originals.get(name));
+        await grass.ready;
+        grass.setVisible(false);
+        for (const [name, material] of originals)
+            assert.equal(root.findByName(name).render.meshInstances[0].material, material);
+        grass.setVisible(true);
+        assert.notEqual(root.findByName('back yard').render.meshInstances[0].material, originals.get('back yard'));
+    } finally {
+        grass.destroy(); root.destroy(); device.destroy();
+        console.warn = previousWarn; globalThis.fetch = savedFetch; globalThis.window = savedWindow;
     }
 });

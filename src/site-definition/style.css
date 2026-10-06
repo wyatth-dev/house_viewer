@@ -784,3 +784,6 @@ h2 span {
 .render-mode-swatch.white { background: linear-gradient(135deg, #fff, #e0e3e5); }
 .render-mode-swatch.watercolor { background: radial-gradient(ellipse at 35% 30%, #dce2c5, #9eaf89 65%, #e9e5dc); }
 .render-mode-swatch.full { background: linear-gradient(145deg, #bad6e2 0 35%, #627c42 36% 70%, #a39a8b 71%); }
+
+.render-mode-swatch[aria-pressed] { cursor: pointer; }
+.render-mode-swatch[aria-pressed="true"] { border-color: #315b43; box-shadow: 0 0 0 3px rgba(49, 91, 67, 0.15); }
