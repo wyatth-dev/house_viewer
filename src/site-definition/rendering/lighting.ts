@@ -16,18 +16,15 @@ export function createDaylight(app: AppBase) {
         shadowResolution: daylightConfig.sun.shadowResolution,
         shadowDistance: 600000,
         numCascades: 1,
-        shadowBias: 0.02,
-        normalOffsetBias: 8
+        shadowBias: 0.2,
+        normalOffsetBias: 0.5
     });
-    // The component clamps its UI bias; the engine bias is scaled to preserve world-space depth offset.
-    sun.light!.light.shadowBias *= 1000;
     sun.setEulerAngles(...daylightConfig.sun.rotation);
     app.root.addChild(sun);
     let sceneBounds: Bounds3 | undefined;
-    let minimumDistance = 600000;
     const updateShadowRange = () => {
         if (!sceneBounds) return;
-        let distance = minimumDistance;
+        let distance = 1000;
         // Perspective framing moves the camera farther away in tall windows.
         // Shadow distance is measured from that camera, not from the house.
         const padding = Math.max(20000, (sceneBounds.max.y - sceneBounds.min.y) * 1.5);
@@ -50,13 +47,6 @@ export function createDaylight(app: AppBase) {
     return {
         updateBounds(bounds: Bounds3) {
             sceneBounds = structuredClone(bounds);
-            // Keep the existing baseline coverage, extending it for distant cameras.
-            const diagonal = Math.hypot(
-                bounds.max.x - bounds.min.x,
-                bounds.max.y - bounds.min.y,
-                bounds.max.z - bounds.min.z
-            );
-            minimumDistance = Math.max(180000, diagonal * 3);
             updateShadowRange();
         },
         destroy() {

@@ -11,9 +11,9 @@ test('active house export has one Front and placement uses that same short wall 
     assert.equal(fronts.length, 1);
     const position = model.meshes[fronts[0].mesh].primitives[0].attributes.POSITION;
     const bounds = model.accessors[position];
-    assert.equal(bounds.max[0] - bounds.min[0], 22000);
+    assert.ok(Math.abs(bounds.max[0] - bounds.min[0] - 7017.488372) < 0.01);
     const faces = houseInstallationFaces.filter((face) => face.side === 'front');
     assert.equal(faces.length, 1);
-    assert.equal(faces[0].lengthMm, 22000);
+    assert.ok(Math.abs(faces[0].lengthMm - 7017.488372) < 0.01);
     assert.equal(faces[0].wallFaceId, 'front-main');
 });

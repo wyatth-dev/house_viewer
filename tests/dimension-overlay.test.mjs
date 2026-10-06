@@ -90,7 +90,7 @@ test('click editor converts meters to millimeters and commits on Enter', () =>
         assert.match(button.textContent, /3.5 m/);
     }));
 
-test('invalid edits stay open and empty edits never submit', () =>
+test('invalid edits restore the valid value and empty edits never submit', () =>
     fixture((view, host) => {
         let calls = 0;
         view.update([
@@ -106,8 +106,10 @@ test('invalid edits stay open and empty edits never submit', () =>
         button.onclick();
         input.value = '50';
         input.onblur();
-        assert.equal(input.hidden, false);
+        assert.equal(input.hidden, true);
+        assert.equal(input.value, '4');
         assert.equal(error.textContent, 'Outside the boundary.');
+        button.onclick();
         input.value = '';
         input.onblur();
         assert.equal(calls, 1);

@@ -15,7 +15,12 @@ import { daylightConfig, whiteModelPalette } from './config.ts';
 
 /** A local procedural daylight environment: no network assets or extra render loop. */
 export function createEnvironment(app: AppBase) {
-    const previous = { skybox: app.scene.skybox, atlas: app.scene.envAtlas, ambient: app.scene.ambientLight.clone() };
+    const previous = {
+        skybox: app.scene.skybox,
+        atlas: app.scene.envAtlas,
+        ambient: app.scene.ambientLight.clone(),
+        intensity: app.scene.skyboxIntensity
+    };
     const width = 256,
         height = 128;
     const data = new Uint8Array(width * height * 4);
@@ -46,7 +51,8 @@ export function createEnvironment(app: AppBase) {
     lighting.destroy();
     app.scene.skybox = null;
     app.scene.envAtlas = atlas;
-    app.scene.ambientLight = new Color(0.32, 0.34, 0.36);
+    app.scene.skyboxIntensity = 0.55;
+    app.scene.ambientLight = new Color(0.18, 0.19, 0.2);
 
     const material = new StandardMaterial();
     material.name = 'WhiteModel_Environment_Ground';
@@ -75,6 +81,7 @@ export function createEnvironment(app: AppBase) {
             app.scene.skybox = previous.skybox;
             app.scene.envAtlas = previous.atlas;
             app.scene.ambientLight = previous.ambient;
+            app.scene.skyboxIntensity = previous.intensity;
             atlas.destroy();
             sky.destroy();
         }

@@ -12,11 +12,11 @@
         "mode": "generated"
     },
     "calibration": {
-        "actualWidthMm": 43000,
+        "actualWidthMm": 13716,
         "sourceFootprint": {
-            "minX": -43000,
+            "minX": -13716,
             "maxX": 0,
-            "minZ": -57000,
+            "minZ": -17576.8,
             "maxZ": 0
         },
         "groundY": 0,
@@ -27,11 +27,11 @@
             "wallFaceId": "front-main",
             "side": "front",
             "originMm": {
-                "x": -22000,
+                "x": -7017.488372093023,
                 "y": 0,
-                "z": 0
+                "z": 0.0
             },
-            "lengthMm": 22000,
+            "lengthMm": 7017.488372093023,
             "alongWallUnit": {
                 "x": 1,
                 "z": 0
@@ -45,11 +45,11 @@
             "wallFaceId": "back-main",
             "side": "back",
             "originMm": {
-                "x": -12000,
+                "x": -3827.7209302325577,
                 "y": 0,
-                "z": -57000
+                "z": -17576.8
             },
-            "lengthMm": 12000,
+            "lengthMm": 3827.7209302325577,
             "alongWallUnit": {
                 "x": 1,
                 "z": 0
@@ -63,11 +63,11 @@
             "wallFaceId": "back-recessed",
             "side": "back",
             "originMm": {
-                "x": -43006.79296875,
+                "x": -13718.166799055232,
                 "y": 0,
-                "z": -48000
+                "z": -14801.515789473684
             },
-            "lengthMm": 12006.75390625,
+            "lengthMm": 3829.875269258721,
             "alongWallUnit": {
                 "x": 1,
                 "z": 0
@@ -81,11 +81,11 @@
             "wallFaceId": "left-main",
             "side": "left",
             "originMm": {
-                "x": -43000,
+                "x": -13715.999999999998,
                 "y": 0,
-                "z": -48000
+                "z": -14801.515789473684
             },
-            "lengthMm": 31500,
+            "lengthMm": 9713.494736842105,
             "alongWallUnit": {
                 "x": 0,
                 "z": 1
@@ -99,11 +99,11 @@
             "wallFaceId": "right-main",
             "side": "right",
             "originMm": {
-                "x": 0,
+                "x": 0.0,
                 "y": 0,
-                "z": -57000
+                "z": -17576.8
             },
-            "lengthMm": 57000,
+            "lengthMm": 17576.8,
             "alongWallUnit": {
                 "x": 0,
                 "z": 1

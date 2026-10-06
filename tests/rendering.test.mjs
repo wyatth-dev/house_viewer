@@ -38,6 +38,8 @@ test('daylight covers resized plots and releases its light; extended camera dept
         lighting.updateBounds(bounds);
         const light = app.root.findByName('Environment sunlight').light;
         assert.equal(light.castShadows, true);
+        assert.ok(Math.abs(light.light.shadowBias) < 0.01, 'Shadow bias must not receive a millimetre conversion');
+        assert.ok(light.normalOffsetBias < 1, 'Normal bias must stay below the engine clamp limit');
         assert.equal(light.numCascades, 1, 'Orthographic side cameras require a single shadow cascade');
         assert.ok(light.shadowDistance > 600);
         assert.equal(app.root.children.filter((entity) => entity.light).length, 1);

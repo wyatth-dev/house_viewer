@@ -528,6 +528,7 @@ test('3D product parameters and sidebar share real-time edits and validation', a
         app.fire('update', 0);
         const fields = elements.get('placed-product-detail-content').children[1].children[0];
         const annotation = (name) => overlay.children.find((root) => !root.hidden && root.children[0].textContent.startsWith(name));
+        const focusAfterSelection = focused.length;
         for (const [index, name, meters] of [[0, 'Width', 3], [1, 'Depth', 1.5], [2, 'Post spacing', 0.8], [3, 'Rafter spacing', 0.4], [4, 'Underside height', 1.7], [5, 'Wall height', 2.7]]) {
             const root = annotation(name);
             root.children[0].onclick();
@@ -535,16 +536,32 @@ test('3D product parameters and sidebar share real-time edits and validation', a
             root.children[1].onkeydown({ key: 'Enter', preventDefault() { /* DOM test stub. */ } });
             app.fire('update', 0);
             assert.equal(fields.children[index].children[0].value, String(meters * 1000));
+            assert.equal(focused.length, focusAfterSelection, 'parameter edits preserve the current camera');
         }
         const depth = fields.children[1].children[0];
         depth.value = '1800';
         depth.oninput();
         app.fire('update', 0);
         assert.match(annotation('Depth').children[0].textContent, /1.8 m/);
+        assert.equal(focused.length, focusAfterSelection, 'sidebar edits preserve the current camera');
         annotation('Depth').children[3].onclick();
         assert.equal(depth.disabled, true);
         annotation('Depth').children[3].onclick();
         assert.equal(depth.disabled, false);
+        const width = fields.children[0].children[0];
+        width.value = '100000';
+        width.oninput();
+        assert.equal(width.value, '3000');
+        width.value = '';
+        width.oninput();
+        depth.value = '1900';
+        depth.oninput();
+        assert.equal(depth.value, '1900');
+        assert.equal(width.value, '3000');
+        width.value = '';
+        width.oninput();
+        width.onblur();
+        assert.equal(width.value, '3000');
         const before = focused.length;
         const root = annotation('Width');
         root.children[0].onclick();
@@ -553,6 +570,8 @@ test('3D product parameters and sidebar share real-time edits and validation', a
         assert.equal(focused.length, before);
         assert.equal(fields.children[0].children[0].value, '3000');
         assert.ok(root.children[2].textContent);
+        assert.equal(root.children[1].hidden, true);
+        assert.equal(root.children[1].value, '3');
     }));
 
 test('exit edit preserves the selected product, placement dimensions and relative focus', async () =>

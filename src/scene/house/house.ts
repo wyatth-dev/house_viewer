@@ -16,7 +16,7 @@ export async function loadHouse(app: AppBase, signal: AbortSignal) {
     try {
         const model = (asset.resource as ContainerResource).instantiateRenderEntity();
         house.addChild(model);
-        const scale = actualWidthMm / (source.maxX - source.minX);
+        const scale = 1; // Millimeter assets load at their authored size.
         house.setLocalScale(scale, scale, scale);
         house.setEulerAngles(0, houseConfig.yawDegrees, 0);
         house.setPosition(

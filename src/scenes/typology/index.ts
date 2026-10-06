@@ -21,13 +21,14 @@ export const typologies = catalog.typologies.map((entry) => {
             Number.isFinite
         ) ||
         actualWidthMm <= 0 ||
+        Math.abs(actualWidthMm - (source.maxX - source.minX)) > 0.01 ||
         source.maxX <= source.minX ||
         source.maxZ <= source.minZ ||
         yawDegrees !== 0
     ) {
         throw new Error(`Invalid calibration for typology: ${entry.id}`);
     }
-    const scale = actualWidthMm / (source.maxX - source.minX);
+    const scale = 1; // Model coordinates are millimeters; never repair units by scaling.
     const ids = new Set<string>();
     const installationFaces: InstallationWallFace[] = scene.installationFaces.map((face) => {
         const side = face.side;

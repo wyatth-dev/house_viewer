@@ -193,7 +193,6 @@ export function createPlacementController(
         instance.envelope = envelope;
         placeView(instance);
         refreshAvailableAreas();
-        if (selectedId === instance.id && !detailId) focus?.(placementBounds(instance));
     };
     const measurements = createPreviewMeasurements(
         app,
@@ -233,7 +232,6 @@ export function createPlacementController(
                 updateInstance(instance, { ...instance.params, widthMm: edited.envelope.widthMm }, edited.envelope);
                 if (detailId === instance.id) {
                     refreshDetail?.();
-                    focus?.(instance.view.getBounds());
                 }
                 renderCards();
                 return undefined;
@@ -438,18 +436,17 @@ export function createPlacementController(
                         ...partSelection,
                         path: partSelection.path.filter((id) => rows.some((row) => row.instanceIds.includes(id)))
                     };
-                const bounds = retained
-                    ? instance.view.select(
-                          partSelection ? [partSelection.id] : retained.instanceIds,
-                          selectionContext(partSelection, retained.instanceIds)
-                      )
-                    : instance.view.getBounds();
-                focus?.(bounds ?? instance.view.getBounds());
+                if (retained)
+                    instance.view.select(
+                        partSelection ? [partSelection.id] : retained.instanceIds,
+                        selectionContext(partSelection, retained.instanceIds)
+                    );
                 for (const [key, input] of inputs) input.value = String(instance.params[key]);
                 error.textContent = '';
                 renderCards();
                 renderDetailParts(instance, parts);
             } catch (cause) {
+                for (const [key, input] of inputs) input.value = String(instance.params[key]);
                 error.textContent = cause instanceof Error ? cause.message : 'Invalid product parameters.';
                 return error.textContent;
             }
@@ -465,7 +462,15 @@ export function createPlacementController(
         };
         for (const [key, input] of inputs) input.disabled = parameterLocked(instance, key);
         editDetailParameter = (key, value) => updateParameters({ ...instance.params, [key]: value });
-        for (const input of inputs.values()) input.oninput = () => updateParameters();
+        for (const [key, input] of inputs) {
+            input.oninput = () => {
+                if (input.value.trim() === '' || !Number.isFinite(input.valueAsNumber)) return;
+                updateParameters({ ...instance.params, [key]: input.valueAsNumber });
+            };
+            input.onblur = () => {
+                input.value = String(instance.params[key]);
+            };
+        }
         const setTab = (showParts: boolean) => {
             parameters.hidden = showParts;
             partsPanel.hidden = !showParts;

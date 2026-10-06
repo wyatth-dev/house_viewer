@@ -36,14 +36,13 @@ The model is `public/scenes/typology/fairy-house/model.glb`. Original mesh hiera
 
 Calibration lives in `public/scenes/typology/fairy-house/scene.json`; `src/scene/house/house-config.ts` reads the default typology:
 
-- Confirmed exterior width: **43 m** (user reference, 2026-09-28).
-- Raw GLB width: 43,000 mm; applied scale: **1**. Scene coordinates and internal lengths use millimetres.
-- Exterior wall envelope: X = -43000…0, Z = -57000…0. This includes the rear extension, beyond the wall named Back at Z=-48000.
-- Ground reference: Y=0; the slab underside is not used as ground level.
-- Named Front faces +Z; Left is -X and right is +X. Y is up.
-- The resulting footprint is 43 × 57 m. Its X/Z center is placed at the origin. Yard edits never scale the house.
+- Rhino source: `../CeluplastVS/resources/modelling/House_Fairy/House_Fairy_source.3dm`, authored in millimeters.
+- Exterior wall envelope: X = -13716…0 mm, Z = -17576.8…0 mm; ground Y=0.
+- Main eave is 2743.2 mm; main ridge is approximately 6903.72 mm (estimated from reference renderings).
+- GLB vertex coordinates and scene dimensions use millimeters. Models load at scale 1; manifest width must match its source footprint. Unit mismatches are rejected rather than corrected by automatic scaling.
+- Named Front faces +Z; Left is -X and right is +X. Y is up. The footprint center is placed at the origin.
 
-When replacing the model, verify these values again. Do not assume export units or use roof overhangs as wall boundaries. Name objects in Rhino's Object Properties, export the house separately from external landscaping, enable “Map Rhino Z to glTF Y,” and leave Draco compression disabled for this demo. Current runtime loading does not configure a Draco decoder.
+For future imports, author the source in millimeters and verify the exported GLB coordinates: Rhino's glTF exporter converts millimeters to meters, so bake a ×1000 conversion into POSITION data before importing here. Normals stay unit length. Update position accessor bounds, wall envelope and installation face coordinates together. Enable “Map Rhino Z to glTF Y,” export open meshes and vertex normals, disable “Cull backfaces” for this thin shell, and disable Draco compression. Exclude reference images and construction curves. Verify every shell object has a nonempty exported mesh and inspect the four exterior views before replacing the asset.
 
 The yaw setting is zero for this supplied asset; supporting a differently oriented asset also requires recalibrating the footprint and origin in that orientation.
 

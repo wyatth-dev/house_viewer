@@ -148,8 +148,9 @@ export function createDimensionOverlay(
                         const value = input.value.trim() === '' ? NaN : input.valueAsNumber * 1000;
                         const message = Number.isFinite(value) ? current.data.edit?.(value) : 'Enter a number.';
                         if (message) {
+                            input.value = String(current.data.valueMm / 1000);
+                            cancel();
                             error.textContent = message;
-                            input.setAttribute('aria-invalid', 'true');
                             position();
                             return;
                         }
