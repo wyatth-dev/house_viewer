@@ -1,25 +1,25 @@
-import { Color, Entity, StandardMaterial } from 'playcanvas';
+import { BLEND_NORMAL, Color, Entity, Mesh, MeshInstance, StandardMaterial } from 'playcanvas';
 import type { AppBase, ContainerResource } from 'playcanvas';
 
 import { createProductAssetStore } from '../../shared/assets/containers.ts';
 import type { Layout } from '../types.ts';
 
-import { daylightConfig } from './config.ts';
+import { daylightConfig, landscapeConfig } from './config.ts';
 
 const assetIds = ['cypress-a', 'cypress-b', 'sage-tree-a', 'sage-tree-b', 'yellow-tree', 'shrub-cluster', 'shrub-brown'] as const;
 export type LandscapePlant = { asset: typeof assetIds[number]; x: number; z: number; scale: number; yaw: number };
 
 /** Random groups scattered through a finite world region, with the site and front corridor clear. */
-export function generatePlanting(layout: Layout, seed = 4207): LandscapePlant[][] {
+export function generatePlanting(layout: Layout, seed = landscapeConfig.planting.seed): LandscapePlant[][] {
     let state = seed >>> 0;
     const random = () => { state = (Math.imul(state, 1664525) + 1013904223) >>> 0; return state / 4294967296; };
     const p = layout.property, front = layout.regions.front.minZ;
     const groups: LandscapePlant[][] = [];
-    const range = 50000, margin = 6500;
+    const range = landscapeConfig.planting.range, margin = landscapeConfig.planting.clearance;
     const centers: { x: number; z: number; spacing: number }[] = [];
     const minX = p.minX - range + margin, maxX = p.maxX + range - margin;
     const minZ = p.minZ - range + margin, maxZ = p.maxZ + range - margin;
-    for (let attempt = 0; attempt < 1600 && groups.length < 24; attempt++) {
+    for (let attempt = 0; attempt < 1600 && groups.length < landscapeConfig.planting.maxGroups; attempt++) {
             const centerX = minX + random() * (maxX - minX);
             const centerZ = minZ + random() * (maxZ - minZ);
             const nearSite = centerX >= p.minX - margin && centerX <= p.maxX + margin
@@ -31,22 +31,24 @@ export function generatePlanting(layout: Layout, seed = 4207): LandscapePlant[][
                 Math.max(p.minZ - centerZ, 0, centerZ - p.maxZ)
             );
             // Fewer accepted groups and larger gaps as distance from the site increases.
-            if (random() > Math.exp(-(distance - margin) / 14000)) continue;
-            const spacing = 7500 + distance * 0.22;
+            if (random() > Math.exp(-(distance - margin) / landscapeConfig.planting.densityFalloff)) continue;
+            const spacing = landscapeConfig.planting.minimumSpacing + distance * landscapeConfig.planting.distanceSpacing;
             if (centers.some(center => Math.hypot(center.x - centerX, center.z - centerZ) < (center.spacing + spacing) / 2)) continue;
             centers.push({ x: centerX, z: centerZ, spacing });
-            const columnGroup = random() < 0.45;
-            const trees = columnGroup ? 3 + Math.floor(random() * 3) : 2 + Math.floor(random() * 2);
-            const shrubs = 4 + Math.floor(random() * 5);
+            const columnGroup = random() < landscapeConfig.planting.columnGroupChance;
+            const treeCount = columnGroup ? landscapeConfig.planting.columnTrees : landscapeConfig.planting.roundTrees;
+            const trees = treeCount.min + Math.floor(random() * treeCount.variation);
+            const shrubs = landscapeConfig.planting.shrubsPerGroup.min + Math.floor(random() * landscapeConfig.planting.shrubsPerGroup.variation);
             const plants: LandscapePlant[] = [];
             for (let plant = 0; plant < trees + shrubs; plant++) {
                 const shrub = plant >= trees;
                 const asset = shrub ? random() < 0.5 ? 'shrub-cluster' : 'shrub-brown'
                     : columnGroup ? random() < 0.5 ? 'cypress-a' : 'cypress-b'
-                    : random() < 0.15 ? 'yellow-tree' : random() < 0.5 ? 'sage-tree-a' : 'sage-tree-b';
-                const scale = shrub ? 0.55 + random() * 0.85 : 0.65 + random() * 0.6;
+                    : random() < landscapeConfig.planting.yellowTreeChance ? 'yellow-tree' : random() < 0.5 ? 'sage-tree-a' : 'sage-tree-b';
+                const scale = shrub ? landscapeConfig.planting.shrubScale.min + random() * landscapeConfig.planting.shrubScale.variation : landscapeConfig.planting.treeScale.min + random() * landscapeConfig.planting.treeScale.variation;
                 const angle = random() * Math.PI * 2;
-                const spread = shrub ? 2000 + random() * 1000 : 1000 + random() * 1600;
+                const spreadConfig = shrub ? landscapeConfig.planting.shrubSpread : landscapeConfig.planting.treeSpread;
+                const spread = spreadConfig.min + random() * spreadConfig.variation;
                 const x = centerX + Math.cos(angle) * spread;
                 const z = centerZ + Math.sin(angle) * spread;
                 plants.push({ asset, x, z, scale, yaw: random() * 360 });
@@ -54,32 +56,66 @@ export function generatePlanting(layout: Layout, seed = 4207): LandscapePlant[][
             groups.push(plants);
     }
     groups.push([
-        { asset: 'yellow-tree', x: p.minX - 3200, z: p.minZ - 3200, scale: 0.75, yaw: 35 },
-        { asset: 'sage-tree-a', x: p.maxX + 3200, z: p.minZ - 3200, scale: 0.8, yaw: 120 }
+        { asset: 'yellow-tree', x: p.minX - landscapeConfig.planting.accentOffset, z: p.minZ - landscapeConfig.planting.accentOffset, scale: landscapeConfig.planting.accentScales[0], yaw: 35 },
+        { asset: 'sage-tree-a', x: p.maxX + landscapeConfig.planting.accentOffset, z: p.minZ - landscapeConfig.planting.accentOffset, scale: landscapeConfig.planting.accentScales[1], yaw: 120 }
     ]);
     return groups;
 }
 
 export function generateHedges(layout: Layout) {
-    const p = layout.property, offset = 800;
+    const p = layout.property, offset = landscapeConfig.hedge.rowOffset;
     const shrubs: (LandscapePlant & { side: string })[] = [];
     const rows = [
         { side: 'back', x0: p.minX - offset, x1: p.maxX + offset, z0: p.minZ - offset, z1: p.minZ - offset },
-        { side: 'left', x0: p.minX - offset, x1: p.minX - offset, z0: p.minZ, z1: p.maxZ - 1400 },
-        { side: 'right', x0: p.maxX + offset, x1: p.maxX + offset, z0: p.minZ, z1: p.maxZ - 1400 }
+        { side: 'left', x0: p.minX - offset, x1: p.minX - offset, z0: p.minZ, z1: p.maxZ - landscapeConfig.hedge.frontSetback },
+        { side: 'right', x0: p.maxX + offset, x1: p.maxX + offset, z0: p.minZ, z1: p.maxZ - landscapeConfig.hedge.frontSetback }
     ];
     for (const row of rows) {
         const length = Math.hypot(row.x1 - row.x0, row.z1 - row.z0);
         if (row.z1 < row.z0) continue;
-        const count = Math.max(1, Math.ceil(length / 1500));
+        const count = Math.max(1, Math.ceil(length / landscapeConfig.hedge.spacing));
         for (let index = 0; index <= count; index++) {
             const t = index / count;
-            shrubs.push({ side: row.side, asset: index % 5 === 3 ? 'shrub-brown' : 'shrub-cluster',
+            shrubs.push({ side: row.side, asset: index % landscapeConfig.hedge.brownEvery === 3 ? 'shrub-brown' : 'shrub-cluster',
                 x: row.x0 + (row.x1 - row.x0) * t, z: row.z0 + (row.z1 - row.z0) * t,
-                scale: 0.75 + (index % 4) * 0.08, yaw: index * 137.5 % 360 });
+                scale: landscapeConfig.hedge.shrubScale.min + (index % 4) * landscapeConfig.hedge.shrubScale.step, yaw: index * 137.5 % 360 });
         }
     }
     return shrubs;
+}
+
+export function hedgeGeometry(layout: Layout) {
+    const p = layout.property, thickness = landscapeConfig.hedge.thickness;
+    const bottom = daylightConfig.groundY, top = bottom + landscapeConfig.hedge.height;
+    const outline = [
+        [p.minX - thickness, p.maxZ], [p.minX - thickness, p.minZ - thickness],
+        [p.maxX + thickness, p.minZ - thickness], [p.maxX + thickness, p.maxZ],
+        [p.maxX, p.maxZ], [p.maxX, p.minZ], [p.minX, p.minZ], [p.minX, p.maxZ]
+    ];
+    const positions: number[] = [], normals: number[] = [], indices: number[] = [];
+    const quad = (points: number[][], normal: number[]) => {
+        const offset = positions.length / 3;
+        for (const point of points) { positions.push(...point); normals.push(...normal); }
+        const a = points[0], b = points[1], c = points[2];
+        const ab = b.map((v, i) => v - a[i]), ac = c.map((v, i) => v - a[i]);
+        const cross = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
+        const face = cross.reduce((sum, value, i) => sum + value * normal[i], 0) > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2];
+        indices.push(...face.map(index => index + offset));
+    };
+    for (const [x0, x1, z0, z1] of [
+        [p.minX - thickness, p.maxX + thickness, p.minZ - thickness, p.minZ],
+        [p.minX - thickness, p.minX, p.minZ, p.maxZ],
+        [p.maxX, p.maxX + thickness, p.minZ, p.maxZ]
+    ]) {
+        for (const [y, direction] of [[top, 1], [bottom, -1]])
+            quad([[x0, y, z0], [x0, y, z1], [x1, y, z1], [x1, y, z0]], [0, direction, 0]);
+    }
+    for (let index = 0; index < outline.length; index++) {
+        const a = outline[index], b = outline[(index + 1) % outline.length];
+        const dx = b[0] - a[0], dz = b[1] - a[1], length = Math.hypot(dx, dz);
+        quad([[a[0], bottom, a[1]], [b[0], bottom, b[1]], [b[0], top, b[1]], [a[0], top, a[1]]], [dz / length, 0, -dx / length]);
+    }
+    return { positions, normals, indices };
 }
 
 export function createPlanting(app: AppBase) {
@@ -89,30 +125,53 @@ export function createPlanting(app: AppBase) {
     root.enabled = false;
     app.root.addChild(root);
     const boundaryMaterials = new Map<StandardMaterial, StandardMaterial>();
+    const worldPlantMaterials = new Map<StandardMaterial, StandardMaterial>();
     const hedgeMaterial = new StandardMaterial();
-    hedgeMaterial.diffuse = new Color().fromString('#788967');
+    hedgeMaterial.diffuse = new Color().fromString(landscapeConfig.hedge.color);
     hedgeMaterial.gloss = 0;
     hedgeMaterial.update();
+    const whiteMaterials = new Map<StandardMaterial, StandardMaterial>();
+    const originalMaterials = new WeakMap<MeshInstance, StandardMaterial>();
+    let whiteMode = false;
+    const applyMode = () => {
+        for (const child of root.children) {
+            const hedge = child.name === 'Continuous U hedge core' || child.name === 'Boundary shrub rows';
+            child.enabled = child.name !== 'Boundary shrub rows' && (!whiteMode || !hedge);
+            if (hedge) continue;
+            for (const plant of child.children) {
+                if (plant.name.startsWith('shrub-')) plant.enabled = !whiteMode && landscapeConfig.outerShrubs.visible;
+            }
+            child.forEach(node => {
+                if (!(node instanceof Entity) || !node.render) return;
+                for (const mesh of node.render.meshInstances) {
+                    if (!originalMaterials.has(mesh) && mesh.material instanceof StandardMaterial) originalMaterials.set(mesh, mesh.material);
+                    const original = originalMaterials.get(mesh);
+                    if (!original) continue;
+                    let white = whiteMaterials.get(original);
+                    if (whiteMode && !white) {
+                        white = original.clone();
+                        white.diffuse = new Color(0.9, 0.92, 0.93);
+                        white.update();
+                        whiteMaterials.set(original, white);
+                    }
+                    mesh.material = whiteMode ? white! : original;
+                }
+            });
+        }
+    };
     let layout: Layout | undefined;
     let disposed = false;
     let models: Map<string, ContainerResource> | undefined;
     const rebuild = () => {
         if (!layout || disposed) return;
         for (const child of [...root.children]) child.destroy();
-        const p = layout.property;
-        const height = 1200, thickness = 800, offset = 800;
-        for (const wall of [
-            { side: 'back', x: (p.minX + p.maxX) / 2, z: p.minZ - offset, width: p.maxX - p.minX + offset * 2 + thickness, depth: thickness },
-            { side: 'left', x: p.minX - offset, z: (p.minZ + p.maxZ - 1400) / 2, width: thickness, depth: Math.max(0, p.maxZ - p.minZ - 1400) },
-            { side: 'right', x: p.maxX + offset, z: (p.minZ + p.maxZ - 1400) / 2, width: thickness, depth: Math.max(0, p.maxZ - p.minZ - 1400) }
-        ]) {
-            if (wall.width <= 0 || wall.depth <= 0) continue;
-            const entity = new Entity(`${wall.side} hedge core`);
-            entity.addComponent('render', { type: 'box', material: hedgeMaterial, castShadows: true, receiveShadows: true });
-            entity.setPosition(wall.x, daylightConfig.groundY + height / 2, wall.z);
-            entity.setLocalScale(wall.width, height, wall.depth);
-            root.addChild(entity);
-        }
+        const geometry = hedgeGeometry(layout);
+        const mesh = new Mesh(app.graphicsDevice);
+        mesh.setPositions(geometry.positions); mesh.setNormals(geometry.normals);
+        mesh.setIndices(geometry.indices); mesh.update();
+        const wall = new Entity('Continuous U hedge core');
+        wall.addComponent('render', { meshInstances: [new MeshInstance(mesh, hedgeMaterial)], castShadows: true, receiveShadows: true });
+        root.addChild(wall);
         if (!models) return;
         const hedgeRow = new Entity('Boundary shrub rows');
         root.addChild(hedgeRow);
@@ -120,9 +179,9 @@ export function createPlanting(app: AppBase) {
             const entity = models.get(shrub.asset)!.instantiateRenderEntity();
             entity.name = `${shrub.side} ${shrub.asset}`;
             const index = hedgeRow.children.length;
-            const outward = 120 + (index % 3) * 75;
+            const outward = landscapeConfig.hedge.outwardOffset + (index % 3) * landscapeConfig.hedge.outwardStep;
             entity.setPosition(shrub.x + (shrub.side === 'left' ? -outward : shrub.side === 'right' ? outward : 0),
-                daylightConfig.groundY + 880 + (index % 3) * 55,
+                daylightConfig.groundY + landscapeConfig.hedge.shrubBaseHeight + (index % 3) * landscapeConfig.hedge.heightStep,
                 shrub.z - (shrub.side === 'back' ? outward : 0));
             entity.setLocalScale(shrub.scale, shrub.scale, shrub.scale);
             entity.setEulerAngles(0, shrub.yaw, 0);
@@ -138,7 +197,7 @@ export function createPlanting(app: AppBase) {
                             material = source.clone();
                             const color = source.diffuse;
                             // Darken the boundary foliage before adding contrast, so highlights stay colored.
-                            const contrast = (value: number) => Math.max(0, Math.min(0.62, 0.3 + (value * 0.6 - 0.3) * 1.25));
+                            const contrast = (value: number) => Math.max(0, Math.min(0.62, 0.3 + (value * landscapeConfig.hedge.brightness - 0.3) * landscapeConfig.hedge.contrast));
                             material.diffuse = new Color(contrast(color.r), contrast(color.g), contrast(color.b));
                             material.useMetalness = false;
                             material.specular = new Color(0, 0, 0);
@@ -165,11 +224,54 @@ export function createPlanting(app: AppBase) {
                 entity.setLocalScale(plant.scale, plant.scale, plant.scale);
                 entity.setEulerAngles(0, plant.yaw, 0);
                 entity.forEach(node => {
-                    if (node instanceof Entity && node.render) { node.render.castShadows = true; node.render.receiveShadows = true; }
+                    if (node instanceof Entity && node.render) {
+                        node.render.castShadows = plant.asset.startsWith('shrub') ? landscapeConfig.outerShrubs.castShadows : true;
+                        node.render.receiveShadows = true;
+                        for (const mesh of node.render.meshInstances) {
+                            const source = mesh.material;
+                            if (!(source instanceof StandardMaterial)) continue;
+                            let material = worldPlantMaterials.get(source);
+                            if (!material) {
+                                material = source.clone();
+                                const color = plant.asset.startsWith('shrub')
+                                    ? new Color().fromString(plant.asset === 'shrub-brown' ? landscapeConfig.outerShrubs.brownColor : landscapeConfig.outerShrubs.greenColor)
+                                    : source.diffuse;
+                                if (plant.asset.startsWith('cypress') && color.g > color.r * 1.1) {
+                                    const gray = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
+                                    const saturated = (value: number) => Math.max(0, Math.min(0.62, (gray + (value - gray) * landscapeConfig.cypress.saturation) * landscapeConfig.cypress.brightness));
+                                    material.diffuse = new Color(saturated(color.r), saturated(color.g), saturated(color.b));
+                                } else if (!plant.asset.startsWith('cypress')) {
+                                    const gray = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
+                                    const style = plant.asset.startsWith('shrub') ? landscapeConfig.outerShrubs : landscapeConfig.roundTrees;
+                                    const toned = (value: number) => Math.max(0, Math.min(0.8, (gray + (value - gray) * style.saturation) * style.brightness));
+                                    material.diffuse = new Color(toned(color.r), toned(color.g), toned(color.b));
+                                }
+                                if (plant.asset.startsWith('shrub')) material.useTonemap = false;
+                                material.useMetalness = false;
+                                material.specular = new Color(0, 0, 0);
+                                material.gloss = 0;
+                                material.glossMap = null;
+                                material.useSkybox = false;
+                                material.emissive = new Color(0, 0, 0);
+                                const appearance = plant.asset.startsWith('cypress') ? landscapeConfig.cypress
+                                    : plant.asset.startsWith('shrub') ? landscapeConfig.outerShrubs : landscapeConfig.roundTrees;
+                                const requestedOpacity = 'opacity' in appearance ? appearance.opacity : 1;
+                                const opacity = typeof requestedOpacity === 'number' && Number.isFinite(requestedOpacity)
+                                    ? Math.max(0, Math.min(1, requestedOpacity)) : 1;
+                                material.opacity = opacity;
+                                if (opacity < 1) material.blendType = BLEND_NORMAL;
+                                material.depthWrite = opacity >= 1;
+                                material.update();
+                                worldPlantMaterials.set(source, material);
+                            }
+                            mesh.material = material;
+                        }
+                    }
                 });
                 cluster.addChild(entity);
             }
         }
+        applyMode();
     };
     const ready = Promise.all(assetIds.map(async id => [id, await assets.load(`/site-definition/landscape/3d/${id}.glb`)] as const))
         .then(loaded => { if (!disposed) { models = new Map(loaded); rebuild(); } })
@@ -178,6 +280,7 @@ export function createPlanting(app: AppBase) {
         ready,
         updateLayout(value: Layout) { layout = structuredClone(value); rebuild(); },
         setVisible(value: boolean) { root.enabled = value; },
-        destroy() { disposed = true; root.destroy(); hedgeMaterial.destroy(); for (const material of boundaryMaterials.values()) material.destroy(); boundaryMaterials.clear(); assets.destroy(); abort.abort(); }
+        setWhiteMode(value: boolean) { whiteMode = value; applyMode(); },
+        destroy() { disposed = true; root.destroy(); for (const material of whiteMaterials.values()) material.destroy(); whiteMaterials.clear(); hedgeMaterial.destroy(); for (const material of boundaryMaterials.values()) material.destroy(); boundaryMaterials.clear(); for (const material of worldPlantMaterials.values()) material.destroy(); worldPlantMaterials.clear(); assets.destroy(); abort.abort(); }
     };
 }

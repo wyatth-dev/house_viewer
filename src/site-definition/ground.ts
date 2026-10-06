@@ -35,7 +35,11 @@ export function createGround(app: AppBase) {
             new Vec3(p.maxX, 25, p.maxZ),
             new Vec3(p.minX, 25, p.maxZ)
         ];
-        for (let i = 0; i < 4; i++) app.drawLine(pts[i], pts[(i + 1) % 4], new Color().fromString(whiteModelPalette.boundary), true);
+        const hedgeVisible = app.root.findByName('Grouped landscape planting')?.enabled;
+        for (let i = 0; i < 4; i++) {
+            if (hedgeVisible && i !== 2) continue;
+            app.drawLine(pts[i], pts[(i + 1) % 4], new Color().fromString(whiteModelPalette.boundary), true);
+        }
     };
     app.on('update', draw);
     return {

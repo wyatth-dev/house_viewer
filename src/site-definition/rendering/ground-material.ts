@@ -4,7 +4,7 @@ import type { AppBase, Material, MeshInstance } from 'playcanvas';
 import type { Bounds3 } from '../../shared/geometry/types.ts';
 import { loadPbrMaterial } from '../materials/index.ts';
 
-import { daylightConfig } from './config.ts';
+import { daylightConfig, landscapeConfig } from './config.ts';
 
 /** Swap the actual yard materials, with UVs anchored in world millimeters. */
 export function createSiteGrass(app: AppBase) {
@@ -28,7 +28,7 @@ export function createSiteGrass(app: AppBase) {
         material.diffuse = new Color(1, 1, 1);
         material.emissive = new Color(0, 0, 0);
         material.emissiveMap = null;
-        material.bumpiness = 0.015;
+        material.bumpiness = landscapeConfig.grass.bumpiness;
         material.aoIntensity = 0;
         material.gloss = 0;
         material.glossMap = null;
@@ -44,7 +44,7 @@ export function createSiteGrass(app: AppBase) {
             let entry = yards.get(entity);
             if (!entry) {
                 const material = asset ? asset.material.clone() : new StandardMaterial();
-                if (!asset) { material.diffuse = new Color().fromString('#bec9a6'); material.gloss = 0; material.update(); }
+                if (!asset) { material.diffuse = new Color().fromString(landscapeConfig.grass.color); material.gloss = 0; material.update(); }
                 entry = { originals: new Map(entity.render.meshInstances.map(mesh => [mesh, mesh.material])), material };
                 yards.set(entity, entry);
             }
@@ -63,7 +63,8 @@ export function createSiteGrass(app: AppBase) {
             const context = canvas.getContext('2d')!;
             context.drawImage(source, 0, 0, canvas.width, canvas.height);
             // Match the pale gray-green watercolor swatch; retain just 6% of grass detail.
-            context.fillStyle = 'rgba(190, 201, 166, 0.94)';
+            const base = new Color().fromString(landscapeConfig.grass.color);
+            context.fillStyle = `rgba(${Math.round(base.r * 255)}, ${Math.round(base.g * 255)}, ${Math.round(base.b * 255)}, ${1 - landscapeConfig.grass.textureStrength})`;
             context.fillRect(0, 0, canvas.width, canvas.height);
             softenedTexture = new Texture(app.graphicsDevice, {
                 name: 'Low contrast site grass', srgb: true, mipmaps: true,

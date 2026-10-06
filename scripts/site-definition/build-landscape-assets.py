@@ -70,24 +70,137 @@ def finish(positions, faces, center):
     return points, normals, indices
 
 
+def smooth_surface(center, radii, rng, column=False, rings=8, segments=12):
+    # One continuous crown, coherent lobes, shared vertices and smooth normals.
+    phase = rng.uniform(0, math.tau)
+    positions = []
+    for ring in range(rings + 1):
+        theta = math.pi * ring / rings
+        for segment in range(segments):
+            phi = math.tau * segment / segments
+            envelope = math.sin(theta)
+            lobes = (0.055 * math.sin(5 * phi + phase + 2 * theta)
+                     + 0.035 * math.cos(7 * phi - 3 * theta + phase)
+                     + 0.025 * math.sin(11 * phi + 5 * theta)) * envelope
+            width = envelope * (1 + lobes)
+            if column:
+                width *= (0.35 + 0.65 * ring / rings)
+            positions.append([center[0] + radii[0] * width * math.cos(phi),
+                              center[1] + radii[1] * math.cos(theta) + radii[1] * lobes * envelope * 0.4,
+                              center[2] + radii[2] * width * math.sin(phi)])
+    # Weld the poles so their normals are continuous as well.
+    positions = [positions[0]] + positions[segments:-segments] + [positions[-1]]
+    faces = []
+    bottom = len(positions) - 1
+    for j in range(segments):
+        k = (j + 1) % segments
+        faces.append((0, 1 + j, 1 + k))
+        faces.append((bottom, bottom - segments + k, bottom - segments + j))
+    for r in range(rings - 2):
+        for j in range(segments):
+            a = 1 + r * segments + j
+            b = 1 + r * segments + (j + 1) % segments
+            faces.extend([(a, a + segments, b), (b, a + segments, b + segments)])
+    normals = [[0., 0., 0.] for _ in positions]
+    indices = []
+    for a, b, c in faces:
+        ab = [positions[b][i] - positions[a][i] for i in range(3)]
+        ac = [positions[c][i] - positions[a][i] for i in range(3)]
+        n = [ab[1]*ac[2]-ab[2]*ac[1], ab[2]*ac[0]-ab[0]*ac[2], ab[0]*ac[1]-ab[1]*ac[0]]
+        if sum(n[i] * (positions[a][i] - center[i]) for i in range(3)) < 0:
+            b, c = c, b
+            n = [-v for v in n]
+        indices.extend((a, b, c))
+        for vertex in (a, b, c):
+            for i in range(3):
+                normals[vertex][i] += n[i]
+    normals = [[v / math.sqrt(sum(x*x for x in n)) for v in n] for n in normals]
+    return positions, normals, indices
+
+
+def branch(start, end, radius):
+    axis = [end[i] - start[i] for i in range(3)]
+    length = math.sqrt(sum(v*v for v in axis))
+    axis = [v / length for v in axis]
+    side = [axis[1], -axis[0], 0]
+    scale = math.sqrt(sum(v*v for v in side))
+    side = [v / scale for v in side]
+    other = [axis[1]*side[2]-axis[2]*side[1], axis[2]*side[0]-axis[0]*side[2], axis[0]*side[1]-axis[1]*side[0]]
+    points, normals, indices = [], [], []
+    for center, taper in ((start, 1), (end, .45)):
+        for j in range(6):
+            angle = math.tau * j / 6
+            n = [side[i]*math.cos(angle) + other[i]*math.sin(angle) for i in range(3)]
+            points.append([center[i] + radius*taper*n[i] for i in range(3)])
+            normals.append(n)
+    for j in range(6):
+        k = (j+1)%6
+        indices.extend((j, k, j+6, k, k+6, j+6))
+    return points, normals, indices
+
+
+def leaf(center, size, rng):
+    # Thin folded leaf, facing a random 3D direction; both sides cast shadows.
+    yaw, tilt = rng.uniform(0, math.tau), rng.uniform(-.9, .9)
+    u = (math.cos(yaw), 0, math.sin(yaw))
+    v = (-math.sin(yaw)*math.sin(tilt), math.cos(tilt), math.cos(yaw)*math.sin(tilt))
+    normal = (-math.sin(yaw)*math.cos(tilt), -math.sin(tilt), math.cos(yaw)*math.cos(tilt))
+    points = [[center[i]+size*(u[i]*x+v[i]*y) for i in range(3)]
+              for x,y in [(0,-1),(.55,0),(0,1),(-.55,0)]]
+    return points + points, [list(normal)]*4 + [[-x for x in normal]]*4, [0,1,2,0,2,3,4,6,5,4,7,6]
+
+
 def plant(kind, seed):
     rng = random.Random(seed)
     meshes = []
     def add(mesh, color):
         meshes.append((mesh, color))
     if kind == 'cypress':
-        add(trunk(1900, 95), PALETTE['trunk'])
-        add(ellipsoid((0, 3650, 0), (560, 3150, 500), rng, rings=14, tapered=True), PALETTE[kind])
+        add(branch((0, 0, 0), (70, 2300, 0), 60), PALETTE['trunk'])
+        add(smooth_surface((70, 3650, 0), (560, 3150, 470), rng, column=True,
+                           rings=16, segments=20), PALETTE[kind])
     elif kind in ('sage', 'yellow'):
-        add(trunk(3500, 120), PALETTE['trunk'])
-        for x, y, z, radius in [(0, 4050, 0, 1500), (-1050, 3700, -200, 1050), (1000, 3800, 150, 1100), (0, 3750, 1000, 1050), (0, 4100, -850, 1100)]:
-            add(ellipsoid((x, y + rng.uniform(-100, 100), z), (radius, radius * 0.75, radius * 0.9), rng), PALETTE[kind])
+        lean = rng.uniform(-180, 180)
+        # Continuous leader with branches rooted at different heights.
+        for j in range(6):
+            start = (lean*j/6, j*820, 60*math.sin(j*.5))
+            end = (lean*(j+1)/6, (j+1)*820, 60*math.sin((j+1)*.5))
+            add(branch(start, end, 100*(1-j/7)), PALETTE['trunk'])
+        for j in range(8):
+            angle = j*2.399 + rng.uniform(-.25,.25)
+            height = 1700+j*350
+            reach = 1700*math.sqrt(max(.2, 1-((height-3400)/2200)**2))
+            base = (lean*height/4920, height, 0)
+            joint = (base[0]+reach*.55*math.cos(angle), height+500, reach*.55*math.sin(angle))
+            add(branch(base, joint, 40-j*2), PALETTE['trunk'])
+            for k in range(2):
+                direction = angle + (k-.5)*.75
+                end = (base[0]+reach*math.cos(direction), height+rng.uniform(750,1100), reach*math.sin(direction))
+                add(branch(joint, end, 17), PALETTE['trunk'])
+                for t in range(2):
+                    tip = (end[0]+rng.uniform(-380,380), end[1]+rng.uniform(180,500), end[2]+rng.uniform(-380,380))
+                    add(branch(end, tip, 7), PALETTE['trunk'])
+                    for _ in range(18):
+                        phi = rng.uniform(0,math.tau)
+                        y = rng.uniform(-1,1)
+                        radius = rng.random()**(1/3)
+                        width = math.sqrt(1-y*y)*radius
+                        center = (tip[0]+420*width*math.cos(phi), tip[1]+370*y*radius, tip[2]+420*width*math.sin(phi))
+                        add(leaf(center, rng.uniform(130,230), rng), PALETTE[kind])
     else:
         base = rgb(PALETTE['shrub-brown' if kind == 'shrub-brown' else 'shrub'])
         for index, (x, z, radius) in enumerate([(-450, 0, 620), (450, 80, 700), (0, -380, 580)]):
             shade = [0.93, 1.04, 0.99][index]
             color = '#' + ''.join(f'{min(255, round(channel * shade * 255)):02x}' for channel in base)
             add(ellipsoid((x, radius * 0.65, z), (radius, radius * 0.65, radius * 0.85), rng, rings=7, segments=10), color)
+    if kind in ('cypress', 'sage', 'yellow'):
+        merged = {}
+        for (points, normals, indices), color in meshes:
+            out_points, out_normals, out_indices = merged.setdefault(color, ([], [], []))
+            offset = len(out_points)
+            out_points.extend(points); out_normals.extend(normals)
+            out_indices.extend(i + offset for i in indices)
+        return [(mesh, color) for color, mesh in merged.items()]
     return meshes
 
 
@@ -136,7 +249,7 @@ def main():
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     variants = [('cypress-a', 'cypress', 11), ('cypress-b', 'cypress', 37), ('sage-tree-a', 'sage', 19), ('sage-tree-b', 'sage', 53), ('yellow-tree', 'yellow', 29), ('shrub-cluster', 'shrub', 71), ('shrub-brown', 'shrub-brown', 83)]
-    manifest = {'units': 'millimeters', 'upAxis': 'Y', 'origin': 'ground-level trunk center', 'style': 'muted architectural low-poly', 'assets': []}
+    manifest = {'units': 'millimeters', 'upAxis': 'Y', 'origin': 'ground-level trunk center', 'style': 'muted architectural smooth organic crowns', 'assets': []}
     preview = []
     for name, kind, seed in variants:
         meshes = plant(kind, seed)

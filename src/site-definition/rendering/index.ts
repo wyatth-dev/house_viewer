@@ -17,7 +17,6 @@ export function createRendering(app: AppBase) {
     const grass = createSiteGrass(app);
     const planting = createPlanting(app);
     let contextVisible = true;
-    let grassVisible = true;
     const cameraBackgrounds = new Map<CameraComponent, Color>();
     const restoreBackgrounds = () => {
         for (const [camera, color] of cameraBackgrounds) camera.clearColor = color;
@@ -25,15 +24,16 @@ export function createRendering(app: AppBase) {
     };
     return {
         setGrassVisible(value: boolean) {
-            grassVisible = value;
-            grass.setVisible(contextVisible && grassVisible);
-            planting.setVisible(contextVisible && grassVisible);
+            grass.setVisible(contextVisible);
+            environment.setWhiteMode(!value);
+            planting.setWhiteMode(!value);
+            planting.setVisible(contextVisible);
         },
         setContextVisible(value: boolean) {
             contextVisible = value;
             environment.setVisible(value);
-            grass.setVisible(value && grassVisible);
-            planting.setVisible(value && grassVisible);
+            grass.setVisible(value);
+            planting.setVisible(value);
             if (value) restoreBackgrounds();
             else {
                 for (const camera of app.root.findComponents('camera') as CameraComponent[]) {

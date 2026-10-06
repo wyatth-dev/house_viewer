@@ -2,14 +2,14 @@
   "units": "millimeters",
   "upAxis": "Y",
   "origin": "ground-level trunk center",
-  "style": "muted architectural low-poly",
+  "style": "muted architectural smooth organic crowns",
   "assets": [
     {
       "id": "cypress-a",
       "file": "cypress-a.glb",
       "type": "cypress",
       "heightMm": 6800.0,
-      "triangles": 340,
+      "triangles": 612,
       "castShadows": true,
       "receiveShadows": true
     },
@@ -18,7 +18,7 @@
       "file": "cypress-b.glb",
       "type": "cypress",
       "heightMm": 6800.0,
-      "triangles": 340,
+      "triangles": 612,
       "castShadows": true,
       "receiveShadows": true
     },
@@ -26,8 +26,8 @@
       "id": "sage-tree-a",
       "file": "sage-tree-a.glb",
       "type": "sage",
-      "heightMm": 5210.425165360054,
-      "triangles": 988,
+      "heightMm": 5799.169970708454,
+      "triangles": 3048,
       "castShadows": true,
       "receiveShadows": true
     },
@@ -35,8 +35,8 @@
       "id": "sage-tree-b",
       "file": "sage-tree-b.glb",
       "type": "sage",
-      "heightMm": 5198.42829533399,
-      "triangles": 988,
+      "heightMm": 6071.470868066846,
+      "triangles": 3048,
       "castShadows": true,
       "receiveShadows": true
     },
@@ -44,8 +44,8 @@
       "id": "yellow-tree",
       "file": "yellow-tree.glb",
       "type": "yellow",
-      "heightMm": 5184.623810762339,
-      "triangles": 988,
+      "heightMm": 5849.8057544558,
+      "triangles": 3048,
       "castShadows": true,
       "receiveShadows": true
     },

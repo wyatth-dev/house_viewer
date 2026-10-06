@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { calculateLayout, defaults } from '../src/site-definition/layout.ts';
-import { generateHedges, generatePlanting } from '../src/site-definition/rendering/planting.ts';
+import { generateHedges, generatePlanting, hedgeGeometry } from '../src/site-definition/rendering/planting.ts';
 
 test('random groups contain varied trees and green/brown shrubs outside the property with an open front', () => {
     const layout = calculateLayout({ width: 20000, depth: 14000 }, defaults);
@@ -63,4 +63,26 @@ test('boundary enclosure uses continuous rows of green and brown shrub models wi
     const p = layout.property;
     assert.ok(shrubs.every(shrub => shrub.x < p.minX || shrub.x > p.maxX || shrub.z < p.minZ));
     assert.equal(generatePlanting(layout).at(-1).length, 2);
+});
+
+
+test('U hedge is closed at corners, meets the site boundary and has no front span', () => {
+    const layout = calculateLayout({ width: 20000, depth: 14000 }, defaults);
+    const { positions, indices } = hedgeGeometry(layout);
+    const p = layout.property;
+    const edges = new Map();
+    const key = index => positions.slice(index * 3, index * 3 + 3).join(',');
+    for (let index = 0; index < indices.length; index += 3) {
+        const triangle = indices.slice(index, index + 3);
+        for (let edge = 0; edge < 3; edge++) {
+            const pair = [key(triangle[edge]), key(triangle[(edge + 1) % 3])].sort().join('|');
+            edges.set(pair, (edges.get(pair) ?? 0) + 1);
+        }
+        const points = triangle.map(vertex => positions.slice(vertex * 3, vertex * 3 + 3));
+        assert.ok(!points.every(point => point[2] === p.maxZ && point[0] > p.minX && point[0] < p.maxX));
+    }
+    // Top subdivisions may share a collinear seam; all inner boundary corners are exact.
+    for (const [x, z] of [[p.minX, p.minZ], [p.maxX, p.minZ]])
+        assert.ok(positions.some((value, index) => index % 3 === 0 && value === x && positions[index + 2] === z));
+    assert.ok([...edges.values()].every(count => count <= 2));
 });

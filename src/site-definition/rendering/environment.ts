@@ -11,7 +11,7 @@ import type { AppBase } from 'playcanvas';
 
 import type { Bounds3 } from '../../shared/geometry/types.ts';
 
-import { daylightConfig, whiteModelPalette } from './config.ts';
+import { daylightConfig, landscapeConfig } from './config.ts';
 
 /** A local procedural daylight environment: no network assets or extra render loop. */
 export function createEnvironment(app: AppBase) {
@@ -56,7 +56,11 @@ export function createEnvironment(app: AppBase) {
 
     const material = new StandardMaterial();
     material.name = 'WhiteModel_Environment_Ground';
-    material.diffuse = new Color().fromString(whiteModelPalette.ground);
+    material.diffuse = new Color().fromString(landscapeConfig.world.color);
+    material.useMetalness = false;
+    material.specular = new Color(0, 0, 0);
+    material.useSkybox = false;
+    material.useTonemap = false;
     material.gloss = 0;
     material.update();
     const ground = new Entity('Environment ground');
@@ -64,6 +68,10 @@ export function createEnvironment(app: AppBase) {
     ground.setLocalScale(daylightConfig.groundSize, 1, daylightConfig.groundSize);
     app.root.addChild(ground);
     return {
+        setWhiteMode(value: boolean) {
+            material.diffuse = value ? new Color(1, 1, 1) : new Color().fromString(landscapeConfig.world.color);
+            material.update();
+        },
         setVisible(value: boolean) {
             ground.enabled = value;
             app.scene.skybox = null;
