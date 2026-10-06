@@ -113,5 +113,16 @@
                 "z": 0
             }
         }
-    ]
+    ],
+    "representations": {
+        "white": {
+            "model": "model.glb"
+        },
+        "color-block": {
+            "model": "color-block/model.glb"
+        },
+        "render": {
+            "model": "render/model.glb"
+        }
+    }
 }

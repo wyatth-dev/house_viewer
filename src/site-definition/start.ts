@@ -12,7 +12,9 @@ import {
 } from 'playcanvas';
 
 import { createPlacementController } from '../product-placement/controller.ts';
+import type { HouseRepresentation } from '../scene/house/house-config.ts';
 import { loadHouse } from '../scene/house/house.ts';
+import { houseRepresentationIcon } from '../scene/house/representation-icon.ts';
 import { createModelPreview } from '../scene/model-preview/index.ts';
 import { createCameraController, createCameraControls, createOrbitControls } from '../shared/camera/index.ts';
 import { createLifetime } from '../shared/lifetime.ts';
@@ -35,13 +37,20 @@ export function startSiteDefinition() {
     renderModes.className = 'render-mode-controls';
     renderModes.setAttribute('role', 'group');
     renderModes.setAttribute('aria-label', 'Scene rendering modes');
-    for (const [id, label] of [['watercolor', 'Watercolor'], ['white', 'White model'], ['full', 'Full render']]) {
+    const modeButtons = new Map<HouseRepresentation, HTMLButtonElement>();
+    const modes: [HouseRepresentation, string][] = [
+        ['white', 'White model'], ['color-block', 'Color blocks'], ['render', 'Detailed render']
+    ];
+    for (const [id, label] of modes) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `render-mode-swatch ${id}`;
-        button.title = `${label} — not connected yet`;
-        button.setAttribute('aria-label', label!);
-        button.setAttribute('aria-disabled', 'true');
+        button.title = label;
+        button.setAttribute('aria-label', label);
+        button.setAttribute('aria-pressed', String(id === 'render'));
+        button.innerHTML = houseRepresentationIcon(id);
+        button.disabled = true;
+        modeButtons.set(id, button);
         renderModes.append(button);
     }
     const hedgeToggle = document.createElement('button');
@@ -50,8 +59,19 @@ export function startSiteDefinition() {
     hedgeToggle.textContent = 'Fence · Off';
     hedgeToggle.setAttribute('aria-label', 'Toggle fence');
     hedgeToggle.setAttribute('aria-pressed', 'false');
-    viewport.append(hedgeToggle);
-    lifetime.add(() => hedgeToggle.remove());
+    const treeToggle = document.createElement('button');
+    treeToggle.type = 'button';
+    treeToggle.className = 'hedge-toggle';
+    treeToggle.textContent = 'Trees · On';
+    treeToggle.setAttribute('aria-label', 'Toggle trees');
+    treeToggle.setAttribute('aria-pressed', 'true');
+    const landscapeControls = document.createElement('div');
+    landscapeControls.className = 'landscape-controls';
+    landscapeControls.setAttribute('role', 'group');
+    landscapeControls.setAttribute('aria-label', 'Landscape visibility');
+    landscapeControls.append(hedgeToggle, treeToggle);
+    viewport.append(landscapeControls);
+    lifetime.add(() => landscapeControls.remove());
     viewport.append(renderModes);
     lifetime.add(() => renderModes.remove());
     const isDisposed = () => lifetime.signal.aborted;
@@ -76,6 +96,34 @@ export function startSiteDefinition() {
         const house = await loadHouse(app, lifetime.signal);
         lifetime.add(house.destroy);
         lifetime.signal.throwIfAborted();
+        await house.setRepresentation('render');
+        lifetime.signal.throwIfAborted();
+        for (const [mode, button] of modeButtons) {
+            button.disabled = false;
+            button.onclick = async () => {
+                renderModes.setAttribute('aria-busy', 'true');
+                for (const candidate of modeButtons.values()) candidate.disabled = true;
+                try {
+                    await house.setRepresentation(mode, true);
+                    if (isDisposed()) return;
+                    for (const [id, candidate] of modeButtons)
+                        candidate.setAttribute('aria-pressed', String(id === mode));
+                    status.hidden = true;
+                } catch (error) {
+                    if (!isDisposed()) {
+                        console.error(error);
+                        status.textContent = 'Could not switch rendering mode. Please try again.';
+                        status.hidden = false;
+                    }
+                } finally {
+                    if (!isDisposed()) {
+                        renderModes.setAttribute('aria-busy', 'false');
+                        for (const candidate of modeButtons.values()) candidate.disabled = false;
+                    }
+                }
+            };
+            lifetime.add(() => { button.onclick = null; });
+        }
 
         // Scene services: rendering, camera and site
         const rendering = createRendering(app);
@@ -87,25 +135,15 @@ export function startSiteDefinition() {
             hedgeToggle.textContent = hedgeVisible ? 'Fence · On' : 'Fence · Off';
         };
         lifetime.add(() => { hedgeToggle.onclick = null; });
-        const whiteMode = renderModes.querySelector<HTMLButtonElement>('.white')!;
-        const grassMode = renderModes.querySelector<HTMLButtonElement>('.watercolor')!;
-        let selectedColorMode: boolean | undefined;
-        const selectGrassMode = (enabled: boolean) => {
-            if (selectedColorMode === enabled) return;
-            selectedColorMode = enabled;
-            whiteMode.setAttribute('aria-pressed', String(!enabled));
-            grassMode.setAttribute('aria-pressed', String(enabled));
-            rendering.setGrassVisible(enabled);
+        let treesVisible = true;
+        treeToggle.onclick = () => {
+            treesVisible = !treesVisible;
+            rendering.setTreesVisible(treesVisible);
+            treeToggle.setAttribute('aria-pressed', String(treesVisible));
+            treeToggle.textContent = treesVisible ? 'Trees · On' : 'Trees · Off';
         };
-        for (const [button, label] of [[whiteMode, 'White model'], [grassMode, 'Site grass and grouped trees']] as const) {
-            button.removeAttribute('aria-disabled');
-            button.setAttribute('aria-label', label);
-            button.title = label;
-        }
-        whiteMode.onclick = () => selectGrassMode(false);
-        grassMode.onclick = () => selectGrassMode(true);
-        selectGrassMode(true);
-        lifetime.add(() => { whiteMode.onclick = null; grassMode.onclick = null; });
+        lifetime.add(() => { treeToggle.onclick = null; });
+        rendering.setGrassVisible(true);
         lifetime.add(() => rendering.destroy());
         const camera = createCameraController(app, cameraPresets, {
             ...daylightConfig.camera,

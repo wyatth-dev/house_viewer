@@ -134,6 +134,7 @@ export function createPlanting(app: AppBase) {
     const originalOpacities = new WeakMap<StandardMaterial, number>();
     let treeOpacity = 1;
     let whiteMode = false;
+    let treesVisible = true;
     let hedgeVisible = false;
     let hedgeOpacity = 0;
     const animateHedge = (dt: number) => {
@@ -172,7 +173,7 @@ export function createPlanting(app: AppBase) {
         }
     };
     const animateTrees = (dt: number) => {
-        const target = whiteMode ? 0 : 1;
+        const target = !whiteMode && treesVisible ? 1 : 0;
         treeOpacity += Math.sign(target - treeOpacity) * Math.min(Math.abs(target - treeOpacity), dt / 0.4);
         applyMode();
         if (treeOpacity === target) app.off('update', animateTrees);
@@ -310,12 +311,21 @@ export function createPlanting(app: AppBase) {
                 app.on('update', animateHedge);
             }
         },
+        setTreesVisible(value: boolean) {
+            treesVisible = value;
+            app.off('update', animateTrees);
+            const target = !whiteMode && treesVisible ? 1 : 0;
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) treeOpacity = target;
+            animateTrees(0);
+            if (treeOpacity !== target) app.on('update', animateTrees);
+        },
         setWhiteMode(value: boolean) {
             whiteMode = value;
             app.off('update', animateTrees);
-            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) treeOpacity = value ? 0 : 1;
+            const target = !whiteMode && treesVisible ? 1 : 0;
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) treeOpacity = target;
             animateTrees(0);
-            if (treeOpacity !== (value ? 0 : 1)) app.on('update', animateTrees);
+            if (treeOpacity !== target) app.on('update', animateTrees);
         },
         destroy() { app.off('update', animateTrees); app.off('update', animateHedge); disposed = true; root.destroy(); hedgeMaterial.destroy(); for (const material of boundaryMaterials.values()) material.destroy(); boundaryMaterials.clear(); for (const material of worldPlantMaterials.values()) material.destroy(); worldPlantMaterials.clear(); assets.destroy(); abort.abort(); }
     };

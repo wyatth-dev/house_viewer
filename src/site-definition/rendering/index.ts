@@ -23,6 +23,7 @@ export function createRendering(app: AppBase) {
         cameraBackgrounds.clear();
     };
     return {
+        setTreesVisible(value: boolean) { planting.setTreesVisible(value); },
         setHedgeVisible(value: boolean) { planting.setHedgeVisible(value); },
         setGrassVisible(value: boolean) {
             grass.setVisible(contextVisible);
