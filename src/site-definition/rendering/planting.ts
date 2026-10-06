@@ -130,34 +130,52 @@ export function createPlanting(app: AppBase) {
     hedgeMaterial.diffuse = new Color().fromString(landscapeConfig.hedge.color);
     hedgeMaterial.gloss = 0;
     hedgeMaterial.update();
-    const whiteMaterials = new Map<StandardMaterial, StandardMaterial>();
-    const originalMaterials = new WeakMap<MeshInstance, StandardMaterial>();
+    const originalShadows = new WeakMap<Entity, boolean>();
+    const originalOpacities = new WeakMap<StandardMaterial, number>();
+    let treeOpacity = 1;
     let whiteMode = false;
+    let hedgeVisible = false;
+    let hedgeOpacity = 0;
+    const animateHedge = (dt: number) => {
+        const target = hedgeVisible ? 1 : 0;
+        hedgeOpacity += Math.sign(target - hedgeOpacity) * Math.min(Math.abs(target - hedgeOpacity), dt / 0.35);
+        hedgeMaterial.opacity = hedgeOpacity;
+        hedgeMaterial.blendType = BLEND_NORMAL;
+        hedgeMaterial.depthWrite = hedgeOpacity >= 1;
+        hedgeMaterial.update();
+        const wall = root.findByName('Continuous U hedge core');
+        if (wall) wall.enabled = hedgeVisible || hedgeOpacity > 0;
+        if (hedgeOpacity === target) app.off('update', animateHedge);
+    };
     const applyMode = () => {
         for (const child of root.children) {
             const hedge = child.name === 'Continuous U hedge core' || child.name === 'Boundary shrub rows';
-            child.enabled = child.name !== 'Boundary shrub rows' && (!whiteMode || !hedge);
+            child.enabled = child.name !== 'Boundary shrub rows' && (hedge ? hedgeVisible || hedgeOpacity > 0 : treeOpacity > 0);
             if (hedge) continue;
             for (const plant of child.children) {
-                if (plant.name.startsWith('shrub-')) plant.enabled = !whiteMode && landscapeConfig.outerShrubs.visible;
+                if (plant.name.startsWith('shrub-')) plant.enabled = landscapeConfig.outerShrubs.visible && treeOpacity > 0;
             }
             child.forEach(node => {
                 if (!(node instanceof Entity) || !node.render) return;
+                if (!originalShadows.has(node)) originalShadows.set(node, node.render.castShadows);
+                node.render.castShadows = treeOpacity > 0.5 && originalShadows.get(node)!;
                 for (const mesh of node.render.meshInstances) {
-                    if (!originalMaterials.has(mesh) && mesh.material instanceof StandardMaterial) originalMaterials.set(mesh, mesh.material);
-                    const original = originalMaterials.get(mesh);
-                    if (!original) continue;
-                    let white = whiteMaterials.get(original);
-                    if (whiteMode && !white) {
-                        white = original.clone();
-                        white.diffuse = new Color(0.9, 0.92, 0.93);
-                        white.update();
-                        whiteMaterials.set(original, white);
-                    }
-                    mesh.material = whiteMode ? white! : original;
+                    if (!(mesh.material instanceof StandardMaterial)) continue;
+                    const material = mesh.material;
+                    if (!originalOpacities.has(material)) originalOpacities.set(material, material.opacity);
+                    material.opacity = originalOpacities.get(material)! * treeOpacity;
+                    material.blendType = BLEND_NORMAL;
+                    material.depthWrite = material.opacity >= 1;
+                    material.update();
                 }
             });
         }
+    };
+    const animateTrees = (dt: number) => {
+        const target = whiteMode ? 0 : 1;
+        treeOpacity += Math.sign(target - treeOpacity) * Math.min(Math.abs(target - treeOpacity), dt / 0.4);
+        applyMode();
+        if (treeOpacity === target) app.off('update', animateTrees);
     };
     let layout: Layout | undefined;
     let disposed = false;
@@ -280,7 +298,25 @@ export function createPlanting(app: AppBase) {
         ready,
         updateLayout(value: Layout) { layout = structuredClone(value); rebuild(); },
         setVisible(value: boolean) { root.enabled = value; },
-        setWhiteMode(value: boolean) { whiteMode = value; applyMode(); },
-        destroy() { disposed = true; root.destroy(); for (const material of whiteMaterials.values()) material.destroy(); whiteMaterials.clear(); hedgeMaterial.destroy(); for (const material of boundaryMaterials.values()) material.destroy(); boundaryMaterials.clear(); for (const material of worldPlantMaterials.values()) material.destroy(); worldPlantMaterials.clear(); assets.destroy(); abort.abort(); }
+        setHedgeVisible(value: boolean) {
+            if (hedgeVisible === value) return;
+            hedgeVisible = value;
+            app.off('update', animateHedge);
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                hedgeOpacity = value ? 1 : 0;
+                animateHedge(0);
+            } else {
+                animateHedge(0);
+                app.on('update', animateHedge);
+            }
+        },
+        setWhiteMode(value: boolean) {
+            whiteMode = value;
+            app.off('update', animateTrees);
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) treeOpacity = value ? 0 : 1;
+            animateTrees(0);
+            if (treeOpacity !== (value ? 0 : 1)) app.on('update', animateTrees);
+        },
+        destroy() { app.off('update', animateTrees); app.off('update', animateHedge); disposed = true; root.destroy(); hedgeMaterial.destroy(); for (const material of boundaryMaterials.values()) material.destroy(); boundaryMaterials.clear(); for (const material of worldPlantMaterials.values()) material.destroy(); worldPlantMaterials.clear(); assets.destroy(); abort.abort(); }
     };
 }

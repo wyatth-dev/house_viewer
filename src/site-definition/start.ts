@@ -35,7 +35,7 @@ export function startSiteDefinition() {
     renderModes.className = 'render-mode-controls';
     renderModes.setAttribute('role', 'group');
     renderModes.setAttribute('aria-label', 'Scene rendering modes');
-    for (const [id, label] of [['white', 'White model'], ['watercolor', 'Watercolor'], ['full', 'Full render']]) {
+    for (const [id, label] of [['watercolor', 'Watercolor'], ['white', 'White model'], ['full', 'Full render']]) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = `render-mode-swatch ${id}`;
@@ -44,6 +44,14 @@ export function startSiteDefinition() {
         button.setAttribute('aria-disabled', 'true');
         renderModes.append(button);
     }
+    const hedgeToggle = document.createElement('button');
+    hedgeToggle.type = 'button';
+    hedgeToggle.className = 'hedge-toggle';
+    hedgeToggle.textContent = 'Fence · Off';
+    hedgeToggle.setAttribute('aria-label', 'Toggle fence');
+    hedgeToggle.setAttribute('aria-pressed', 'false');
+    viewport.append(hedgeToggle);
+    lifetime.add(() => hedgeToggle.remove());
     viewport.append(renderModes);
     lifetime.add(() => renderModes.remove());
     const isDisposed = () => lifetime.signal.aborted;
@@ -71,9 +79,20 @@ export function startSiteDefinition() {
 
         // Scene services: rendering, camera and site
         const rendering = createRendering(app);
+        let hedgeVisible = false;
+        hedgeToggle.onclick = () => {
+            hedgeVisible = !hedgeVisible;
+            rendering.setHedgeVisible(hedgeVisible);
+            hedgeToggle.setAttribute('aria-pressed', String(hedgeVisible));
+            hedgeToggle.textContent = hedgeVisible ? 'Fence · On' : 'Fence · Off';
+        };
+        lifetime.add(() => { hedgeToggle.onclick = null; });
         const whiteMode = renderModes.querySelector<HTMLButtonElement>('.white')!;
         const grassMode = renderModes.querySelector<HTMLButtonElement>('.watercolor')!;
+        let selectedColorMode: boolean | undefined;
         const selectGrassMode = (enabled: boolean) => {
+            if (selectedColorMode === enabled) return;
+            selectedColorMode = enabled;
             whiteMode.setAttribute('aria-pressed', String(!enabled));
             grassMode.setAttribute('aria-pressed', String(enabled));
             rendering.setGrassVisible(enabled);
@@ -85,7 +104,7 @@ export function startSiteDefinition() {
         }
         whiteMode.onclick = () => selectGrassMode(false);
         grassMode.onclick = () => selectGrassMode(true);
-        selectGrassMode(false);
+        selectGrassMode(true);
         lifetime.add(() => { whiteMode.onclick = null; grassMode.onclick = null; });
         lifetime.add(() => rendering.destroy());
         const camera = createCameraController(app, cameraPresets, {

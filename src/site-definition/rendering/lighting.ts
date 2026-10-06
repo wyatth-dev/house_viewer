@@ -13,6 +13,7 @@ export function createDaylight(app: AppBase) {
         intensity: daylightConfig.sun.intensity,
         castShadows: true,
         shadowType: SHADOW_PCF5,
+        shadowIntensity: daylightConfig.sun.shadowIntensity,
         shadowResolution: daylightConfig.sun.shadowResolution,
         shadowDistance: 600000,
         numCascades: 1,

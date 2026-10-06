@@ -23,6 +23,7 @@ export function createRendering(app: AppBase) {
         cameraBackgrounds.clear();
     };
     return {
+        setHedgeVisible(value: boolean) { planting.setHedgeVisible(value); },
         setGrassVisible(value: boolean) {
             grass.setVisible(contextVisible);
             environment.setWhiteMode(!value);

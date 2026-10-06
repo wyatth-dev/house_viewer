@@ -67,10 +67,23 @@ export function createEnvironment(app: AppBase) {
     ground.addComponent('render', { type: 'plane', material, castShadows: false, receiveShadows: true });
     ground.setLocalScale(daylightConfig.groundSize, 1, daylightConfig.groundSize);
     app.root.addChild(ground);
+    let colorProgress = 1;
+    let colorTarget = 1;
+    const coloredGround = new Color().fromString(landscapeConfig.world.color);
+    const animateGround = (dt: number) => {
+        colorProgress += Math.sign(colorTarget - colorProgress) * Math.min(Math.abs(colorTarget - colorProgress), dt / 0.4);
+        material.diffuse = new Color(1 + (coloredGround.r - 1) * colorProgress,
+            1 + (coloredGround.g - 1) * colorProgress, 1 + (coloredGround.b - 1) * colorProgress);
+        material.update();
+        if (colorProgress === colorTarget) app.off('update', animateGround);
+    };
     return {
         setWhiteMode(value: boolean) {
-            material.diffuse = value ? new Color(1, 1, 1) : new Color().fromString(landscapeConfig.world.color);
-            material.update();
+            colorTarget = value ? 0 : 1;
+            app.off('update', animateGround);
+            if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) colorProgress = colorTarget;
+            animateGround(0);
+            if (colorProgress !== colorTarget) app.on('update', animateGround);
         },
         setVisible(value: boolean) {
             ground.enabled = value;
@@ -84,6 +97,7 @@ export function createEnvironment(app: AppBase) {
             );
         },
         destroy() {
+            app.off('update', animateGround);
             ground.destroy();
             material.destroy();
             app.scene.skybox = previous.skybox;

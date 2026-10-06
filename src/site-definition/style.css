@@ -787,3 +787,23 @@ h2 span {
 
 .render-mode-swatch[aria-pressed] { cursor: pointer; }
 .render-mode-swatch[aria-pressed="true"] { border-color: #315b43; box-shadow: 0 0 0 3px rgba(49, 91, 67, 0.15); }
+
+.hedge-toggle {
+    position: absolute;
+    left: 20px;
+    bottom: 76px;
+    z-index: 20;
+    min-width: 122px;
+    min-height: 42px;
+    padding: 10px 18px;
+    border: 2px solid #315b43;
+    border-radius: 10px;
+    background: #fff;
+    color: #244a34;
+    font-size: 14px;
+    font-weight: 600;
+    box-shadow: 0 3px 12px rgba(25, 45, 30, 0.18);
+    cursor: pointer;
+}
+.hedge-toggle:hover { background: #edf3e9; }
+.hedge-toggle[aria-pressed="true"] { background: #315b43; color: white; }
