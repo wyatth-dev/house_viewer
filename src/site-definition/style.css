@@ -840,3 +840,50 @@ h2 span {
 #placement-step .component-assembly:has(> .component-toggle[aria-expanded='true']) {
     border-bottom: 0;
 }
+
+#placement-step .production-instances {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+#placement-step .production-instances > button {
+    width: 100%;
+    text-align: left;
+}
+
+.product-customization-navigation {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+    padding: 4px;
+    margin-bottom: 16px;
+    border: 1px solid #d5dfd6;
+    border-radius: 10px;
+    background: #eef2ec;
+}
+.product-customization-navigation button {
+    min-width: 0;
+    min-height: 36px;
+    padding: 7px 4px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+}
+.product-customization-navigation button:hover:not([aria-pressed='true']) {
+    background: #e0e8dd;
+}
+.product-customization-navigation button[aria-pressed='true'] {
+    background: #233e34;
+    color: #fff;
+    box-shadow: 0 1px 3px #233e3426;
+}
+.product-customization-navigation button:focus-visible {
+    outline: 2px solid #557862;
+    outline-offset: 2px;
+}

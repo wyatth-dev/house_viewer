@@ -98,13 +98,27 @@ export function startSiteDefinition() {
         lifetime.signal.throwIfAborted();
         await house.setRepresentation('render');
         lifetime.signal.throwIfAborted();
+        let currentMode: HouseRepresentation = 'render';
+        let modeChanges = Promise.resolve();
+        const setSceneMode = (mode: HouseRepresentation) => {
+            currentMode = mode;
+            modeChanges = modeChanges.catch(() => {}).then(async () => {
+                if (isDisposed()) return;
+                await house.setRepresentation(mode, true);
+                if (isDisposed()) return;
+                rendering.setGrassVisible(mode !== 'white');
+                for (const [id, candidate] of modeButtons)
+                    candidate.setAttribute('aria-pressed', String(id === mode));
+            });
+            return modeChanges;
+        };
         for (const [mode, button] of modeButtons) {
             button.disabled = false;
             button.onclick = async () => {
                 renderModes.setAttribute('aria-busy', 'true');
                 for (const candidate of modeButtons.values()) candidate.disabled = true;
                 try {
-                    await house.setRepresentation(mode, true);
+                    await setSceneMode(mode);
                     if (isDisposed()) return;
                     for (const [id, candidate] of modeButtons)
                         candidate.setAttribute('aria-pressed', String(id === mode));
@@ -143,6 +157,30 @@ export function startSiteDefinition() {
             treeToggle.textContent = treesVisible ? 'Trees · On' : 'Trees · Off';
         };
         lifetime.add(() => { treeToggle.onclick = null; });
+        let editSnapshot: { mode: HouseRepresentation; trees: boolean; fence: boolean } | undefined;
+        const setLandscape = (trees: boolean, fence: boolean) => {
+            treesVisible = trees;
+            hedgeVisible = fence;
+            rendering.setTreesVisible(trees);
+            rendering.setHedgeVisible(fence);
+            treeToggle.setAttribute('aria-pressed', String(trees));
+            treeToggle.textContent = trees ? 'Trees · On' : 'Trees · Off';
+            hedgeToggle.setAttribute('aria-pressed', String(fence));
+            hedgeToggle.textContent = fence ? 'Fence · On' : 'Fence · Off';
+        };
+        const editModeChanged = (editing: boolean) => {
+            if (editing) {
+                if (editSnapshot) return;
+                editSnapshot = { mode: currentMode, trees: treesVisible, fence: hedgeVisible };
+                setLandscape(false, false);
+                void setSceneMode('white').catch(error => console.error(error));
+            } else if (editSnapshot) {
+                const previous = editSnapshot;
+                editSnapshot = undefined;
+                setLandscape(previous.trees, previous.fence);
+                void setSceneMode(previous.mode).catch(error => console.error(error));
+            }
+        };
         rendering.setGrassVisible(true);
         lifetime.add(() => rendering.destroy());
         const camera = createCameraController(app, cameraPresets, {
@@ -193,7 +231,8 @@ export function startSiteDefinition() {
                 updateHouseVisibility();
                 site.setVisible(visible);
                 rendering.setContextVisible(visible);
-            }
+            },
+            editModeChanged
         );
         lifetime.add(() => placement.destroy());
 

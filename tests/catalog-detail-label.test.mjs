@@ -71,3 +71,15 @@ test('component frontend follows containment and renders only group labels and c
   data.root.children.forEach((node,index)=>verify(node,host.children[index]));
  }finally{globalThis.document=previousDocument;globalThis.window=previousWindow;}
 });
+
+test('production rows count each canonical instance once and expose only available dimensions',async()=>{
+ const {componentProductionRows}=await import('../src/product-placement/production-list.ts');
+ const data=solveVarenda(defaultVarendaParams).componentData;
+ const rows=componentProductionRows(data);
+ assert.equal(rows.reduce((count,row)=>count+row.quantity,0),data.instances.length);
+ assert.ok(rows.every(row=>row.quantity===row.instanceIds.length));
+ assert.ok(rows.every(row=>Object.keys(row.specification).every(key=>key.endsWith('Mm'))));
+ const wedges=rows.filter(row=>row.catalogProductId==='varenda-glazing-wedge-gasket');
+ assert.equal(wedges.reduce((count,row)=>count+row.quantity,0),data.instances.filter(p=>p.productId==='varenda-glazing-wedge-gasket').length);
+ assert.ok(rows.some(row=>row.category==='Profiles'&&typeof row.specification.lengthMm==='number'));
+});

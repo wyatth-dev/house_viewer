@@ -21,7 +21,7 @@ import {
 } from './geometry.ts';
 import type { PreviewDimensionKey } from './geometry.ts';
 import { createPlacementPreview } from './preview.ts';
-import { renderComponentTree } from './production-list.ts';
+import { renderComponentTree, renderProductionList, componentProductionRows } from './production-list.ts';
 import type { InstanceSelection } from './selection-state.ts';
 import type { CustomizableEnvelope, InstallationWallFace } from './types.ts';
 import { createAvailableAreaView, createPreviewMeasurements, createProductParameterMeasurements } from './view.ts';
@@ -48,7 +48,8 @@ export function createPlacementController(
     screenToGround: (x: number, y: number, groundYMm?: number) => Point3 | undefined,
     signal: AbortSignal,
     onFocus?: (bounds: Bounds3 | undefined, basis?: CameraBasis) => void,
-    setContextVisible?: (visible: boolean) => void
+    setContextVisible?: (visible: boolean) => void,
+    onEditModeChange?: (editing: boolean) => void
 ) {
     let placementActive = false;
     let selectedProduct: 'varenda' | undefined;
@@ -72,6 +73,14 @@ export function createPlacementController(
     const exitEdit = document.querySelector<HTMLButtonElement>('#product-edit-exit')!;
     const parameterTab = document.querySelector<HTMLButtonElement>('#product-edit-parameters')!;
     const partsTab = document.querySelector<HTMLButtonElement>('#product-edit-parts')!;
+    partsTab.textContent = 'Components';
+    const productionTab = document.createElement('button');
+    productionTab.type = 'button';
+    productionTab.id = 'product-edit-production';
+    productionTab.className = partsTab.className;
+    productionTab.textContent = 'List';
+    partsTab.after(productionTab);
+    let detailMode: 'parameters' | 'components' | 'production' = 'parameters';
     const siteBack = document.querySelector<HTMLButtonElement>('#site-back')!;
 
     const cursorIcon = document.createElement('div');
@@ -275,6 +284,7 @@ export function createPlacementController(
         detail.hidden = !customizing;
         editNavigation.hidden = !customizing;
         exitEdit.hidden = !customizing;
+        productionTab.hidden = !customizing;
         siteBack.hidden = !placementActive || customizing;
         if (!placementActive) return;
         const heading = document.querySelector<HTMLElement>('#step-heading')!;
@@ -300,6 +310,7 @@ export function createPlacementController(
         setContextVisible?.(!isolated);
     };
     const closeDetail = () => {
+        if (detailId) onEditModeChange?.(false);
         for (const instance of instances.values()) {
             instance.view.clearSelection();
             instance.view.setGlazingDetailVisible(false);
@@ -340,6 +351,26 @@ export function createPlacementController(
     const renderDetailParts = (instance: PlacedProduct, host: HTMLElement) => {
         syncDetailContext();
         const data = solveVarenda(instance.params).componentData;
+        if (detailMode === 'production') {
+            const rows = componentProductionRows(data);
+            renderProductionList(host, rows, selectedRow, id => {
+                const row = rows.find(row => row.id === id);
+                if (!row) return;
+                if (menus.has(id)) menus.delete(id);
+                else menus.set(id, new Set());
+                selectedRow = id;
+                partSelection = undefined;
+                focus?.(instance.view.select(row.instanceIds.flatMap(part => componentGeometryIds(part, data)), [], false));
+                renderDetailParts(instance, host);
+            }, partSelection, id => {
+                const row = rows.find(row => row.instanceIds.includes(id));
+                selectedRow = row?.id;
+                partSelection = { id, path: [id] };
+                focus?.(instance.view.select(componentGeometryIds(id, data), [], false));
+                renderDetailParts(instance, host);
+            }, menus, new Map(), data, true);
+            return;
+        }
         renderComponentTree(host, data, new Set(menus.keys()), selectedRow, id => {
             const node = findComponent(data, id);
             if (!node) return;
@@ -389,6 +420,7 @@ export function createPlacementController(
         closeDetail();
         selectedId = instance.id;
         detailId = instance.id;
+        onEditModeChange?.(true);
         instance.view.setFastenerAxesVisible(true);
         syncPlacementMode();
         refreshAvailableAreas();
@@ -472,12 +504,14 @@ export function createPlacementController(
                 input.value = String(instance.params[key]);
             };
         }
-        const setTab = (showParts: boolean) => {
-            parameters.hidden = showParts;
-            partsPanel.hidden = !showParts;
-            parameterTab.setAttribute('aria-pressed', String(!showParts));
-            partsTab.setAttribute('aria-pressed', String(showParts));
-            if (!showParts) showAllParts();
+        const setTab = (mode: typeof detailMode) => {
+            detailMode = mode;
+            parameters.hidden = mode !== 'parameters';
+            partsPanel.hidden = mode === 'parameters';
+            parameterTab.setAttribute('aria-pressed', String(mode === 'parameters'));
+            partsTab.setAttribute('aria-pressed', String(mode === 'components'));
+            productionTab.setAttribute('aria-pressed', String(mode === 'production'));
+            showAllParts();
         };
         exitEdit.onclick = () => {
             closeDetail();
@@ -485,8 +519,11 @@ export function createPlacementController(
             focus?.(placementBounds(instance));
             renderCards();
         };
-        parameterTab.onclick = () => setTab(false);
-        partsTab.onclick = () => setTab(true);
+        parameterTab.onclick = () => setTab('parameters');
+        partsTab.onclick = () => setTab('components');
+        productionTab.onclick = () => setTab('production');
+        detailMode = 'parameters';
+        productionTab.setAttribute('aria-pressed', 'false');
         parameterTab.setAttribute('aria-pressed', 'true');
         partsTab.setAttribute('aria-pressed', 'false');
         const glazing = document.createElement('label');
@@ -711,6 +748,7 @@ export function createPlacementController(
             exitEdit.onclick = null;
             parameterTab.onclick = null;
             partsTab.onclick = null;
+            productionTab.remove();
             viewport.classList.remove('is-placing-product');
             measurements.destroy();
             parameterMeasurements.destroy();

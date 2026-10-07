@@ -82,16 +82,9 @@
                                 "source": "gutter.fixed"
                             },
                             {
-                                "kind": "assembly",
-                                "id": "{item.instanceId}",
-                                "label": "Ringbeam Clip {index}",
-                                "repeat": "gutter.clips",
-                                "children": [
-                                    {
-                                        "kind": "part",
-                                        "source": "item.instanceId"
-                                    }
-                                ]
+                                "kind": "part",
+                                "source": "item.instanceId",
+                                "repeat": "gutter.clips"
                             }
                         ]
                     },
@@ -103,7 +96,14 @@
                             {
                                 "kind": "part",
                                 "source": "gutter.moving"
-                            },
+                            }
+                        ]
+                    },
+                    {
+                        "kind": "assembly",
+                        "id": "gutter:gaskets",
+                        "label": "Gaskets",
+                        "children": [
                             {
                                 "kind": "part",
                                 "source": "gutter.gaskets"
@@ -172,7 +172,14 @@
                             {
                                 "kind": "part",
                                 "source": "wallpiece.moving"
-                            },
+                            }
+                        ]
+                    },
+                    {
+                        "kind": "assembly",
+                        "id": "wallpiece:gaskets",
+                        "label": "Gaskets",
+                        "children": [
                             {
                                 "kind": "part",
                                 "source": "wallpiece.gaskets"

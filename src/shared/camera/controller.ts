@@ -108,12 +108,14 @@ export function createCameraController(
     const applyManual = (frame: Frame) => {
         transition = undefined;
         manuallyChanged = true;
-        const distance = Math.hypot(
+        let distance = Math.hypot(
             frame.position.x - frame.center.x,
             frame.position.y - frame.center.y,
             frame.position.z - frame.center.z
         );
         if (options.minimumCameraY !== undefined && frame.position.y < options.minimumCameraY) {
+            // Tiny low targets need orbit clearance; clamping to sin(pitch)=1 loses yaw.
+            distance = Math.max(distance, (options.minimumCameraY - frame.center.y) * 2);
             const yaw = Math.atan2(frame.out.x, frame.out.z);
             const pitch = Math.asin(Math.max(-1, Math.min(1, (options.minimumCameraY - frame.center.y) / distance)));
             const out = { x: Math.sin(yaw) * Math.cos(pitch), y: Math.sin(pitch), z: Math.cos(yaw) * Math.cos(pitch) };

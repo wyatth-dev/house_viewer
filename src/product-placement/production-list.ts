@@ -60,7 +60,8 @@ export function renderProductionList(
     },
     menus: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
     installations: ReadonlyMap<string, readonly string[]> = new Map(),
-    componentData?: ComponentData
+    componentData?: ComponentData,
+    showInstanceDimensions = false
 ) {
     const instanceFor = (id: string) => componentData?.instances.find(part => part.geometryInstanceIds.includes(id));
     const focusEntries = (ids: readonly string[]) => {
@@ -123,10 +124,10 @@ export function renderProductionList(
                     instanceSelection && row.id === selectedId
                         ? `Selected: ${productLabel(instanceSelection.id)}`
                         : `${focusEntries(row.instanceIds).length} instances · select one to focus`;
-                detail.append(note);
+                if (!showInstanceDimensions) detail.append(note);
                 const instances = document.createElement('div');
                 const activeInstance = instanceSelection?.path[0];
-                instances.className = 'instance-tags';
+                instances.className = showInstanceDimensions ? 'instance-tags production-instances' : 'instance-tags';
                 for (const id of focusEntries(row.instanceIds)) {
                     const tag = document.createElement('button');
                     tag.type = 'button';
@@ -136,6 +137,12 @@ export function renderProductionList(
                         : id.startsWith('post-column-')
                           ? `Column ${id.slice('post-column-'.length)}`
                           : focusLabel(id);
+                    if (showInstanceDimensions) {
+                        const product = componentData?.products.find(product => product.id === row.catalogProductId);
+                        tag.textContent = `${product?.manufacturerCode ? `${product.manufacturerCode} — ` : ''}${product?.name ?? row.label} ${row.instanceIds.indexOf(id) + 1}`;
+                    }
+                    if (showInstanceDimensions && Object.keys(row.specification).length)
+                        tag.textContent += ` · ${specificationLabel(row)}`;
                     tag.setAttribute('aria-pressed', String(instanceSelection?.id === id));
                     tag.onclick = () => onInstance(id, 'direct', row.id);
                     instances.append(tag);
@@ -238,4 +245,24 @@ export function renderComponentTree(
     if (root.kind === 'assembly') for (const child of root.children) host.append(render(child));
     else host.append(render(root));
     window.scrollTo({ top: scrollY, behavior: 'instant' });
+}
+
+/** Production quantities count canonical product instances, not model submeshes. */
+export function componentProductionRows(data: ComponentData): DisplayProductionRow[] {
+    const groups = new Map<string, DisplayProductionRow>();
+    const categories: Record<string, string> = { profile: 'Profiles', plate: 'Plates', fastener: 'Fasteners', gasket: 'Gaskets', glass: 'Glass' };
+    for (const instance of data.instances) {
+        const product = data.products.find(product => product.id === instance.productId);
+        if (!product) throw new Error(`Missing product: ${instance.productId}`);
+        const specification = Object.fromEntries(Object.entries(instance.specification).filter(([key]) => key.endsWith('Mm')));
+        const id = JSON.stringify([product.id, specification]);
+        const previous = groups.get(id);
+        groups.set(id, {
+            id, catalogProductId: product.id,
+            label: product.manufacturerCode ? `${product.manufacturerCode} - ${product.name}` : product.name,
+            category: categories[product.kind] ?? product.kind, material: '', specification,
+            quantity: (previous?.quantity ?? 0) + 1, instanceIds: [...(previous?.instanceIds ?? []), instance.id]
+        });
+    }
+    return [...groups.values()];
 }

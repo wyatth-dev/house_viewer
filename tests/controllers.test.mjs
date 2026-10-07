@@ -432,3 +432,17 @@ test('zooming inside product bounds preserves a usable near plane instead of col
         }
     } finally { camera.destroy(); app.destroy(); }
 });
+
+test('orbiting a small screw below ground clearance retains horizontal rotation', () => {
+ const app=createApp();
+ const camera=createCameraController(app,[{id:'a',label:'A',projection:'perspective',direction:{x:0,y:1,z:1}}],{minimumCameraY:100});
+ try {
+  camera.fit({min:{x:-3,y:5,z:-3},max:{x:3,y:15,z:3}},{width:800,height:600});
+  camera.orbit(0,-Math.PI);
+  const first=app.root.children[0].getPosition().clone();
+  camera.orbit(0.4,0);
+  const next=app.root.children[0].getPosition();
+  assert.ok(Math.hypot(next.x-first.x,next.z-first.z)>1);
+  assert.ok(next.y>=100-1e-6);
+ }finally{camera.destroy();app.destroy();}
+});

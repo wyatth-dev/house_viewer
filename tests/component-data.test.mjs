@@ -45,8 +45,14 @@ test('Column contains its Footplate and ten screws; Gutter is related to top scr
 test('Fixed Moving and Caps are siblings; plate and cap fasteners are contained recursively',()=>{
  const solution=solveVarenda(defaultVarendaParams),data=solution.componentData;
  for(const rail of ['gutter','wallpiece']) {
-  assert.deepEqual(assembly(data,rail).children.map(n=>n.label),['Fixed','Moving','Left Cap','Right Cap']);
+  assert.deepEqual(assembly(data,rail).children.map(n=>n.label),['Fixed','Moving','Gaskets','Left Cap','Right Cap']);
   const moving=containedInstanceIds(assembly(data,`${rail}:moving`));
+  const gasketIds=containedInstanceIds(assembly(data,`${rail}:gaskets`));
+  assert.ok(gasketIds.length>0);
+  for(const gasket of gasketIds) {
+   assert.equal(moving.includes(gasket),false);
+   assert.ok(data.relations.some(r=>r.instanceIds.includes(gasket)&&r.instanceIds.includes(`${rail}-moving`)));
+  }
   for(const cap of solution.endCaps.plates.filter(c=>c.railRef.instanceId===rail)) {
    assert.equal(moving.includes(cap.instanceId),false);
    const capIds=containedInstanceIds(assembly(data,cap.instanceId));
