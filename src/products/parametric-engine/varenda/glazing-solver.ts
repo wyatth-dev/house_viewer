@@ -35,8 +35,8 @@ export function solveGlazing(
     }
     const sideRoles = [
         ['support', varendaCatalog.glazingSupportGasket],
-        ['wedge-a', varendaCatalog.glazingWedgeGasketA],
-        ['wedge-b', varendaCatalog.glazingWedgeGasketB]
+        ['wedge-a', varendaCatalog.glazingWedgeGasket],
+        ['wedge-b', varendaCatalog.glazingWedgeGasket]
     ] as const;
     for (let i = 0; i < rafters.length - 1; i++) {
         const left = rafters[i], right = rafters[i + 1];

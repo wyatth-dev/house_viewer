@@ -1,3 +1,5 @@
+import { buildComponentData } from './component-data.ts';
+import { varendaCatalog } from './catalog.ts';
 import { solveColumnFasteners } from './column-fasteners.ts';
 import { varendaDatums } from './datums.ts';
 import { solveGlazing } from './glazing-solver.ts';
@@ -20,6 +22,13 @@ import type { FootingSolution, PostInstance, GutterLayout, WallPieceLayout } fro
 
 /** Engineering data shared by list and renderer; no rendering dependency. */
 export type VarendaGeometry = Readonly<{
+    ringbeamClips?: readonly Readonly<{
+        instanceId: string;
+        catalogProductId: string;
+        lengthMm: number;
+        ownerInstanceId: 'gutter-fixed';
+        modelNodeIndex: number;
+    }>[];
     machining?: MachiningInventory;
     footings: FootingSolution;
     posts: readonly PostInstance[];
@@ -46,6 +55,13 @@ export function solveVarenda(params: Readonly<VarendaParams>) {
         posts,
         columnFasteners: solveColumnFasteners(posts, footings),
         gutter,
+        ringbeamClips: [0, 1].map(modelNodeIndex => ({
+            instanceId: `gutter-ringbeam-clip-${modelNodeIndex + 1}`,
+            catalogProductId: varendaCatalog.ringbeamClip.catalogProductId,
+            lengthMm: gutter.lengthMm,
+            ownerInstanceId: 'gutter-fixed' as const,
+            modelNodeIndex
+        })),
         wallPiece,
         rafters,
         roofSlope: solveRoofSlope(params),
@@ -53,5 +69,6 @@ export function solveVarenda(params: Readonly<VarendaParams>) {
         rafterEndCaps: solveRafterEndCaps(rafters),
         glazing: solveGlazing(params, rafters)
     };
-    return { ...solution, machining: buildMachiningInventory(solution) };
+    const geometry = { ...solution, machining: buildMachiningInventory(solution) };
+    return { ...geometry, componentData: buildComponentData(geometry) };
 }

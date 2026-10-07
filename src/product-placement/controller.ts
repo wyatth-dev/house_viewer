@@ -1,8 +1,7 @@
+import { componentGeometryIds, containedInstanceIds } from '../products/parametric-engine/varenda/component-data.ts';
 import type { AppBase } from 'playcanvas';
 
 import type { VarendaParams } from '../products/parametric-engine/varenda/parameters.ts';
-import { buildProductionList } from '../products/parametric-engine/varenda/production-list.ts';
-import { buildInstallationMenus } from '../products/parametric-engine/varenda/production-relations.ts';
 import { solveVarenda } from '../products/parametric-engine/varenda/solution.ts';
 import { createVarendaView } from '../products/varenda/view/varenda-view.ts';
 import type { VarendaView } from '../products/varenda/view/varenda-view.ts';
@@ -22,15 +21,8 @@ import {
 } from './geometry.ts';
 import type { PreviewDimensionKey } from './geometry.ts';
 import { createPlacementPreview } from './preview.ts';
-import { groupProductionRows } from './production-groups.ts';
-import { renderProductionList } from './production-list.ts';
+import { renderComponentTree } from './production-list.ts';
 import type { InstanceSelection } from './selection-state.ts';
-import {
-    toggleInstance,
-    reconcileSelection,
-    selectionContext,
-    toggleGroup
-} from './selection-state.ts';
 import type { CustomizableEnvelope, InstallationWallFace } from './types.ts';
 import { createAvailableAreaView, createPreviewMeasurements, createProductParameterMeasurements } from './view.ts';
 
@@ -322,45 +314,75 @@ export function createPlacementController(
         menus.clear();
         syncDetailContext();
     };
+    const findComponent = (data: ReturnType<typeof solveVarenda>['componentData'], id?: string) => {
+        const visit = (node: typeof data.root): typeof data.root | undefined => {
+            if ((node.kind === 'assembly' ? node.id : node.instanceId) === id) return node;
+            if (node.kind === 'assembly') for (const child of node.children) {
+                const found = visit(child);
+                if (found) return found;
+            }
+            return undefined;
+        };
+        return visit(data.root);
+    };
+    const applyComponentSelection = (instance: PlacedProduct, data: ReturnType<typeof solveVarenda>['componentData']) => {
+        const node = findComponent(data, selectedRow);
+        if (!node) {
+            selectedRow = undefined;
+            partSelection = undefined;
+            instance.view.clearSelection();
+            return undefined;
+        }
+        const ids = containedInstanceIds(node).flatMap(id => componentGeometryIds(id, data));
+        partSelection = ids.length ? { id: ids[0], path: [ids[0]] } : undefined;
+        return instance.view.select(ids, [], false);
+    };
     const renderDetailParts = (instance: PlacedProduct, host: HTMLElement) => {
         syncDetailContext();
-        const solution = solveVarenda(instance.params);
-        const rows = groupProductionRows(buildProductionList(solution));
-        const installations = buildInstallationMenus(solution);
-        renderProductionList(
-            host,
-            rows,
-            selectedRow,
-            (id) => {
-                toggleGroup(menus, id);
-                selectedRow = menus.has(id) ? id : undefined;
-                partSelection = undefined;
-                const row = rows.find((candidate) => candidate.id === selectedRow);
-                if (row) focus?.(instance.view.select(row.instanceIds));
+        const data = solveVarenda(instance.params).componentData;
+        renderComponentTree(host, data, new Set(menus.keys()), selectedRow, id => {
+            const node = findComponent(data, id);
+            if (!node) return;
+            if (selectedRow === id) {
+                const parentOf = (current: typeof data.root): typeof data.root | undefined => {
+                    if (current.kind !== 'assembly') return undefined;
+                    if (current.children.some(child => (child.kind === 'assembly' ? child.id : child.instanceId) === id)) return current;
+                    for (const child of current.children) {
+                        const parent = parentOf(child);
+                        if (parent) return parent;
+                    }
+                    return undefined;
+                };
+                const parent = parentOf(data.root);
+                selectedRow = parent && parent !== data.root && parent.kind === 'assembly' ? parent.id : undefined;
+                if (selectedRow) focus?.(applyComponentSelection(instance, data));
                 else {
+                    partSelection = undefined;
                     instance.view.clearSelection();
+                    syncDetailContext();
                     focus?.(instance.view.getBounds());
                 }
                 renderDetailParts(instance, host);
-            },
-            partSelection,
-            (id, navigation = 'direct', menuId, parentId) => {
-                selectedRow = menuId;
-                if (menuId && navigation === 'direct') {
-                    const wasOpen = menus.get(menuId)?.has(id) ?? false;
-                    menus.set(menuId, new Set(wasOpen ? [] : [id]));
+                return;
+            }
+            // Keep the selected containment path visible.
+            const reveal = (current: typeof data.root): boolean => {
+                if ((current.kind === 'assembly' ? current.id : current.instanceId) === id) return true;
+                if (current.kind === 'assembly' && current.children.some(reveal)) {
+                    menus.set(current.id, new Set());
+                    return true;
                 }
-                partSelection = toggleInstance(partSelection, id, navigation, parentId);
-                const row = rows.find((candidate) => candidate.id === selectedRow);
-                focus?.(instance.view.select(
-                    partSelection ? [partSelection.id] : row?.instanceIds ?? [],
-                    selectionContext(partSelection, row?.instanceIds ?? [])
-                ));
-                renderDetailParts(instance, host);
-            },
-            menus,
-            installations
-        );
+                return false;
+            };
+            reveal(data.root);
+            selectedRow = id;
+            focus?.(applyComponentSelection(instance, data));
+            renderDetailParts(instance, host);
+        }, id => {
+            if (menus.has(id)) menus.delete(id);
+            else menus.set(id, new Set());
+            renderDetailParts(instance, host);
+        });
     };
     const openDetail = (instance: PlacedProduct) => {
         selectedProduct = undefined;
@@ -373,8 +395,6 @@ export function createPlacementController(
         renderCards();
         detailContent.replaceChildren();
         showPlacementPage(true);
-        const heading = document.createElement('h3');
-        heading.textContent = `${instance.name} · Detail edit`;
         const fields = document.createElement('div');
         fields.className = 'placed-parameter-grid';
         const error = document.createElement('p');
@@ -422,25 +442,9 @@ export function createPlacementController(
                         'width', params.widthMm, instance.lockedDimensions).envelope
                     : instance.envelope;
                 updateInstance(instance, params, { ...envelope, depthMm: params.depthMm });
-                const rows = groupProductionRows(buildProductionList(solveVarenda(params)));
-                for (const [menuId, ids] of menus) {
-                    if (!rows.some((row) => row.id === menuId)) menus.delete(menuId);
-                    else for (const id of ids) if (!rows.some((row) => row.instanceIds.includes(id))) ids.delete(id);
-                }
-                const retained = reconcileSelection(rows, selectedRow);
-                selectedRow = retained?.id;
-                if (!retained || !rows.some((row) => row.instanceIds.includes(partSelection?.id ?? '')))
-                    partSelection = undefined;
-                if (partSelection)
-                    partSelection = {
-                        ...partSelection,
-                        path: partSelection.path.filter((id) => rows.some((row) => row.instanceIds.includes(id)))
-                    };
-                if (retained)
-                    instance.view.select(
-                        partSelection ? [partSelection.id] : retained.instanceIds,
-                        selectionContext(partSelection, retained.instanceIds)
-                    );
+                const data = solveVarenda(params).componentData;
+                for (const id of menus.keys()) if (!findComponent(data, id)) menus.delete(id);
+                applyComponentSelection(instance, data);
                 for (const [key, input] of inputs) input.value = String(instance.params[key]);
                 error.textContent = '';
                 renderCards();
@@ -454,10 +458,7 @@ export function createPlacementController(
         refreshDetail = () => {
             for (const [key, input] of inputs) input.value = String(instance.params[key]);
             for (const [key, input] of inputs) input.disabled = parameterLocked(instance, key);
-            const rows = groupProductionRows(buildProductionList(solveVarenda(instance.params)));
-            const retained = reconcileSelection(rows, selectedRow);
-            if (retained) instance.view.select(partSelection ? [partSelection.id] : retained.instanceIds,
-                selectionContext(partSelection, retained.instanceIds));
+            applyComponentSelection(instance, solveVarenda(instance.params).componentData);
             renderDetailParts(instance, parts);
         };
         for (const [key, input] of inputs) input.disabled = parameterLocked(instance, key);
@@ -494,7 +495,7 @@ export function createPlacementController(
         check.onchange = () => instance.view.setGlazingDetailVisible(check.checked);
         glazing.append(check, document.createTextNode(' Show glazing detail'));
         partsPanel.append(glazing, parts);
-        detailContent.append(heading, parameters, partsPanel);
+        detailContent.append(parameters, partsPanel);
         renderDetailParts(instance, parts);
         focus?.(instance.view.getBounds());
     };

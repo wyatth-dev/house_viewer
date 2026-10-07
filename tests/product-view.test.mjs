@@ -225,7 +225,7 @@ test('component perspective basis follows its world transform without inheriting
 });
 
 
-test('selecting components highlights their installed screws without selecting siblings or parents', async () => {
+test('components highlight related fasteners without changing product or selecting sibling hardware', async () => {
     const { solveVarenda } = await import('../src/products/parametric-engine/varenda/solution.ts');
     const { getInstalledFasteners } = await import('../src/products/parametric-engine/varenda/production-list.ts');
     const solution = solveVarenda(defaultVarendaParams);
@@ -255,6 +255,13 @@ test('selecting components highlights their installed screws without selecting s
         const active = highlighted(rafter.instanceId);
         for (const stand of [rafter.stands.front, rafter.stands.rear])
             for (const screw of stand.fasteners) assert.ok(active.includes(screw.instanceId));
+        for (const footing of solution.footings.assemblies) {
+            const expected = solution.columnFasteners.connections
+                .filter(connection => connection.partInstanceIds.includes(footing.instanceId))
+                .flatMap(connection => connection.fastenerInstanceIds);
+            assert.ok(expected.length > 0);
+            assert.deepEqual(highlighted(footing.instanceId).sort(), [...new Set(expected)].sort());
+        }
         for (const screw of solution.rafters[1].stands.front.fasteners)
             assert.equal(active.includes(screw.instanceId), false);
         assert.deepEqual(highlighted(cap.fastenerInstanceId, [cap.endCapHoleRef.partInstanceId]), [cap.fastenerInstanceId]);
@@ -262,7 +269,7 @@ test('selecting components highlights their installed screws without selecting s
 });
 
 
-test('rafter, end rafter and wall plate selections highlight their endcaps and screws', async () => {
+test('individual products keep endcaps separate while whole rail assemblies highlight their endcaps', async () => {
     const { BoundingBox, StandardMaterial } = await import('playcanvas');
     const { solveVarenda } = await import('../src/products/parametric-engine/varenda/solution.ts');
     const solution = solveVarenda(defaultVarendaParams);
@@ -284,7 +291,15 @@ test('rafter, end rafter and wall plate selections highlight their endcaps and s
         for (const cap of caps) {
             const owner = cap.rafterRef?.instanceId ?? `${cap.railRef.instanceId}-moving`;
             view.select([owner]);
-            assert.equal(view.root.findByName(cap.instanceId).render.meshInstances[0].material.opacity, 1, owner);
+            assert.equal(view.root.findByName(cap.instanceId).render.meshInstances[0].material.opacity, 0.12, owner);
+            view.select([cap.instanceId]);
+            assert.equal(view.root.findByName(cap.instanceId).render.meshInstances[0].material.opacity, 1);
+            if (cap.railRef) {
+                const rail = cap.railRef.instanceId;
+                view.select([`${rail}-fixed`, `${rail}-moving`]);
+                for (const member of caps.filter(part => part.railRef?.instanceId === rail))
+                    assert.equal(view.root.findByName(member.instanceId).render.meshInstances[0].material.opacity, 1);
+            }
             const unrelated = caps.find(part => (part.rafterRef?.instanceId ?? `${part.railRef.instanceId}-moving`) !== owner);
             assert.equal(view.root.findByName(unrelated.instanceId).render.meshInstances[0].material.opacity, 0.12);
         }

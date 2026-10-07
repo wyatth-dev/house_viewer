@@ -14,6 +14,7 @@ export function buildProductionRelations(solution: VarendaGeometry): Map<string,
             graph.set(source!, targets);
         }
     };
+    for (const clip of solution.ringbeamClips ?? []) connect(clip.ownerInstanceId, clip.instanceId);
     for (const post of solution.posts) {
         const footing = solution.footings.assemblies.find((part) => part.columnId === post.columnId);
         if (footing) connect(post.instanceId, footing.instanceId);
@@ -59,6 +60,7 @@ export function buildInstallationMenus(solution: VarendaGeometry): Map<string, r
         parts.add(part);
         menus.set(owner, parts);
     };
+    for (const clip of solution.ringbeamClips ?? []) add(clip.ownerInstanceId, clip.instanceId);
     for (const post of solution.posts) {
         const footing = solution.footings.assemblies.find((part) => part.columnId === post.columnId);
         if (footing) add(post.instanceId, footing.instanceId);

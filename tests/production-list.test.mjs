@@ -55,13 +55,13 @@ test('production names preserve catalog names verbatim, including every installe
         const product = Object.values(varendaCatalog).find(
             (product) => product.catalogProductId === row.catalogProductId
         );
-        if (product?.productName) assert.equal(row.label, product.productName);
+        if (product) assert.equal(row.label, product.manufacturerCode ? `${product.manufacturerCode} - ${product.name}` : product.name);
     }
     for (const product of [
         varendaCatalog.screwWaferHead4_2x16,
         varendaCatalog.rafterStandBolt,
         varendaCatalog.rafterStandNut
     ]) {
-        assert.equal(rows.find((row) => row.catalogProductId === product.catalogProductId)?.label, product.productName);
+        assert.equal(rows.find((row) => row.catalogProductId === product.catalogProductId)?.label, product.manufacturerCode ? `${product.manufacturerCode} - ${product.name}` : product.name);
     }
 });

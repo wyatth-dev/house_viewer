@@ -1,123 +1,165 @@
 export type CatalogProduct = {
     catalogProductId: string;
-    productName: string | null;
-    kind: 'profile' | 'plate' | 'fastener' | 'assembly' | 'glass' | 'gasket';
+    manufacturerCode: string | null;
+    name: string;
+    kind: 'profile' | 'plate' | 'fastener' | 'glass' | 'gasket';
     status: 'confirmed' | 'pending';
 };
 
-/** 内部目录键，不是厂家 SKU；不包含安装位置或用途。 */
+/** Product definitions only; containment and connections are stored separately. */
 export const varendaCatalog = {
-
-    gutterFixed: { catalogProductId: 'varenda-gutter-fixed', productName: null, kind: 'profile', status: 'pending' },
-    gutterMoving: { catalogProductId: 'varenda-gutter-moving', productName: null, kind: 'profile', status: 'pending' },
-    wallpieceFixed: { catalogProductId: 'varenda-wallpiece-fixed', productName: null, kind: 'profile', status: 'pending' },
-    wallpieceMoving: { catalogProductId: 'varenda-wallpiece-moving', productName: null, kind: 'profile', status: 'pending' },
-    rafterRegular: { catalogProductId: 'varenda-rafter-regular', productName: null, kind: 'profile', status: 'pending' },
-    rafterEnd: { catalogProductId: 'varenda-rafter-end', productName: null, kind: 'profile', status: 'pending' },
+    ringbeamClip: {
+        catalogProductId: "varenda-ringbeam-clip",
+        manufacturerCode: "SM5360/KL005/6.5",
+        name: "Veranda Ringbeam Clip",
+        kind: "profile",
+        status: "confirmed",
+    },
+    gutterFixed: {
+        catalogProductId: "varenda-gutter-fixed",
+        manufacturerCode: "5110010010",
+        name: "Veranda Ringbeam",
+        kind: "profile",
+        status: "confirmed",
+    },
+    gutterMoving: {
+        catalogProductId: "varenda-gutter-moving",
+        manufacturerCode: "5110010015",
+        name: "Veranda Ringbeam Swivel",
+        kind: "profile",
+        status: "confirmed",
+    },
+    wallpieceFixed: {
+        catalogProductId: "varenda-wallpiece-fixed",
+        manufacturerCode: "5110010030",
+        name: "Veranda Wallplate",
+        kind: "profile",
+        status: "pending",
+    },
+    wallpieceMoving: {
+        catalogProductId: "varenda-wallpiece-moving",
+        manufacturerCode: "5110010035",
+        name: "Veranda Wallplate Swivel",
+        kind: "profile",
+        status: "confirmed",
+    },
+    rafterRegular: {
+        catalogProductId: "varenda-rafter-regular",
+        manufacturerCode: "5110010020",
+        name: "Veranda Rafter",
+        kind: "profile",
+        status: "confirmed",
+    },
+    rafterEnd: {
+        catalogProductId: "varenda-rafter-end",
+        manufacturerCode: "5110010025",
+        name: "Gable Rafter",
+        kind: "profile",
+        status: "confirmed",
+    },
     rafterEndCap: {
-        catalogProductId: 'varenda-rafter-endcap',
-        productName: '5140010020 - Veranda Rafter End Cap v2',
-        kind: 'plate',
-        status: 'pending'
+        catalogProductId: "varenda-rafter-endcap",
+        manufacturerCode: "5140010020",
+        name: "Veranda Rafter End Clip",
+        kind: "plate",
+        status: "confirmed",
     },
     gutterEndCap: {
-        catalogProductId: 'varenda-gutter-endcap',
-        productName: '5140010010 Veranda ring beam End Cap',
-        kind: 'plate',
-        status: 'pending'
+        catalogProductId: "varenda-gutter-endcap",
+        manufacturerCode: "5140010010",
+        name: "Veranda Ringbeam End Cap",
+        kind: "plate",
+        status: "confirmed",
     },
     wallPieceEndCap: {
-        catalogProductId: 'varenda-wallpiece-endcap',
-        productName: '5140010015 - Veranda Wallplate End Cap v2',
-        kind: 'plate',
-        status: 'pending'
+        catalogProductId: "varenda-wallpiece-endcap",
+        manufacturerCode: "5140010015",
+        name: "Veranda Wallplate End Clip",
+        kind: "plate",
+        status: "confirmed",
     },
     screwWaferHead4_2x16: {
-        catalogProductId: 'fastener-wafer-head-self-drilling-4-2-16',
-        productName: '4.2x16mm wafer head Self Drilling Screw v1',
-        kind: 'fastener',
-        status: 'pending'
+        catalogProductId: "fastener-wafer-head-self-drilling-4-2-16",
+        manufacturerCode: null,
+        name: "4.2x16mm wafer head Self Drilling Screw v1",
+        kind: "fastener",
+        status: "pending",
     },
-
     glazingSealGasket: {
-        catalogProductId: 'varenda-glazing-seal-gasket',
-        productName: 'Glazing Seal Gasket',
-        kind: 'gasket',
-        status: 'pending'
+        catalogProductId: "varenda-glazing-seal-gasket",
+        manufacturerCode: "5120010020",
+        name: "Glazing Flipper Gasket",
+        kind: "gasket",
+        status: "confirmed",
     },
     wallPlateTopSealGasket: {
-        catalogProductId: 'varenda-wallplate-top-seal-gasket',
-        productName: 'Wallplate Top Seal Gasket',
-        kind: 'gasket',
-        status: 'pending'
+        catalogProductId: "varenda-wallplate-top-seal-gasket",
+        manufacturerCode: "5120010010",
+        name: "Wallplate Top Seal Gasket",
+        kind: "gasket",
+        status: "confirmed",
     },
     glassPanel: {
-        catalogProductId: 'varenda-glass-panel',
-        productName: null,
-        kind: 'glass',
-        status: 'pending'
+        catalogProductId: "varenda-glass-panel",
+        manufacturerCode: null,
+        name: "Glass Panel",
+        kind: "glass",
+        status: "pending",
     },
-
     glazingSupportGasket: {
-        catalogProductId: 'varenda-glazing-support-gasket',
-        productName: 'Glazing Support Gasket',
-        kind: 'gasket',
-        status: 'pending'
+        catalogProductId: "varenda-glazing-support-gasket",
+        manufacturerCode: "5120010015",
+        name: "Glazing Support Gasket",
+        kind: "gasket",
+        status: "confirmed",
     },
-
-    glazingWedgeGasketA: {
-        catalogProductId: 'varenda-glazing-wedge-gasket-a',
-        productName: 'Glazing Wedge Gasket A',
-        kind: 'gasket',
-        status: 'pending'
+    glazingWedgeGasket: {
+        catalogProductId: "varenda-glazing-wedge-gasket",
+        manufacturerCode: "5120010025",
+        name: "Glazing Wedge Gasket",
+        kind: "gasket",
+        status: "confirmed",
     },
-
-    glazingWedgeGasketB: {
-        catalogProductId: 'varenda-glazing-wedge-gasket-b',
-        productName: 'Glazing Wedge Gasket B',
-        kind: 'gasket',
-        status: 'pending'
-    },
-
     postProfile: {
-        catalogProductId: 'varenda-post-profile',
-        productName: null,
-        kind: 'profile',
-        status: 'pending'
+        catalogProductId: "varenda-post-profile",
+        manufacturerCode: "5110010045",
+        name: "Veranda Post",
+        kind: "profile",
+        status: "confirmed",
     },
-
     footplate: {
-        catalogProductId: 'varenda-footplate',
-        productName: null,
-        kind: 'assembly',
-        status: 'pending'
+        catalogProductId: "varenda-footplate",
+        manufacturerCode: "5130010015",
+        name: "Veranda Foot Plate",
+        kind: "plate",
+        status: "confirmed",
     },
-
     rafterFixingPlate: {
-        catalogProductId: 'varenda-rafter-fixing-plate',
-        productName: '5130010010 - Veranda Rafter Fixing Plate v3 v2(Mirror)',
-        kind: 'plate',
-        status: 'pending'
+        catalogProductId: "varenda-rafter-fixing-plate",
+        manufacturerCode: "5130010010",
+        name: "Veranda Rafter Fixing Plate",
+        kind: "plate",
+        status: "confirmed",
     },
-
     rafterStandBolt: {
-        catalogProductId: 'varenda-rafter-stand-bolt',
-        productName: '91180A530_Medium-Strength Class 8.8 Steel Hex Head Screw',
-        kind: 'fastener',
-        status: 'pending'
+        catalogProductId: "varenda-rafter-stand-bolt",
+        manufacturerCode: null,
+        name: "91180A530_Medium-Strength Class 8.8 Steel Hex Head Screw",
+        kind: "fastener",
+        status: "pending",
     },
-
     rafterStandNut: {
-        catalogProductId: 'varenda-rafter-stand-nut',
-        productName: 'Hexagon Nut BS EN 14399-8 - M8 Stainless Steel A2 Plain v1',
-        kind: 'fastener',
-        status: 'pending'
+        catalogProductId: "varenda-rafter-stand-nut",
+        manufacturerCode: null,
+        name: "Hexagon Nut BS EN 14399-8 - M8 Stainless Steel A2 Plain v1",
+        kind: "fastener",
+        status: "pending",
     },
-
     screwM6x16Din7500cA2: {
-        catalogProductId: 'fastener-m6-16-din7500c-a2-v1',
-        productName: 'M6 x 16mm Pozi Pan Head Thread Forming Screws (DIN 7500C) - Stainless Steel (A2) v1',
-        kind: 'fastener',
-        status: 'confirmed'
-    }
+        catalogProductId: "fastener-m6-16-din7500c-a2-v1",
+        manufacturerCode: null,
+        name: "M6 x 16mm Pozi Pan Head Thread Forming Screws (DIN 7500C) - Stainless Steel (A2) v1",
+        kind: "fastener",
+        status: "confirmed",
+    },
 } as const satisfies Record<string, CatalogProduct>;

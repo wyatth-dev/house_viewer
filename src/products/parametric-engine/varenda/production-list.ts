@@ -82,7 +82,9 @@ export function buildProductionList(solution: VarendaGeometry): ProductionRow[] 
             row: {
                 id,
                 catalogProductId,
-                label: catalog?.productName ?? pendingLabels[catalogProductId] ?? catalogProductId,
+                label: catalog
+                    ? catalog.manufacturerCode ? `${catalog.manufacturerCode} - ${catalog.name}` : catalog.name
+                    : pendingLabels[catalogProductId] ?? catalogProductId,
                 category,
                 material,
                 specification
@@ -93,6 +95,8 @@ export function buildProductionList(solution: VarendaGeometry): ProductionRow[] 
         groups.set(id, group);
     };
     for (const part of solution.footings.assemblies) add(part.catalogProductId, part.instanceId, 'Structure');
+    for (const part of solution.ringbeamClips ?? [])
+        add(part.catalogProductId, part.instanceId, 'Profiles', { lengthMm: part.lengthMm });
     for (const part of solution.posts)
         add(part.catalogProductId, part.instanceId, 'Profiles', { lengthMm: part.lengthMm });
     for (const [rail, layout] of [

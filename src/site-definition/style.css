@@ -818,3 +818,25 @@ h2 span {
 .hedge-toggle[aria-pressed="true"] { background: #315b43; color: white; }
 
 .hedge-toggle:disabled { opacity: 0.5; cursor: default; }
+
+#placement-step .component-assembly {
+    position: relative;
+}
+#placement-step .component-assembly > .material-select {
+    padding-left: 30px;
+}
+#placement-step .component-toggle {
+    position: absolute;
+    top: 4px;
+    left: 0;
+    width: 28px;
+    height: 32px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+
+#placement-step .component-assembly:has(> .component-toggle[aria-expanded='true']) {
+    border-bottom: 0;
+}

@@ -1,0 +1,325 @@
+{
+    "schemaVersion": 1,
+    "description": "Contains is defined only by children. Connections are stored separately in relations. A product leaf references an actual instance, never a whole assembly.",
+    "geometryAliases": [
+        {
+            "role": "wedge-b",
+            "suffix": "-wedge-b",
+            "canonicalSuffix": "-wedge-a"
+        }
+    ],
+    "root": {
+        "kind": "assembly",
+        "id": "veranda",
+        "label": "Veranda",
+        "children": [
+            {
+                "kind": "assembly",
+                "id": "columns",
+                "label": "Columns",
+                "children": [
+                    {
+                        "kind": "assembly",
+                        "id": "{item.columnId}",
+                        "label": "Column {index}",
+                        "repeat": "columns",
+                        "children": [
+                            {
+                                "kind": "part",
+                                "source": "item.instanceId"
+                            },
+                            {
+                                "kind": "assembly",
+                                "id": "{item.footing.instanceId}",
+                                "label": "Footplate",
+                                "children": [
+                                    {
+                                        "kind": "part",
+                                        "source": "item.footing.instanceId"
+                                    },
+                                    {
+                                        "kind": "assembly",
+                                        "id": "{item.footing.instanceId}:fastening",
+                                        "label": "Base fastening",
+                                        "children": [
+                                            {
+                                                "kind": "part",
+                                                "source": "item",
+                                                "repeat": "item.bottom"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "kind": "assembly",
+                                "id": "{item.columnId}:top-fastening",
+                                "label": "Top fastening",
+                                "children": [
+                                    {
+                                        "kind": "part",
+                                        "source": "item",
+                                        "repeat": "item.top"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "kind": "assembly",
+                "id": "gutter",
+                "label": "Gutter",
+                "children": [
+                    {
+                        "kind": "assembly",
+                        "id": "gutter:fixed",
+                        "label": "Fixed",
+                        "children": [
+                            {
+                                "kind": "part",
+                                "source": "gutter.fixed"
+                            },
+                            {
+                                "kind": "assembly",
+                                "id": "{item.instanceId}",
+                                "label": "Ringbeam Clip {index}",
+                                "repeat": "gutter.clips",
+                                "children": [
+                                    {
+                                        "kind": "part",
+                                        "source": "item.instanceId"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "kind": "assembly",
+                        "id": "gutter:moving",
+                        "label": "Moving",
+                        "children": [
+                            {
+                                "kind": "part",
+                                "source": "gutter.moving"
+                            },
+                            {
+                                "kind": "part",
+                                "source": "gutter.gaskets"
+                            }
+                        ]
+                    },
+                    {
+                        "kind": "assembly",
+                        "id": "{item.instanceId}",
+                        "label": "{item.label}",
+                        "repeat": "gutter.caps",
+                        "children": [
+                            {
+                                "kind": "part",
+                                "source": "item.instanceId"
+                            },
+                            {
+                                "kind": "assembly",
+                                "id": "{item.instanceId}:fastening",
+                                "label": "Cap fastening",
+                                "children": [
+                                    {
+                                        "kind": "part",
+                                        "source": "item",
+                                        "repeat": "item.screws"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "kind": "assembly",
+                "id": "wallpiece",
+                "label": "Wall Piece",
+                "children": [
+                    {
+                        "kind": "assembly",
+                        "id": "wallpiece:fixed",
+                        "label": "Fixed",
+                        "children": [
+                            {
+                                "kind": "part",
+                                "source": "wallpiece.fixed"
+                            },
+                            {
+                                "kind": "assembly",
+                                "id": "{item.instanceId}",
+                                "label": "Ringbeam Clip {index}",
+                                "repeat": "wallpiece.clips",
+                                "children": [
+                                    {
+                                        "kind": "part",
+                                        "source": "item.instanceId"
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "kind": "assembly",
+                        "id": "wallpiece:moving",
+                        "label": "Moving",
+                        "children": [
+                            {
+                                "kind": "part",
+                                "source": "wallpiece.moving"
+                            },
+                            {
+                                "kind": "part",
+                                "source": "wallpiece.gaskets"
+                            }
+                        ]
+                    },
+                    {
+                        "kind": "assembly",
+                        "id": "{item.instanceId}",
+                        "label": "{item.label}",
+                        "repeat": "wallpiece.caps",
+                        "children": [
+                            {
+                                "kind": "part",
+                                "source": "item.instanceId"
+                            },
+                            {
+                                "kind": "assembly",
+                                "id": "{item.instanceId}:fastening",
+                                "label": "Cap fastening",
+                                "children": [
+                                    {
+                                        "kind": "part",
+                                        "source": "item",
+                                        "repeat": "item.screws"
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "kind": "assembly",
+                "id": "rafters",
+                "label": "Rafters",
+                "children": [
+                    {
+                        "kind": "assembly",
+                        "id": "{item.instanceId}",
+                        "label": "{item.label}",
+                        "repeat": "rafters",
+                        "children": [
+                            {
+                                "kind": "part",
+                                "source": "item.instanceId"
+                            },
+                            {
+                                "kind": "assembly",
+                                "id": "{item.instanceId}",
+                                "label": "{item.label}",
+                                "repeat": "item.plates",
+                                "children": [
+                                    {
+                                        "kind": "part",
+                                        "source": "item.instanceId"
+                                    },
+                                    {
+                                        "kind": "assembly",
+                                        "id": "{item.instanceId}:fastening",
+                                        "label": "Plate fastening",
+                                        "children": [
+                                            {
+                                                "kind": "part",
+                                                "source": "item.instanceId",
+                                                "repeat": "item.fasteners"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "kind": "assembly",
+                                "id": "{item.instanceId}",
+                                "label": "{item.label}",
+                                "repeat": "item.caps",
+                                "children": [
+                                    {
+                                        "kind": "part",
+                                        "source": "item.instanceId"
+                                    },
+                                    {
+                                        "kind": "assembly",
+                                        "id": "{item.instanceId}:fastening",
+                                        "label": "Cap fastening",
+                                        "children": [
+                                            {
+                                                "kind": "part",
+                                                "source": "item",
+                                                "repeat": "item.screws"
+                                            }
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "kind": "assembly",
+                                "id": "{item.id}",
+                                "label": "{item.label}",
+                                "repeat": "item.sides",
+                                "children": [
+                                    {
+                                        "kind": "part",
+                                        "source": "item.gaskets",
+                                        "excludeProducts": [
+                                            "varenda-glazing-wedge-gasket"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "kind": "assembly",
+                "id": "glass",
+                "label": "Glass",
+                "children": [
+                    {
+                        "kind": "assembly",
+                        "id": "{item.instanceId}",
+                        "label": "Glass Panel {index}",
+                        "repeat": "glass",
+                        "children": [
+                            {
+                                "kind": "part",
+                                "source": "item.instanceId"
+                            },
+                            {
+                                "kind": "part",
+                                "source": "item.gaskets",
+                                "products": [
+                                    "varenda-glazing-wedge-gasket"
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    },
+    "relations": [
+        {
+            "kind": "related",
+            "productId": "varenda-glazing-wedge-gasket",
+            "targetInstanceId": "gutter-moving"
+        }
+    ]
+}

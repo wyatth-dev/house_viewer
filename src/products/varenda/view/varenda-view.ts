@@ -4,9 +4,9 @@ import type { AppBase } from 'playcanvas';
 import type { ProductAssetStore } from '../../../shared/assets/containers.ts';
 import type { CameraBasis } from '../../../shared/camera/types.ts';
 import { roofJointDatums, rafterDatums, glazingGasketDatums } from '../../parametric-engine/varenda/datums.ts';
+import { buildInstallationMenus } from '../../parametric-engine/varenda/production-relations.ts';
 import { getInstalledFasteners } from '../../parametric-engine/varenda/production-list.ts';
 import type { InstalledFastener } from '../../parametric-engine/varenda/production-list.ts';
-import { buildInstallationMenus } from '../../parametric-engine/varenda/production-relations.ts';
 import type { VarendaGeometry } from '../../parametric-engine/varenda/solution.ts';
 import type { ProductPointMm } from '../../parametric-engine/varenda/varenda-solver.ts';
 
@@ -55,7 +55,7 @@ export async function createVarendaView(
     let registry = new Map<string, Entity[]>();
     let hardware: InstalledFastener[] = [];
     let installations = new Map<string, readonly string[]>();
-    let endCapIds = new Set<string>();
+    let railEndCaps: NonNullable<VarendaGeometry['endCaps']>['plates'] = [];
     let machining: VarendaGeometry['machining'];
     let fastenerAxesVisible = true;
     let selected = new Set<string>();
@@ -121,22 +121,29 @@ export async function createVarendaView(
         getBounds() {
             return entityBounds(root);
         },
-        select(instanceIds: readonly string[], contextIds: readonly string[] = []) {
+        select(instanceIds: readonly string[], contextIds: readonly string[] = [], includeRelatedFasteners = true) {
             clearSelection();
             const valid = instanceIds.filter((id) => registry.has(id) || hardware.some((h) => h.instanceId === id));
             if (!valid.length) return undefined;
             selected = new Set(valid);
-            // Follow installation ownership only: supporting parents and sibling parts stay separate.
-            const fastenerIds = new Set(hardware.map((part) => part.instanceId));
+            // Related fasteners are visual context, never additional catalog products.
+            const fastenerIds = new Set(hardware.map(part => part.instanceId));
             const visited = new Set<string>();
-            const pending = [...valid];
-            while (pending.length) {
+            // Whole-rail UI selection explicitly supplies both profile identities.
+            if (includeRelatedFasteners) for (const rail of ['gutter', 'wallpiece']) {
+                if (valid.includes(`${rail}-fixed`) && valid.includes(`${rail}-moving`)) {
+                    for (const cap of railEndCaps)
+                        if (cap.railRef.instanceId === rail) selected.add(cap.instanceId);
+                }
+            }
+            const pending = [...selected];
+            while (includeRelatedFasteners && pending.length) {
                 const id = pending.pop()!;
-                if (visited.has(id)) continue;
+                if (visited.has(id) || fastenerIds.has(id)) continue;
                 visited.add(id);
                 for (const child of installations.get(id) ?? []) {
-                    if (fastenerIds.has(child) || endCapIds.has(child)) selected.add(child);
-                    pending.push(child);
+                    if (fastenerIds.has(child)) selected.add(child);
+                    else pending.push(child);
                 }
             }
             context = new Set(contextIds);
@@ -339,14 +346,22 @@ export async function createVarendaView(
                 if (node instanceof Entity) registry.set(node.name, [node]);
             });
             for (const [id, name, metalNode] of [
-                ['gutter-fixed', 'Gutter fixed', undefined],
+                ['gutter-fixed', 'Gutter fixed', '5110010010 - Veranda Ring Beam'],
                 ['gutter-moving', 'Gutter moving', '5110010015 - Veranda Ring beam Swivel v2'],
                 ['wallpiece-fixed', 'Wall Piece fixed', undefined],
                 ['wallpiece-moving', 'Wall Piece moving', '5110010035 - Veranda Wallplate Swivel v2']
             ]) {
                 const owner = next.findByName(name!);
-                const entity = metalNode ? owner?.findByName(metalNode) : owner;
+                const entity = metalNode ? owner?.findByName(metalNode) ?? owner : owner;
                 if (entity instanceof Entity) registry.set(id!, [entity]);
+            }
+            const clipNodes: Entity[] = [];
+            next.findByName('Gutter fixed')?.forEach(node => {
+                if (node instanceof Entity && node.name === 'SM5360 - Veranda Ring Beam Clip') clipNodes.push(node);
+            });
+            for (const clip of solution.ringbeamClips ?? []) {
+                const node = clipNodes[clip.modelNodeIndex];
+                if (node) registry.set(clip.instanceId, [node]);
             }
             for (const gasket of solution.glazing?.gaskets ?? []) {
                 if (!gasket.renderOwnerInstanceId) continue;
@@ -364,14 +379,7 @@ export async function createVarendaView(
             }
             hardware = getInstalledFasteners(solution);
             installations = buildInstallationMenus(solution);
-            endCapIds = new Set([
-                ...(solution.rafterEndCaps?.plates ?? []).map((cap) => cap.instanceId),
-                ...(solution.endCaps?.plates ?? []).map((cap) => cap.instanceId)
-            ]);
-            for (const cap of solution.endCaps?.plates ?? []) {
-                const owner = `${cap.railRef.instanceId}-moving`;
-                installations.set(owner, [...(installations.get(owner) ?? []), cap.instanceId]);
-            }
+            railEndCaps = solution.endCaps?.plates ?? [];
             machining = solution.machining;
         },
         destroy() {
