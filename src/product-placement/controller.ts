@@ -47,7 +47,7 @@ export function createPlacementController(
     productButton: HTMLButtonElement,
     screenToGround: (x: number, y: number, groundYMm?: number) => Point3 | undefined,
     signal: AbortSignal,
-    onFocus?: (bounds: Bounds3 | undefined, basis?: CameraBasis) => void,
+    onFocus?: (bounds: Bounds3 | undefined, basis?: CameraBasis, preserveView?: boolean) => void,
     setContextVisible?: (visible: boolean) => void,
     onEditModeChange?: (editing: boolean) => void
 ) {
@@ -115,9 +115,9 @@ export function createPlacementController(
     const selected = () => (selectedId ? instances.get(selectedId) : undefined);
     let focusedBounds: Bounds3 | undefined;
     const focusBasis = () => selected()?.view.getViewBasis(partSelection?.id, partSelection?.path.at(-2));
-    const focus = (bounds: Bounds3 | undefined) => {
+    const focus = (bounds: Bounds3 | undefined, allowAngleChange = false) => {
         focusedBounds = bounds;
-        onFocus?.(bounds, bounds ? focusBasis() : undefined);
+        onFocus?.(bounds, bounds ? focusBasis() : undefined, !allowAngleChange);
     };
     const placementBounds = (instance: PlacedProduct) =>
         getPlacementFocusBounds(instance.envelope, instance.wall, instance.view.getBounds());
@@ -367,7 +367,7 @@ export function createPlacementController(
                 const row = rows.find(row => row.instanceIds.includes(id));
                 selectedRow = row?.id;
                 partSelection = { id, path: [id] };
-                focus?.(instance.view.select(componentGeometryIds(id, data), [], false));
+                focus?.(instance.view.select(componentGeometryIds(id, data), [], false), true);
                 renderDetailParts(instance, host);
             }, menus, new Map(), data, true);
             return;
@@ -408,7 +408,7 @@ export function createPlacementController(
             };
             reveal(data.root);
             selectedRow = id;
-            focus?.(applyComponentSelection(instance, data));
+            focus?.(applyComponentSelection(instance, data), node.kind !== 'assembly');
             renderDetailParts(instance, host);
         }, id => {
             if (menus.has(id)) menus.delete(id);
@@ -551,7 +551,7 @@ export function createPlacementController(
                 syncPlacementMode();
                 refreshAvailableAreas();
                 renderCards();
-                focus?.(selectedId ? placementBounds(instance) : undefined);
+                focus?.(selectedId ? placementBounds(instance) : undefined, Boolean(selectedId));
             });
             select.className = 'placed-product-select';
             select.setAttribute('aria-pressed', String(instance.id === selectedId));

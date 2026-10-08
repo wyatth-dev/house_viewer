@@ -1161,3 +1161,8 @@ h2 span {
 .typology-card.generating .generation-spinner { position: absolute; z-index: 1; }
 @keyframes generation-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .generation-spinner { animation-duration: 3s; } }
+
+.render-mode-controls[hidden],
+.landscape-controls .hedge-toggle[hidden] {
+    display: none;
+}

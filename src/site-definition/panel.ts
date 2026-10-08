@@ -4,6 +4,8 @@ import type { ProjectSummary } from '../photo-intake/api.ts';
 import { statusText } from '../photo-intake/panels/status-panel.ts';
 import type { TypologyEntry } from '../scenes/typology/catalog.ts';
 
+export type WorkflowStep = 'site' | 'placement' | 'rendering';
+
 export function createPanel(host: HTMLElement) {
     host.innerHTML = `
         <div class="panel-heading">
@@ -14,6 +16,7 @@ export function createPanel(host: HTMLElement) {
         <fieldset id="shared-view-controls" disabled>
             <section>
                 <button type="button" id="product-edit-exit" class="product-edit-back" hidden><span aria-hidden="true">←</span> Exit product edit</button>
+                <button type="button" id="rendering-back" class="product-edit-back" hidden><span aria-hidden="true">←</span> Back to product placement</button>
                 <button type="button" id="site-back" class="product-edit-back" hidden><span aria-hidden="true">←</span> Back to site setup</button>
                 <h2>Your perspective</h2>
                 <div id="view-controls"></div>
@@ -101,7 +104,14 @@ export function createPanel(host: HTMLElement) {
         </div>
                     <div id="placed-product-detail-content"></div>
                 </section>
+                <button type="button" class="step-button" id="rendering-next">Next: rendering</button>
             </fieldset>
+        </div>
+        <div id="rendering-step" hidden>
+            <section>
+                <h2><span>01</span> Render preview</h2>
+                <p class="hint">Your house and products are shown in detailed render. Use the views above to explore your design.</p>
+            </section>
         </div>
     `;
     const strips = {
@@ -140,6 +150,10 @@ export function createPanel(host: HTMLElement) {
     let projectTimer: ReturnType<typeof setTimeout> | undefined;
     const previewUrls = new Map<string, string>();
     const renderTypologies = (entries: TypologyEntry[]) => {
+        for (const entry of entries) {
+            const previous = catalog.find(candidate => candidate.id === entry.id);
+            if (previous && previous.buildVersion !== entry.buildVersion) previewUrls.delete(entry.id);
+        }
         catalog = entries;
         const card = (entry: TypologyEntry) => {
             const element = typologyCard({ ...entry, previewUrl: previewUrls.get(entry.id) ?? entry.previewUrl });
@@ -223,27 +237,36 @@ export function createPanel(host: HTMLElement) {
     const placementStep = host.querySelector<HTMLElement>('#placement-step')!;
     const next = host.querySelector<HTMLButtonElement>('#placement-next')!;
     const back = host.querySelector<HTMLButtonElement>('#site-back')!;
-    const stepListeners = new Set<(step: 'site' | 'placement') => void>();
-    const showStep = (step: 'site' | 'placement') => {
+    const renderingStep = host.querySelector<HTMLElement>('#rendering-step')!;
+    const renderingNext = host.querySelector<HTMLButtonElement>('#rendering-next')!;
+    const renderingBack = host.querySelector<HTMLButtonElement>('#rendering-back')!;
+    const stepListeners = new Set<(step: WorkflowStep) => void>();
+    const showStep = (step: WorkflowStep) => {
         const isSite = step === 'site';
+        const isRendering = step === 'rendering';
         host.querySelector<HTMLElement>('#step-heading')!.textContent = isSite
             ? 'STEP 01 / SITE SETUP'
-            : 'STEP 02 / PRODUCT PLACEMENT';
+            : isRendering ? 'STEP 03 / RENDERING' : 'STEP 02 / PRODUCT PLACEMENT';
         host.querySelector<HTMLElement>('#step-title')!.innerHTML = isSite
             ? 'Define your<br>property.'
-            : 'Place your<br>product.';
+            : isRendering ? 'Preview your<br>design.' : 'Place your<br>product.';
         host.querySelector<HTMLElement>('#step-description')!.textContent = isSite
             ? 'Give your house room to grow.'
-            : 'Select a product, then choose an available area.';
-        back.hidden = isSite;
+            : isRendering ? 'See your design come to life.' : 'Select a product, then choose an available area.';
+        back.hidden = step !== 'placement';
+        renderingBack.hidden = !isRendering;
+        renderingStep.hidden = !isRendering;
         siteStep.hidden = step !== 'site';
         placementStep.hidden = step !== 'placement';
         host.scrollTop = 0;
         for (const listener of stepListeners) listener(step);
-        (step === 'site' ? next : back).focus();
+        (isSite ? next : isRendering ? renderingBack : back).focus();
     };
     const goNext = () => showStep('placement');
     const goBack = () => showStep('site');
+    const goRendering = () => showStep('rendering');
+    renderingNext.addEventListener('click', goRendering);
+    renderingBack.addEventListener('click', goNext);
     next.addEventListener('click', goNext);
     back.addEventListener('click', goBack);
     return {
@@ -268,7 +291,11 @@ export function createPanel(host: HTMLElement) {
         setTypologyBusy(busy: boolean) {
             for (const strip of Object.values(strips)) strip.toggleAttribute('aria-busy', busy);
         },
-        setGenerating(summary: ProjectSummary) { pending.set(summary.id, summary); renderTypologies(catalog); },
+        setGenerating(summary: ProjectSummary) {
+            const exists = pending.has(summary.id);
+            pending.set(summary.id, summary);
+            if (!exists) renderTypologies(catalog);
+        },
         async refreshTypologies() { renderTypologies(await listTypologies()); },
         onPhotoIntake(listener: (projectId: string | null) => void) {
             photoListeners.add(listener);
@@ -280,7 +307,7 @@ export function createPanel(host: HTMLElement) {
                 typologyListeners.delete(listener);
             };
         },
-        onStepChange(listener: (step: 'site' | 'placement') => void) {
+        onStepChange(listener: (step: WorkflowStep) => void) {
             stepListeners.add(listener);
             return () => {
                 stepListeners.delete(listener);
@@ -292,6 +319,8 @@ export function createPanel(host: HTMLElement) {
         destroy() {
             disposed = true;
             if (projectTimer) clearTimeout(projectTimer);
+            renderingNext.removeEventListener('click', goRendering);
+            renderingBack.removeEventListener('click', goNext);
             next.removeEventListener('click', goNext);
             back.removeEventListener('click', goBack);
             stepListeners.clear();

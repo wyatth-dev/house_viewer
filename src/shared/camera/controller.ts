@@ -100,7 +100,7 @@ export function createCameraController(
         transition.elapsed += Math.max(0, dt);
         const progress = Math.min(1, transition.elapsed / duration);
         current = transitionFrame(transition.from, transition.to, progress, bounds, viewport, transition.containBounds);
-        apply(active, current, progress < 1);
+        apply(active, current, progress < 1 || current.projectionMix !== undefined);
         if (progress === 1) transition = undefined;
         for (const listener of listeners) listener();
     };
@@ -178,18 +178,36 @@ export function createCameraController(
                 frames.set(preset.id, frame);
                 apply(preset.id, frame);
             }
-            const target = keepView && from
-                ? from.projection === 'perspective'
-                    ? fitPerspective(bounds, viewport, from.out, 2 * Math.atan(from.tanHalfFov ?? Math.tan(Math.PI / 8)) * 180 / Math.PI)
-                    : fitOrthographic(bounds, viewport, from.out)
-                : frames.get(active)!;
+            let target = frames.get(active)!;
+            if (keepView && from) {
+                // Transition frames carry a blended lens instead of projection/tanHalfFov.
+                // Read the visible lens before reframing, including interrupted transitions.
+                const mix = projectionMix(from);
+                const distance = Math.hypot(
+                    from.position.x - from.center.x,
+                    from.position.y - from.center.y,
+                    from.position.z - from.center.z
+                );
+                target = mix > 0
+                    ? fitPerspective(bounds, viewport, from.out,
+                        2 * Math.atan(focusHeight(from) / distance) * 180 / Math.PI)
+                    : fitOrthographic(bounds, viewport, from.out);
+                if (mix > 0 && mix < 1) {
+                    const targetDistance = Math.hypot(
+                        target.position.x - target.center.x,
+                        target.position.y - target.center.y,
+                        target.position.z - target.center.z
+                    );
+                    target = { ...target, projectionMix: mix, halfHeight: targetDistance * target.tanHalfFov! };
+                }
+            }
             if (animate && from && duration > 0) {
                 current = from;
                 transition = { from, to: target, elapsed: 0, containBounds: false };
                 apply(active, from, true);
             } else {
                 current = target;
-                apply(active, target);
+                apply(active, target, target.projectionMix !== undefined);
             }
             for (const listener of listeners) listener();
         },

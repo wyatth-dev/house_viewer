@@ -271,9 +271,9 @@ export function startSiteDefinition(initial: TypologyEntry) {
             productChoice,
             camera.screenToGround,
             lifetime.signal,
-            (bounds, basis) => {
+            (bounds, basis, preserveView = true) => {
                 const size = { width: viewport.clientWidth, height: viewport.clientHeight };
-                if (bounds) camera.fit(bounds, size, true, basis);
+                if (bounds) camera.fit(bounds, size, true, basis, preserveView);
                 else coordinator.resize(size, true);
             },
             (visible) => {
@@ -297,11 +297,22 @@ export function startSiteDefinition(initial: TypologyEntry) {
             panel.onStepChange((step) => {
                 preserveSiteView = step === 'site';
                 placement.setPlacementActive(step === 'placement');
+                const isRendering = step === 'rendering';
+                renderModes.hidden = isRendering;
+                dimensionToggle.hidden = isRendering;
+                if (isRendering) {
+                    void setSceneMode('render').catch(error => {
+                        if (isDisposed()) return;
+                        console.error(error);
+                        status.textContent = 'Could not load detailed render. Return to product placement and try again.';
+                        status.hidden = false;
+                    });
+                }
                 site.setMeasurementsVisible(step === 'site' && dimensionsVisible);
                 coordinator.resize({ width: viewport.clientWidth, height: viewport.clientHeight }, true);
                 site.refreshLabels(camera.project);
                 document.title =
-                    step === 'placement'
+                    isRendering ? 'House & Ground — Rendering' : step === 'placement'
                         ? 'House & Ground — Product placement'
                         : 'House & Ground — Define your property';
             })
@@ -319,7 +330,7 @@ export function startSiteDefinition(initial: TypologyEntry) {
 
         // Coordination: scene bounds and camera policy stay outside product rendering.
         let preserveSiteView = true;
-        const coordinator = createSceneCoordinator(site, camera, () => house.bounds, () => site.getBounds(), () => preserveSiteView);
+        const coordinator = createSceneCoordinator(site, camera, () => house.bounds, () => site.getBounds(), () => true);
         lifetime.add(camera.onMove(coordinator.refresh));
         // Controls: site dimensions and camera presets
         const dimensionControls = createSiteControls(
@@ -365,7 +376,7 @@ export function startSiteDefinition(initial: TypologyEntry) {
             app.resizeCanvas(width, height);
             coordinator.resize({ width, height });
             const detailBounds = placement.focusBounds();
-            if (detailBounds) camera.fit(detailBounds, { width, height }, false, placement.focusBasis());
+            if (detailBounds) camera.fit(detailBounds, { width, height }, false, placement.focusBasis(), true);
             placement.refreshLabels();
         };
 
@@ -713,6 +724,8 @@ export function startSiteDefinition(initial: TypologyEntry) {
             if (id) {
                 const summary = await getProject(id);
                 if (token !== session) return;
+                generationPending = summary.job?.state === 'queued' || summary.job?.state === 'running';
+                generationVersion = summary.typology?.buildVersion ?? 0;
                 title.textContent = summary.name ?? summary.typology?.name ?? id;
                 uploadPanel.setProjectDetails(summary.facadeSide, summary.width.widthMm);
                 if (summary.buildDir) shownBuild = `${id}/${summary.buildDir}/${summary.typology?.buildVersion ?? ''}`;

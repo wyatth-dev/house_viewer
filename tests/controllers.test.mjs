@@ -446,3 +446,33 @@ test('orbiting a small screw below ground clearance retains horizontal rotation'
   assert.ok(next.y>=100-1e-6);
  }finally{camera.destroy();app.destroy();}
 });
+
+test('refocusing during a perspective transition retains the lens at every frame and after resize', () => {
+    const app = createApp();
+    const camera = createCameraController(app, [
+        { id: 'front', label: 'Front', projection: 'perspective', direction: { x: 0.3, y: 0.8, z: 1 } }
+    ], { duration: 0.8 });
+    const bounds = { min: { x: -20000, y: 0, z: -30000 }, max: { x: 20000, y: 8000, z: 30000 } };
+    const detail = { min: { x: 1000, y: 0, z: 25000 }, max: { x: 5000, y: 2500, z: 27000 } };
+    const viewport = { width: 1000, height: 800 };
+    const point = { x: 8000, y: 5000, z: 15000 };
+    try {
+        camera.fit(bounds, viewport);
+        const expected = camera.project(point);
+        camera.fit(detail, viewport, true, undefined, true);
+        app.fire('update', 0.2);
+        camera.fit(bounds, viewport, true, undefined, true);
+        app.fire('update', 0.4);
+        const entity = app.root.children[0];
+        assert.ok(entity.camera.calculateProjection, 'mid-transition uses the blended projection');
+        app.fire('update', 0.4);
+        const actual = camera.project(point);
+        assert.ok(Math.abs(actual.x - expected.x) < 0.001, 'perspective horizontal projection survives refocus');
+        assert.ok(Math.abs(actual.y - expected.y) < 0.001, 'perspective vertical projection survives refocus');
+        camera.fit(bounds, viewport, false, undefined, true);
+        assert.ok(Math.abs(camera.project(point).x - expected.x) < 0.001, 'resize retains perspective');
+    } finally {
+        camera.destroy();
+        app.destroy();
+    }
+});
