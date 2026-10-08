@@ -10,14 +10,14 @@ from facade_modeler.service.context import ServiceContext
 from facade_modeler.service.results import Result, fail, ok
 from facade_modeler.service.summary import width_state
 from facade_modeler.service.width import apply_width
-from facade_modeler.spec.model import ProvenanceEntry
+from facade_modeler.spec.model import HouseSpec, ProvenanceEntry
 from facade_modeler.spec.validate import validate
 
 
 def upload_photos(ctx: ServiceContext, project_id: Optional[str], files: list[tuple[bytes, str]],
                   width_mm: Optional[float], facade_side: Optional[str] = None) -> Result:
     """project_id 为 None 时新建项目；width_mm 为 None 时视为跳过（已有宽度则保留）。
-    facade_side：照片拍的是 front 还是 back；None 时保留原值（新项目默认 back）。"""
+    facade_side：照片拍的是 front、back、left 或 right；None 时保留原值（新项目默认 back）。"""
     if not files:
         return fail("Upload at least one photo")
     if width_mm is not None and not (math.isfinite(width_mm) and width_mm > 0):
@@ -27,6 +27,27 @@ def upload_photos(ctx: ServiceContext, project_id: Optional[str], files: list[tu
     except ValueError as error:
         return fail(str(error))
     project = ctx.store.create() if project_id is None else ctx.project(project_id)
+    with project.lock():
+        previous = project.load_spec()
+        if facade_side is not None and previous.facade.side != facade_side:
+            project.save_spec(previous)
+            stored = previous.facade_inputs.get(facade_side)
+            if stored is None:
+                blank = HouseSpec.new(project.id, ctx.defaults)
+                previous.facade = blank.facade
+                previous.facade.side = facade_side
+                previous.photos = {}
+                previous.measurements = {}
+                previous.provenance = {}
+                previous.width_skipped = True
+            else:
+                previous.facade = stored.facade.model_copy(deep=True)
+                previous.photos = {key: value.model_copy(deep=True) for key, value in stored.photos.items()}
+                previous.measurements = {key: value.model_copy(deep=True) for key, value in stored.measurements.items()}
+                previous.provenance = {key: value.model_copy(deep=True) for key, value in stored.provenance.items()}
+                previous.width_skipped = stored.width_skipped
+            project.save_spec(previous)
+            project.set_status("draft")
     photo_ids = [project.add_photo(data, "photo.jpg") for data in photos]
     with project.lock():
         spec = project.load_spec()
@@ -57,8 +78,16 @@ def project_summary(ctx: ServiceContext, project_id: str) -> Result:
     return ok({
         "lastStep": _last_step(project),
         "id": project.id,
+        "name": spec.name or ((ctx.typologies.for_project(project.id) or {}).get("name") if ctx.typologies else None) or project.id,
         "facadeSide": spec.facade.side,
         "photos": photos,
+        "wallWidths": {side: saved.facade.width_mm for side, saved in spec.facade_inputs.items()},
+        "facadePhotos": {
+            side: [{"id": pid, "file": photo.file, "primary": photo.primary,
+                    "rectified": photo.rectification.file if photo.rectification else None}
+                   for pid, photo in saved.photos.items()]
+            for side, saved in spec.facade_inputs.items()
+        },
         "width": width_state(spec),
         "latestBuild": latest,
         "buildDir": f"builds/v{latest}" if latest else None,

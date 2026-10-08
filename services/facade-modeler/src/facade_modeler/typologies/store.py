@@ -71,7 +71,7 @@ class TypologyStore:
         typology_id = project.id
         with project_lock(self.root / ".index.lock"):
             previous = self.get(typology_id)
-            label = name or (previous or {}).get("name") or f"Photo · {project.id}"
+            label = name or spec.name or (previous or {}).get("name") or f"Photo · {project.id}"
             staging = self.root / f".{typology_id}.staging"
             if staging.exists():
                 shutil.rmtree(staging)
@@ -123,6 +123,26 @@ class TypologyStore:
             entry = {**entry, "preview": PREVIEW_FILE}
             self._write_index([e for e in self.entries() if e["id"] != typology_id] + [entry])
             return entry
+
+    def rename(self, typology_id: str, name: str) -> None:
+        with project_lock(self.root / ".index.lock"):
+            entry = self.get(typology_id)
+            if entry is None:
+                raise KeyError(typology_id)
+            path = self.directory(typology_id) / "scene.json"
+            scene = json.loads(path.read_text(encoding="utf-8"))
+            scene["name"] = name
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(scene, indent=2) + "\n", encoding="utf-8")
+            os.replace(temporary, path)
+            self._write_index([{**row, "name": name} if row["id"] == typology_id else row for row in self.entries()])
+
+    def delete(self, typology_id: str) -> None:
+        with project_lock(self.root / ".index.lock"):
+            if self.get(typology_id) is None:
+                raise KeyError(typology_id)
+            self._write_index([row for row in self.entries() if row["id"] != typology_id])
+            shutil.rmtree(self.directory(typology_id), ignore_errors=True)
 
     def _write_index(self, rows: list[dict]) -> None:
         data = {"schemaVersion": SCHEMA_VERSION, "typologies": sorted(rows, key=lambda e: e["id"])}

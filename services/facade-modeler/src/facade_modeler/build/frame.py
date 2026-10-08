@@ -22,8 +22,15 @@ def to_side(points: np.ndarray, width: float, depth: float, side: str) -> np.nda
     if side == "front":
         return points
     moved = np.array(points, dtype=float, copy=True)
-    moved[..., 0] = -moved[..., 0] - width
-    moved[..., 2] = -moved[..., 2] - depth
+    if side == "left":
+        moved[..., 0] = -points[..., 2] - depth
+        moved[..., 2] = points[..., 0]
+    elif side == "right":
+        moved[..., 0] = points[..., 2]
+        moved[..., 2] = -points[..., 0] - width
+    else:
+        moved[..., 0] = -points[..., 0] - width
+        moved[..., 2] = -points[..., 2] - depth
     return moved
 
 
@@ -32,6 +39,13 @@ def turn_to_side(vectors: np.ndarray, side: str) -> np.ndarray:
     if side == "front":
         return vectors
     turned = np.array(vectors, dtype=float, copy=True)
-    turned[..., 0] *= -1
-    turned[..., 2] *= -1
+    if side == "left":
+        turned[..., 0] = -vectors[..., 2]
+        turned[..., 2] = vectors[..., 0]
+    elif side == "right":
+        turned[..., 0] = vectors[..., 2]
+        turned[..., 2] = -vectors[..., 0]
+    else:
+        turned[..., 0] *= -1
+        turned[..., 2] *= -1
     return turned

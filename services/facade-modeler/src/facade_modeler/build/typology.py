@@ -23,7 +23,10 @@ def _number(value: float):
 
 def scene_json(spec: HouseSpec, side: str = "front") -> dict:
     width, depth = _number(spec.facade.width_mm), _number(spec.massing.depth_mm)
-    back = side == "back"
+    lateral = side in ("left", "right")
+    house_width, house_depth = (depth, width) if lateral else (width, depth)
+    origin = {"front": (-width, 0), "back": (-width, -depth), "left": (-depth, -width), "right": (0, -width)}[side]
+    outward = {"front": (0, 1), "back": (0, -1), "left": (-1, 0), "right": (1, 0)}[side]
     return {
         "schemaVersion": 1,
         "id": spec.id,
@@ -33,18 +36,18 @@ def scene_json(spec: HouseSpec, side: str = "front") -> dict:
         "axes": {"up": "+Y", "front": "+Z"},
         "preview": {"mode": "generated"},
         "calibration": {
-            "actualWidthMm": width,
-            "sourceFootprint": {"minX": -width, "maxX": 0, "minZ": -depth, "maxZ": 0},
+            "actualWidthMm": house_width,
+            "sourceFootprint": {"minX": -house_width, "maxX": 0, "minZ": -house_depth, "maxZ": 0},
             "groundY": 0,
             "yawDegrees": 0,
         },
         "installationFaces": [{
             "wallFaceId": WALL_FACE_ID,
             "side": side,
-            "originMm": {"x": -width, "y": 0, "z": -depth if back else 0},  # 与内置 typology 相同：起点在 x 最小端
+            "originMm": {"x": origin[0], "y": 0, "z": origin[1]},  # 与内置 typology 相同：起点在 x 最小端
             "lengthMm": width,
-            "alongWallUnit": {"x": 1, "z": 0},
-            "outwardUnit": {"x": 0, "z": -1 if back else 1},
+            "alongWallUnit": {"x": 0 if lateral else 1, "z": 1 if lateral else 0},
+            "outwardUnit": {"x": outward[0], "z": outward[1]},
         }],
         "representations": {mode: {"model": path} for mode, path in MODEL_FILES.items()},
     }

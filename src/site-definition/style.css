@@ -450,7 +450,7 @@ h2 span {
     display: flex;
     flex-direction: column;
     gap: 5px;
-    scroll-snap-align: start;
+    scroll-snap-align: center;
     color: #284e3e;
     font-size: 11px;
     text-decoration: none;
@@ -1029,3 +1029,135 @@ h2 span {
     outline: 2px solid #557862;
     outline-offset: 2px;
 }
+
+.photo-typology-card { position: relative; flex: 0 0 104px; scroll-snap-align: start; }
+.photo-typology-card .typology-card { width: 100%; }
+.typology-action { position: absolute; right: 4px; z-index: 1; width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid #d5ddd2; border-radius: 5px; background: #fffffff0; color: #284e3e; cursor: pointer; padding: 4px; }
+.typology-action.edit { top: 4px; }
+.typology-action.delete { top: 49px; color: #98443b; }
+.typology-action svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.typology-action:hover { background: #e5ebe0; }
+.typology-action:disabled { opacity: .5; cursor: wait; }
+.typology-strip[aria-busy] .typology-action, #scene-controls:disabled .typology-action { pointer-events: none; opacity: .5; }
+.embedded-intake[hidden], .photo-dimensions[hidden] { display: none; }
+.embedded-intake section { margin-top: 18px; }
+.embedded-intake .field { display: grid; gap: 6px; font-size: 12px; margin-bottom: 12px; }
+.embedded-intake input, .embedded-intake select { width: 100%; padding: 8px; border: 1px solid #d5ddd2; border-radius: 5px; }
+.embedded-intake .drop-zone { width: 100%; padding: 24px 12px; margin-bottom: 12px; border: 1px dashed #b9c6b6; border-radius: 8px; background: #fafcf7; }
+.embedded-intake .primary, .embedded-intake .secondary, .embedded-intake .primary-link { display: block; width: 100%; padding: 10px; border: 0; border-radius: 6px; background: #284e3e; color: white; text-align: center; text-decoration: none; }
+.embedded-intake .row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(0, 1.5fr); gap: 12px; font-size: 12px; line-height: 1.5; padding: 5px 0; }
+.embedded-intake .row > span { color: #7d8b7f; }
+.embedded-intake .row > strong { font-weight: 500; text-align: right; overflow-wrap: anywhere; }
+.embedded-intake .model-note { margin: 14px 0 10px; padding: 12px 14px; border-radius: 6px; background: #eef2ec; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 400; line-height: 1.65; color: #5e7064; white-space: pre-wrap; overflow-wrap: anywhere; }
+.embedded-intake .issues { padding-left: 18px; font-size: 12px; line-height: 1.6; color: #98443b; }
+.embedded-intake .muted, .embedded-intake .form-message { font-size: 12px; color: #7d8b7f; }
+.embedded-intake .photo-list { display: grid; gap: 12px; }
+.embedded-intake .photo { margin: 0; }
+.embedded-intake .photo img { width: 100%; border-radius: 5px; }
+.embedded-intake .photo figcaption { font-size: 11px; }
+.embedded-intake .job-log { max-height: 160px; overflow: auto; white-space: pre-wrap; font-size: 11px; }
+.photo-dimensions { position: absolute; inset: 0; pointer-events: none; }
+.photo-face-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.photo-face-inputs .drop-zone { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; height: 100px; overflow: hidden; justify-content: center; margin-bottom: 0; padding: 18px 8px; }
+.photo-face-inputs .drop-zone:disabled { opacity: .4; cursor: default; }
+.face-title { position: relative; z-index: 1; font-family: 'Manrope', sans-serif; font-size: 16px; font-weight: 800; }
+.face-hint { position: relative; z-index: 1; font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 400; }
+.photo-face-inputs .face-hint { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; }
+.photo-face-inputs .drop-zone:hover:not(:disabled) .face-title, .photo-face-inputs .drop-zone:focus-within .face-title { opacity: 0; }
+.photo-face-inputs .drop-zone:hover:not(:disabled) .face-hint, .photo-face-inputs .drop-zone:focus-within .face-hint { opacity: 1; }
+.face-thumbnails { position: absolute; inset: 0; pointer-events: none; }
+.face-thumbnails img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: grayscale(1); opacity: .25; }
+.face-thumbnails img:not(:first-child) { display: none; }
+.face-thumbnails img.selected { outline: 2px solid #284e3e; }
+.photo-comparison { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.photo-comparison figcaption { margin-bottom: 6px; font-weight: 600; }
+
+.photo-face-inputs .face-title,
+.photo-face-inputs .face-hint {
+    transition: opacity 180ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+    .photo-face-inputs .face-title,
+    .photo-face-inputs .face-hint {
+        transition: none;
+    }
+}
+
+.single-face-dialog { width: min(400px, calc(100vw - 32px)); padding: 24px; border: 1px solid #d5ddd2; border-radius: 12px; background: #fafcf7; color: #233e34; box-shadow: 0 16px 60px #233e3433; }
+.single-face-dialog::backdrop { background: #233e3466; }
+.single-face-dialog p { font-size: 13px; line-height: 1.6; }
+.single-face-dialog .primary { width: 100%; padding: 10px; border: 0; border-radius: 6px; background: #284e3e; color: white; }
+
+.embedded-intake .wall-width-field { margin-top: 20px; gap: 10px; }
+.wall-width-label { font-family: 'Manrope', sans-serif; font-size: 13px; font-weight: 700; color: #233e34; }
+
+.embedded-intake .primary:disabled { opacity: .4; cursor: default; }
+
+.photo-preview-button { display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
+.photo-preview-dialog { width: min(1000px, calc(100vw - 48px)); max-height: 90dvh; padding: 36px 16px 16px; border: 1px solid #d5ddd2; border-radius: 12px; background: #fafcf7; }
+.photo-preview-dialog::backdrop { background: #233e3480; }
+.photo-preview-dialog img { display: block; width: 100%; max-height: calc(90dvh - 60px); object-fit: contain; }
+.photo-preview-close { position: absolute; top: 6px; right: 10px; border: 0; background: transparent; font-size: 24px; color: #233e34; }
+
+.photo-typology-card .typology-action {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+}
+.photo-typology-card .typology-thumb img {
+    transition: filter 180ms ease;
+}
+.photo-typology-card:hover .typology-action,
+.photo-typology-card:focus-within .typology-action {
+    opacity: 1;
+    pointer-events: auto;
+}
+.photo-typology-card:hover .typology-thumb img,
+.photo-typology-card:focus-within .typology-thumb img {
+    filter: brightness(.65);
+}
+@media (prefers-reduced-motion: reduce) {
+    .photo-typology-card .typology-action,
+    .photo-typology-card .typology-thumb img { transition: none; }
+}
+
+.single-face-dialog .single-face-cancel { display: block; width: 100%; margin-top: 10px; padding: 10px; border: 1px solid #c9d1c8; border-radius: 6px; background: transparent; color: #7d8b7f; font: inherit; }
+.single-face-dialog .single-face-cancel:hover { background: #eef2ec; }
+
+.panel-heading { position: relative; }
+.model-name-edit { position: absolute; top: 0; right: 0; width: 28px; height: 28px; padding: 5px; border: 1px solid #d5ddd2; border-radius: 6px; background: transparent; color: #284e3e; }
+.model-name-edit[hidden] { display: none; }
+.model-name-edit svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.model-name-input { width: 100%; min-width: 0; font: inherit; color: inherit; border: 1px solid #719c85; border-radius: 6px; background: transparent; }
+.single-face-dialog h2 { font-size: 20px; line-height: 1.4; text-align: center; color: #b4463c; }
+
+#viewport.is-generating canvas { filter: grayscale(1); }
+.generation-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    background: rgb(235 238 235 / 65%);
+    color: #284e3e;
+}
+.generation-overlay[hidden] { display: none; }
+.generation-overlay p { margin: 0; padding: 0 24px; font-size: 16px; font-weight: 600; text-align: center; }
+.generation-spinner {
+    display: block;
+    width: 28px;
+    height: 28px;
+    box-sizing: border-box;
+    border: 3px solid rgb(40 78 62 / 20%);
+    border-top-color: #284e3e;
+    border-radius: 50%;
+    animation: generation-spin 1s linear infinite;
+}
+.generation-overlay .generation-spinner { width: 64px; height: 64px; border-width: 5px; }
+.typology-card.generating .typology-thumb img { filter: grayscale(1); opacity: .4; }
+.typology-card.generating .generation-spinner { position: absolute; z-index: 1; }
+@keyframes generation-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .generation-spinner { animation-duration: 3s; } }

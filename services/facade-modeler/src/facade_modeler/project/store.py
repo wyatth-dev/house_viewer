@@ -40,6 +40,10 @@ class Project:
         return HouseSpec.from_json(self.spec_path.read_text(encoding="utf-8"))
 
     def save_spec(self, spec: HouseSpec) -> None:
+        from facade_modeler.spec.model import FacadeInput
+        snapshot = FacadeInput(facade=spec.facade, photos=spec.photos, measurements=spec.measurements,
+                               provenance=spec.provenance, width_skipped=spec.width_skipped).model_copy(deep=True)
+        spec.facade_inputs = {**spec.facade_inputs, spec.facade.side: snapshot}
         _write_atomic(self.spec_path, spec.to_json())
 
     # ---- 照片 ------------------------------------------------------------------------

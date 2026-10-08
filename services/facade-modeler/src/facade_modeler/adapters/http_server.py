@@ -59,28 +59,68 @@ def create_app(ctx: ServiceContext, viewer_dist: Optional[Path] = VIEWER_DIST, r
         result.result["job"] = runner.status(project_id) if runner else None
         return _respond(result)
 
+    @app.put("/api/projects/{project_id}/name")
+    def rename_project(project_id: str, payload: dict):
+        project = project_or_404(project_id)
+        name = payload.get("name")
+        if not isinstance(name, str) or not name.strip() or len(name.strip()) > 120:
+            raise HTTPException(400, "Enter a name of 1–120 characters")
+        name = name.strip()
+        with project.lock():
+            spec = project.load_spec()
+            spec.name = name
+            project.save_spec(spec)
+        if ctx.typologies is not None:
+            entry = ctx.typologies.for_project(project_id)
+            if entry is not None:
+                ctx.typologies.rename(entry["id"], name)
+        return {"ok": True, "result": {"name": name}, "issues": []}
+
     @app.post("/api/projects/{project_id}/run")
-    def run_again(project_id: str):
+    def run_again(project_id: str, payload: Optional[dict] = None):
         """只在自动建模失败后由查看页的 Run again 按钮调用。"""
-        project_or_404(project_id)
+        project = project_or_404(project_id)
         if runner is None:
             raise HTTPException(409, "Automatic modelling is turned off (FACADE_AUTORUN=0)")
+        if payload is not None and "widthMm" in payload:
+            import math
+            from facade_modeler.service.width import apply_width
+            value = payload["widthMm"]
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0):
+                raise HTTPException(400, "Width must be greater than 0 mm")
+            with project.lock():
+                spec = project.load_spec()
+                if value is None:
+                    spec.facade.width_mm = None
+                    spec.width_skipped = True
+                else:
+                    apply_width(spec, value, "user")
+                    spec.width_skipped = False
+                project.save_spec(spec)
         return {"ok": True, "result": {"job": runner.start(project_id)}, "issues": []}
 
     @app.post("/api/uploads")
     async def upload(files: list[UploadFile] = File(...), widthMm: Optional[str] = Form(None),  # noqa: N803
                      projectId: Optional[str] = Form(None),  # noqa: N803
-                     facadeSide: Optional[str] = Form(None)):  # noqa: N803
+                     facadeSide: Optional[str] = Form(None), name: Optional[str] = Form(None)):  # noqa: N803
         if projectId:
             project_or_404(projectId)
         try:
             width = float(widthMm) if widthMm not in (None, "") else None
         except ValueError:
             raise HTTPException(400, "Width must be a number (millimetres)") from None
-        if facadeSide not in (None, "", "front", "back"):
-            raise HTTPException(400, "facadeSide must be front or back")
+        if facadeSide not in (None, "", "front", "back", "left", "right"):
+            raise HTTPException(400, "facadeSide must be front, back, left or right")
+        if name is not None and (not name.strip() or len(name.strip()) > 120):
+            raise HTTPException(400, "Enter a name of 1–120 characters")
         payload = [(await f.read(), f.filename or "photo.jpg") for f in files]
         result = user_actions.upload_photos(ctx, projectId or None, payload, width, facadeSide or None)
+        if result.ok and name is not None:
+            project = ctx.project(result.result["projectId"])
+            with project.lock():
+                spec = project.load_spec()
+                spec.name = name.strip()
+                project.save_spec(spec)
         if result.ok and runner is not None:
             runner.start(result.result["projectId"])  # 上传后自动开始建模
         return _respond(result)
@@ -102,6 +142,13 @@ def create_app(ctx: ServiceContext, viewer_dist: Optional[Path] = VIEWER_DIST, r
         rows = ctx.typologies.entries() if ctx.typologies is not None else []
         items = [{**row, "baseUrl": f"/data/typologies/{row['id']}/"} for row in rows]
         return {"ok": True, "result": {"typologies": items}, "issues": []}
+
+    @app.delete("/api/typologies/{typology_id}")
+    def delete_typology(typology_id: str):
+        if ctx.typologies is None or ctx.typologies.get(typology_id) is None:
+            raise HTTPException(404, "Typology not found")
+        ctx.typologies.delete(typology_id)
+        return {"ok": True, "result": {}, "issues": []}
 
     @app.put("/api/typologies/{typology_id}/preview")
     async def save_preview(typology_id: str, request: Request):

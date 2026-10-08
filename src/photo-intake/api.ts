@@ -10,13 +10,16 @@ export type JobState = {
     logTail?: string;
     rerunPending?: boolean;
 };
-export type FacadeSide = 'back' | 'front';
+export type FacadeSide = 'back' | 'front' | 'left' | 'right';
 export type PhotoInfo = { id: string; file: string; primary: boolean; rectified: string | null };
 export type ProjectSummary = {
     id: string;
+    name?: string;
     /** 照片拍的是哪一面：back 时发布后立面朝向后院（house-viewer 的 Back）。 */
     facadeSide: FacadeSide;
     photos: PhotoInfo[];
+    wallWidths?: Partial<Record<FacadeSide, number | null>>;
+    facadePhotos?: Partial<Record<FacadeSide, PhotoInfo[]>>;
     width: WidthState;
     latestBuild: number | null;
     buildDir: string | null;
@@ -47,9 +50,10 @@ export function getProject(id: string): Promise<ProjectSummary> {
 }
 
 /** 上传照片；projectId 为空时新建项目。宽度留空表示跳过（由 LM 估计）。 */
-export async function upload(files: File[], widthMm: number | null, projectId: string | null, facadeSide: FacadeSide): Promise<string> {
+export async function upload(files: File[], widthMm: number | null, projectId: string | null, facadeSide: FacadeSide, name?: string): Promise<string> {
     const form = new FormData();
     form.append('facadeSide', facadeSide);
+    if (name?.trim()) form.append('name', name.trim());
     for (const file of files) form.append('files', file);
     if (widthMm !== null) form.append('widthMm', String(widthMm));
     if (projectId) form.append('projectId', projectId);
@@ -57,11 +61,19 @@ export async function upload(files: File[], widthMm: number | null, projectId: s
 }
 
 /** 自动建模失败后重新运行（查看页的 Run again 按钮）。 */
-export async function runAgain(projectId: string): Promise<void> {
-    await call<unknown>(`/api/projects/${projectId}/run`, { method: 'POST' });
+export async function runAgain(projectId: string, widthMm?: number | null): Promise<void> {
+    await call<unknown>(`/api/projects/${projectId}/run`, { method: 'POST',
+        ...(widthMm === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ widthMm }) })
+    });
 }
 
 /** 把最新 build 发布为 typology（提交时会自动发布；这是手动补救）。 */
 export async function publish(projectId: string): Promise<void> {
     await call<unknown>(`/api/projects/${projectId}/publish`, { method: 'POST' });
+}
+
+export async function renameProject(projectId: string, name: string): Promise<string> {
+    return (await call<{ name: string }>(`/api/projects/${encodeURIComponent(projectId)}/name`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name })
+    })).name;
 }

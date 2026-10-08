@@ -1,5 +1,4 @@
 /** 状态面板：宽度、版本、LM 提交说明、问题清单。 */
-import { typologyUrl } from '../../scenes/typology/catalog.ts';
 import type { JobState, ProjectSummary } from '../api.ts';
 
 import { el } from './dom.ts';
@@ -10,7 +9,7 @@ export type StatusActions = { runAgain: (projectId: string) => Promise<void>; pu
 
 export function createStatusPanel(host: HTMLElement, actions: StatusActions) {
     const body = el('div', { className: 'status-body' });
-    host.append(el('h2', {}, 'Model status'), body);
+    host.append(el('h2', {}, el('span', {}, '03'), ' Model status'), body);
     return {
         update(summary: ProjectSummary | null) {
             if (!summary) {
@@ -25,13 +24,13 @@ export function createStatusPanel(host: HTMLElement, actions: StatusActions) {
                   : 'Unknown';
             body.replaceChildren(
                 row('Project', summary.id),
-                row('Facade width', widthText),
-                row('Facade side', summary.facadeSide === 'back' ? 'Back (faces the back yard)' : 'Front (faces the front yard)'),
+                row(summary.facadeSide === 'front' ? 'Facade width' : `${summary.facadeSide.charAt(0).toUpperCase() + summary.facadeSide.slice(1)} wall width`, widthText),
+                row('Facade side', summary.facadeSide.charAt(0).toUpperCase() + summary.facadeSide.slice(1)),
                 row('Version', latestBuild ? `v${latestBuild}` : 'Not built yet'),
                 row('Status', statusText(summary)),
                 ...typologyDetails(summary, actions.publish),
                 ...jobDetails(summary, actions.runAgain),
-                ...(status.note ? [el('blockquote', {}, status.note)] : []),
+                ...(status.note ? [el('p', { className: 'model-note' }, status.note)] : []),
                 issues.length
                     ? el('ul', { className: 'issues' }, ...issues.map((issue) => el('li', {}, issue.message)))
                     : el('p', { className: 'muted' }, 'No issues')
@@ -47,7 +46,6 @@ function typologyDetails(summary: ProjectSummary, onPublish: (projectId: string)
         const stale = typology.buildVersion !== latestBuild;
         return [
             row('Typology', `${typology.name} (v${typology.buildVersion})`),
-            el('a', { className: 'primary-link', href: typologyUrl(typology.id) }, 'Open in house viewer →'),
             ...(stale ? [publishButton(summary.id, `Update typology to v${latestBuild}`, onPublish)] : [])
         ];
     }
@@ -76,7 +74,7 @@ const STEP_NAMES: Record<string, string> = {
 };
 
 /** 状态文字：自动建模任务优先，其次是 LM 是否已提交。 */
-function statusText(summary: ProjectSummary): string {
+export function statusText(summary: ProjectSummary): string {
     const job = summary.job;
     if (job?.state === 'queued') return 'Starting the LM…';
     if (job?.state === 'running') {

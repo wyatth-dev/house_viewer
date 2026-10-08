@@ -6,7 +6,9 @@
           "default": "back",
           "enum": [
             "front",
-            "back"
+            "back",
+            "left",
+            "right"
           ],
           "title": "Side",
           "type": "string"
@@ -50,6 +52,44 @@
         "materials"
       ],
       "title": "Facade",
+      "type": "object"
+    },
+    "FacadeInput": {
+      "properties": {
+        "facade": {
+          "$ref": "#/$defs/Facade"
+        },
+        "photos": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Photo"
+          },
+          "title": "Photos",
+          "type": "object"
+        },
+        "measurements": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Measurement"
+          },
+          "title": "Measurements",
+          "type": "object"
+        },
+        "provenance": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ProvenanceEntry"
+          },
+          "title": "Provenance",
+          "type": "object"
+        },
+        "widthSkipped": {
+          "default": false,
+          "title": "Widthskipped",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "facade"
+      ],
+      "title": "FacadeInput",
       "type": "object"
     },
     "Massing": {
@@ -426,6 +466,19 @@
     }
   },
   "properties": {
+    "name": {
+      "anyOf": [
+        {
+          "maxLength": 120,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Name"
+    },
     "schemaVersion": {
       "default": 1,
       "title": "Schemaversion",
@@ -475,6 +528,21 @@
       "default": false,
       "title": "Widthskipped",
       "type": "boolean"
+    },
+    "facadeInputs": {
+      "additionalProperties": {
+        "$ref": "#/$defs/FacadeInput"
+      },
+      "propertyNames": {
+        "enum": [
+          "front",
+          "back",
+          "left",
+          "right"
+        ]
+      },
+      "title": "Facadeinputs",
+      "type": "object"
     },
     "counters": {
       "additionalProperties": {

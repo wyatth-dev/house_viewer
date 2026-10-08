@@ -155,8 +155,9 @@ export function createCameraController(
                 if (target) apply(id, target);
             }
         },
-        fit(nextBounds, size, animate = false, basis) {
-            manuallyChanged = false;
+        fit(nextBounds, size, animate = false, basis, preserveView = false) {
+            const keepView = preserveView && current !== undefined;
+            manuallyChanged = keepView;
             const from = current;
             bounds = structuredClone(nextBounds);
             viewport = { ...size };
@@ -177,13 +178,18 @@ export function createCameraController(
                 frames.set(preset.id, frame);
                 apply(preset.id, frame);
             }
-            const target = frames.get(active)!;
+            const target = keepView && from
+                ? from.projection === 'perspective'
+                    ? fitPerspective(bounds, viewport, from.out, 2 * Math.atan(from.tanHalfFov ?? Math.tan(Math.PI / 8)) * 180 / Math.PI)
+                    : fitOrthographic(bounds, viewport, from.out)
+                : frames.get(active)!;
             if (animate && from && duration > 0) {
                 current = from;
                 transition = { from, to: target, elapsed: 0, containBounds: false };
                 apply(active, from, true);
             } else {
                 current = target;
+                apply(active, target);
             }
             for (const listener of listeners) listener();
         },

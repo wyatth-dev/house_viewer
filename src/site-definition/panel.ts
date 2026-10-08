@@ -1,4 +1,7 @@
-import { listTypologies, typologyUrl } from '../scenes/typology/catalog.ts';
+import { deletePhotoTypology, listTypologies, typologyUrl } from '../scenes/typology/catalog.ts';
+import { getProject, listProjects, fileUrl } from '../photo-intake/api.ts';
+import type { ProjectSummary } from '../photo-intake/api.ts';
+import { statusText } from '../photo-intake/panels/status-panel.ts';
 import type { TypologyEntry } from '../scenes/typology/catalog.ts';
 
 export function createPanel(host: HTMLElement) {
@@ -106,12 +109,21 @@ export function createPanel(host: HTMLElement) {
         photo: host.querySelector<HTMLElement>('#typology-photo')!
     };
     const removeRails = [...host.querySelectorAll<HTMLElement>('.typology-rail')].map(createRail);
+    const photoListeners = new Set<(projectId: string | null) => void>();
+    const openPhoto = (projectId: string | null) => { for (const listener of photoListeners) listener(projectId); };
     const typologyListeners = new Set<(entry: TypologyEntry) => void>();
     let activeTypologyId = '';
     const cards = () => host.querySelectorAll<HTMLAnchorElement>('.typology-card[data-typology]');
     const markActive = () => {
         for (const card of cards()) {
-            if (card.dataset.typology === activeTypologyId) card.setAttribute('aria-current', 'true');
+            if (card.dataset.typology === activeTypologyId) {
+                card.setAttribute('aria-current', 'true');
+                const strip = card.closest<HTMLElement>('.typology-strip');
+                if (strip) strip.scrollTo({
+                    left: Math.max(0, strip.scrollLeft + card.getBoundingClientRect().left - strip.getBoundingClientRect().left - (strip.clientWidth - card.offsetWidth) / 2),
+                    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+                });
+            }
             else card.removeAttribute('aria-current');
         }
     };
@@ -122,21 +134,91 @@ export function createPanel(host: HTMLElement) {
         if (entry.id === activeTypologyId) return;
         for (const listener of typologyListeners) listener(entry);
     };
+    const pending = new Map<string, ProjectSummary>();
+    let catalog: TypologyEntry[] = [];
+    let disposed = false;
+    let projectTimer: ReturnType<typeof setTimeout> | undefined;
+    const previewUrls = new Map<string, string>();
     const renderTypologies = (entries: TypologyEntry[]) => {
+        catalog = entries;
         const card = (entry: TypologyEntry) => {
-            const element = typologyCard(entry);
-            element.addEventListener('click', select(entry));
-            return element;
+            const element = typologyCard({ ...entry, previewUrl: previewUrls.get(entry.id) ?? entry.previewUrl });
+            const job = pending.get(entry.projectId ?? entry.id);
+            element.addEventListener('click', job ? event => { event.preventDefault(); openPhoto(job.id); } : select(entry));
+            if (job) {
+                element.classList.add('generating');
+                element.title = statusText(job);
+                const spinner = document.createElement('span');
+                spinner.className = 'generation-spinner';
+                spinner.setAttribute('aria-label', statusText(job));
+                element.querySelector('.typology-thumb')!.append(spinner);
+            }
+            if (entry.source !== 'photo') return element;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'photo-typology-card';
+            const edit = document.createElement('a');
+            edit.className = 'typology-action edit';
+            edit.href = `/?project=${encodeURIComponent(entry.projectId ?? entry.id)}`;
+            edit.onclick = (event) => { event.preventDefault(); openPhoto(entry.projectId ?? entry.id); };
+            edit.title = 'Edit';
+            edit.setAttribute('aria-label', `Edit ${entry.name}`);
+            edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg>';
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'typology-action delete';
+            remove.title = 'Delete';
+            remove.setAttribute('aria-label', `Delete ${entry.name}`);
+            remove.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';
+            remove.onclick = async () => {
+                remove.disabled = true;
+                try {
+                    await deletePhotoTypology(entry.id);
+                    if (entry.id === activeTypologyId) {
+                        const fallback = entries.find(candidate => candidate.source === 'builtin');
+                        if (fallback) for (const listener of typologyListeners) listener(fallback);
+                    }
+                    entries = entries.filter(candidate => candidate.id !== entry.id);
+                    renderTypologies(entries);
+                } catch (error) {
+                    remove.disabled = false;
+                    window.alert((error as Error).message);
+                }
+            };
+            remove.hidden = Boolean(job);
+            wrapper.append(element, edit, remove);
+            return wrapper;
         };
         strips.builtin.replaceChildren(...entries.filter(({ source }) => source === 'builtin').map(card));
-        strips.photo.replaceChildren(newFromPhotoCard(), ...entries.filter(({ source }) => source === 'photo').map(card));
-        markActive();
+        const add = newFromPhotoCard();
+        add.onclick = (event) => { event.preventDefault(); openPhoto(null); };
+        const photos = entries.filter(({ source }) => source === 'photo').slice().reverse();
+        for (const summary of pending.values()) {
+            if (!photos.some(entry => (entry.projectId ?? entry.id) === summary.id)) photos.unshift({
+                id: summary.id, projectId: summary.id, name: summary.name ?? summary.id, source: 'photo', baseUrl: '',
+                previewUrl: summary.photos[0] ? fileUrl(summary.id, summary.photos[0].file) : null
+            });
+        }
+        photos.sort((a, b) => Number(pending.has(b.projectId ?? b.id)) - Number(pending.has(a.projectId ?? a.id)));
+        strips.photo.replaceChildren(add, ...photos.map(card));
+        if (pending.size) strips.photo.scrollLeft = 0;
+        else markActive();
         for (const strip of Object.values(strips)) {
-            strip.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
             strip.dispatchEvent(new Event('scroll'));
         }
     };
     const loadingTypologies = listTypologies().then(renderTypologies);
+    const pollProjects = async () => {
+        try {
+            const summaries = await Promise.all((await listProjects()).map(getProject));
+            if (disposed) return;
+            const before = [...pending.keys()].join(',');
+            pending.clear();
+            for (const summary of summaries) if (summary.job?.state === 'queued' || summary.job?.state === 'running') pending.set(summary.id, summary);
+            if (before !== [...pending.keys()].join(',')) renderTypologies(await listTypologies());
+        } catch { /* The preset catalogue remains available when the service is offline. */ }
+        if (!disposed) projectTimer = setTimeout(() => void pollProjects(), 2000);
+    };
+    void loadingTypologies.then(() => pollProjects());
     const siteStep = host.querySelector<HTMLElement>('#site-step')!;
     const placementStep = host.querySelector<HTMLElement>('#placement-step')!;
     const next = host.querySelector<HTMLButtonElement>('#placement-next')!;
@@ -176,6 +258,7 @@ export function createPanel(host: HTMLElement) {
         /** Show a thumbnail on a typology's card (e.g. one just rendered). */
         async setTypologyPreview(id: string, url: string) {
             await loadingTypologies;
+            previewUrls.set(id, url);
             for (const card of cards()) {
                 if (card.dataset.typology !== id) continue;
                 const image = card.querySelector<HTMLImageElement>('img')!;
@@ -184,6 +267,12 @@ export function createPanel(host: HTMLElement) {
         },
         setTypologyBusy(busy: boolean) {
             for (const strip of Object.values(strips)) strip.toggleAttribute('aria-busy', busy);
+        },
+        setGenerating(summary: ProjectSummary) { pending.set(summary.id, summary); renderTypologies(catalog); },
+        async refreshTypologies() { renderTypologies(await listTypologies()); },
+        onPhotoIntake(listener: (projectId: string | null) => void) {
+            photoListeners.add(listener);
+            return () => { photoListeners.delete(listener); };
         },
         onSelectTypology(listener: (entry: TypologyEntry) => void) {
             typologyListeners.add(listener);
@@ -201,10 +290,13 @@ export function createPanel(host: HTMLElement) {
             for (const fieldset of host.querySelectorAll('fieldset')) fieldset.disabled = false;
         },
         destroy() {
+            disposed = true;
+            if (projectTimer) clearTimeout(projectTimer);
             next.removeEventListener('click', goNext);
             back.removeEventListener('click', goBack);
             stepListeners.clear();
             typologyListeners.clear();
+            photoListeners.clear();
             for (const remove of removeRails) remove();
             host.replaceChildren();
         }
@@ -240,7 +332,7 @@ function typologyCard(entry: TypologyEntry) {
 function newFromPhotoCard() {
     const card = document.createElement('a');
     card.className = 'typology-card typology-new';
-    card.href = '/intake.html';
+    card.href = '/?photo=new';
     card.innerHTML = '<span class="typology-thumb"><span aria-hidden="true">+</span></span><span class="typology-name">New from photo</span>';
     return card;
 }

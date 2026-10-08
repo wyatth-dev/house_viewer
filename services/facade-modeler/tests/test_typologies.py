@@ -127,7 +127,12 @@ def test_upload_sets_facade_side(ctx):
     assert client.get(f"/api/projects/{pid}").json()["result"]["facadeSide"] == "front"
     pid = client.post("/api/uploads", files=files).json()["result"]["projectId"]
     assert client.get(f"/api/projects/{pid}").json()["result"]["facadeSide"] == "back"
-    assert client.post("/api/uploads", data={"facadeSide": "left"}, files=files).status_code == 400
+    for side in ("left", "right"):
+        reply = client.post("/api/uploads", data={"facadeSide": side}, files=files)
+        assert reply.status_code == 200
+        project_id = reply.json()["result"]["projectId"]
+        assert client.get(f"/api/projects/{project_id}").json()["result"]["facadeSide"] == side
+    assert client.post("/api/uploads", data={"facadeSide": "unknown"}, files=files).status_code == 400
 
 
 def test_preview_is_stored_and_dropped_on_republish(ctx):
@@ -145,3 +150,31 @@ def test_preview_is_stored_and_dropped_on_republish(ctx):
     [row] = client.get("/api/typologies").json()["result"]["typologies"]
     assert "preview" not in row
     assert client.get(f"/data/typologies/{project.id}/preview.png").status_code == 404
+
+
+def test_edit_upload_preserves_other_facade_inputs(ctx):
+    from helpers import jpeg_bytes
+    client = TestClient(create_app(ctx, viewer_dist=None))
+    files = [("files", ("a.jpg", jpeg_bytes(), "image/jpeg"))]
+    project = built_project(ctx)
+    previous = project.load_spec()
+    old_ids = set(previous.photos)
+    for side in ("front", "left", "right"):
+        response = client.post("/api/uploads", data={"projectId": project.id, "facadeSide": side}, files=files)
+        assert response.status_code == 200
+        spec = project.load_spec()
+        assert spec.facade.side == side
+        assert len(spec.photos) == 1
+        assert next(iter(spec.photos.values())).primary
+        assert not (set(spec.photos) & old_ids)
+        assert not spec.measurements and not spec.facade.openings
+        assert set(previous.photos) <= set(spec.facade_inputs["back"].photos)
+        old_ids |= set(spec.photos)
+        spec.facade.width_mm = 6000
+        project.save_spec(spec)
+        assert run_build(project, CATALOG, DEFAULTS).version is not None
+        ctx.typologies.publish(project, CATALOG, DEFAULTS)
+        manifest = json.loads((ctx.typologies.directory(project.id) / "scene.json").read_text())
+        face = manifest["installationFaces"][0]
+        assert face["side"] == side
+        assert face["outwardUnit"] == {"front": {"x": 0, "z": 1}, "back": {"x": 0, "z": -1}, "left": {"x": -1, "z": 0}, "right": {"x": 1, "z": 0}}[side]

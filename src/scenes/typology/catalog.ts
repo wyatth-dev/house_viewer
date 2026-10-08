@@ -12,6 +12,8 @@ export type TypologyEntry = {
     id: string;
     name: string;
     source: TypologySource;
+    projectId?: string;
+    buildVersion?: number;
     baseUrl: string;
     /** Stored thumbnail, or null when it has not been rendered yet (photo typologies, until first opened). */
     previewUrl: string | null;
@@ -19,7 +21,7 @@ export type TypologyEntry = {
 
 export const TYPOLOGY_PARAM = 'typology';
 
-type ApiRow = { id: string; name: string; baseUrl: string; buildVersion: number; preview?: string };
+type ApiRow = { projectId?: string; id: string; name: string; baseUrl: string; buildVersion: number; preview?: string };
 type ApiReply = { ok: boolean; result: { typologies: ApiRow[] } };
 
 /** Preset thumbnails are static files next to each preset scene.json. */
@@ -44,7 +46,9 @@ export async function listTypologies(): Promise<TypologyEntry[]> {
             ...presets,
             ...photos
                 .filter(({ id }) => !presets.some((preset) => preset.id === id))
-                .map(({ id, name, baseUrl, buildVersion, preview }) => ({
+                .map(({ id, name, baseUrl, buildVersion, preview, projectId }) => ({
+                    projectId,
+                    buildVersion,
                     id,
                     name,
                     source: 'photo' as const,
@@ -96,14 +100,19 @@ export async function resolveActiveTypology(
 
 /**
  * Give a freshly rendered thumbnail to the service. Preset thumbnails are static files,
- * so only photo typologies without a stored one are sent. Returns the new preview URL.
+ * so only photo typologies are updated. Returns the new preview URL.
  */
 export async function storePreview(entry: TypologyEntry, png: Blob | undefined): Promise<string | null> {
-    if (entry.source !== 'photo' || entry.previewUrl || !png) return entry.previewUrl;
+    if (entry.source !== 'photo' || !png) return entry.previewUrl;
     const response = await fetch(`/api/typologies/${encodeURIComponent(entry.id)}/preview`, {
         method: 'PUT',
         headers: { 'Content-Type': 'image/png' },
         body: png
     }).catch(() => undefined);
     return response?.ok ? `${entry.baseUrl}preview.png?t=${Date.now()}` : null;
+}
+
+export async function deletePhotoTypology(id: string): Promise<void> {
+    const response = await fetch(`/api/typologies/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!response.ok) throw new Error('Could not delete this photo model. Please try again.');
 }

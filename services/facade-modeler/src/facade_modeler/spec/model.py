@@ -16,7 +16,7 @@ SCHEMA_VERSION = 1
 RoofType = Literal["gable", "hip", "mono", "flat"]
 RidgeDirection = Literal["parallel", "perpendicular"]
 ProvenanceSource = Literal["user", "photo-measured", "photo-estimate", "default"]
-FacadeSide = Literal["front", "back"]  # 照片拍的是房子的哪一面；决定发布后立面在 house-viewer 里的朝向
+FacadeSide = Literal["front", "back", "left", "right"]  # 照片拍的是房子的哪一面；决定发布后立面在 house-viewer 里的朝向
 
 
 class SpecModel(BaseModel):
@@ -101,7 +101,16 @@ class ProvenanceEntry(SpecModel):
     measurement: Optional[str] = None
 
 
+class FacadeInput(SpecModel):
+    facade: Facade
+    photos: dict[str, Photo] = Field(default_factory=dict)
+    measurements: dict[str, Measurement] = Field(default_factory=dict)
+    provenance: dict[str, ProvenanceEntry] = Field(default_factory=dict)
+    width_skipped: bool = False
+
+
 class HouseSpec(SpecModel):
+    name: Optional[str] = Field(default=None, max_length=120)
     schema_version: int = SCHEMA_VERSION
     id: str
     units: Literal["mm"] = "mm"
@@ -112,6 +121,7 @@ class HouseSpec(SpecModel):
     measurements: dict[str, Measurement] = Field(default_factory=dict)
     provenance: dict[str, ProvenanceEntry] = Field(default_factory=dict)
     width_skipped: bool = False  # 用户上传时没有填写宽度
+    facade_inputs: dict[FacadeSide, FacadeInput] = Field(default_factory=dict)
     counters: dict[str, int] = Field(default_factory=dict)  # 稳定 ID 计数器
 
     @classmethod

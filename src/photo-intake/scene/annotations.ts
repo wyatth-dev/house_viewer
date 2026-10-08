@@ -19,6 +19,7 @@ export function createAnnotations(app: AppBase, host: HTMLElement) {
     let showOpenings = true;
     const apply = () => overlay.update(items.filter((item) => showOpenings || item.group === 'overall'));
     return {
+        setVisible: overlay.setVisible,
         set(next: Annotation[]) {
             items = next;
             apply();

@@ -7,7 +7,8 @@ export function createSceneCoordinator(
     camera: CameraController,
     /** House bounds, or a getter when the house can be replaced (typology switch). */
     houseBounds: Bounds3 | (() => Bounds3),
-    contextBounds?: () => Bounds3
+    contextBounds?: () => Bounds3,
+    preserveView: () => boolean = () => false
 ) {
     let viewport: Viewport = { width: 1, height: 1 };
     const refresh = () => site.refreshLabels(camera.project);
@@ -32,7 +33,7 @@ export function createSceneCoordinator(
                 bounds.min[axis] = Math.min(bounds.min[axis], context.min[axis]);
                 bounds.max[axis] = Math.max(bounds.max[axis], context.max[axis]);
             }
-        camera.fit(bounds, viewport, animate);
+        camera.fit(bounds, viewport, animate, undefined, preserveView());
         refresh();
     };
     return {

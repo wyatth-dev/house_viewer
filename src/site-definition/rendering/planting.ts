@@ -133,7 +133,6 @@ export function createPlanting(app: AppBase) {
     const originalShadows = new WeakMap<Entity, boolean>();
     const originalOpacities = new WeakMap<StandardMaterial, number>();
     let treeOpacity = 1;
-    let whiteMode = false;
     let treesVisible = true;
     let hedgeVisible = false;
     let hedgeOpacity = 0;
@@ -173,7 +172,7 @@ export function createPlanting(app: AppBase) {
         }
     };
     const animateTrees = (dt: number) => {
-        const target = !whiteMode && treesVisible ? 1 : 0;
+        const target = treesVisible ? 1 : 0;
         treeOpacity += Math.sign(target - treeOpacity) * Math.min(Math.abs(target - treeOpacity), dt / 0.4);
         applyMode();
         if (treeOpacity === target) app.off('update', animateTrees);
@@ -314,15 +313,15 @@ export function createPlanting(app: AppBase) {
         setTreesVisible(value: boolean) {
             treesVisible = value;
             app.off('update', animateTrees);
-            const target = !whiteMode && treesVisible ? 1 : 0;
+            const target = treesVisible ? 1 : 0;
             if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) treeOpacity = target;
             animateTrees(0);
             if (treeOpacity !== target) app.on('update', animateTrees);
         },
         setWhiteMode(value: boolean) {
-            whiteMode = value;
+            if (value) treesVisible = false;
             app.off('update', animateTrees);
-            const target = !whiteMode && treesVisible ? 1 : 0;
+            const target = treesVisible ? 1 : 0;
             if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) treeOpacity = target;
             animateTrees(0);
             if (treeOpacity !== target) app.on('update', animateTrees);

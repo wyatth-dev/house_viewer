@@ -1,5 +1,6 @@
 import {
     AppBase,
+    Entity,
     AppOptions,
     CameraComponentSystem,
     ContainerHandler,
@@ -11,6 +12,13 @@ import {
     createGraphicsDevice
 } from 'playcanvas';
 
+import { createAnnotations } from '../photo-intake/scene/annotations.ts';
+import type { Annotation } from '../photo-intake/scene/annotations.ts';
+import type { ProjectSummary } from '../photo-intake/api.ts';
+import { fileUrl, getProject, publish, renameProject, runAgain } from '../photo-intake/api.ts';
+import { createUploadPanel } from '../photo-intake/panels/upload-panel.ts';
+import { statusText, createStatusPanel } from '../photo-intake/panels/status-panel.ts';
+import { createPhotosPanel } from '../photo-intake/panels/photos-panel.ts';
 import { createPlacementController } from '../product-placement/controller.ts';
 import { fadeHouseModel } from '../scene/house/fade.ts';
 import type { HouseRepresentation } from '../scene/house/house-config.ts';
@@ -19,8 +27,10 @@ import { houseRepresentationIcon } from '../scene/house/representation-icon.ts';
 import { createModelPreview } from '../scene/model-preview/index.ts';
 import { loadTypology, storePreview, typologyUrl } from '../scenes/typology/catalog.ts';
 import type { TypologyEntry } from '../scenes/typology/catalog.ts';
-import { activeTypology, setActiveTypology } from '../scenes/typology/index.ts';
+import { activeTypology, parseTypology, setActiveTypology } from '../scenes/typology/index.ts';
+import type { Typology, TypologyManifest } from '../scenes/typology/index.ts';
 import { createCameraController, createCameraControls, createOrbitControls } from '../shared/camera/index.ts';
+import { createProductAssetStore } from '../shared/assets/containers.ts';
 import { createLifetime } from '../shared/lifetime.ts';
 
 import { cameraPresets } from './camera-presets.ts';
@@ -70,11 +80,17 @@ export function startSiteDefinition(initial: TypologyEntry) {
     treeToggle.textContent = 'Trees · On';
     treeToggle.setAttribute('aria-label', 'Toggle trees');
     treeToggle.setAttribute('aria-pressed', 'true');
+    const dimensionToggle = document.createElement('button');
+    dimensionToggle.type = 'button';
+    dimensionToggle.className = 'hedge-toggle';
+    dimensionToggle.textContent = 'Dimensions · On';
+    dimensionToggle.setAttribute('aria-pressed', 'true');
+    dimensionToggle.setAttribute('aria-label', 'Toggle dimensions');
     const landscapeControls = document.createElement('div');
     landscapeControls.className = 'landscape-controls';
     landscapeControls.setAttribute('role', 'group');
     landscapeControls.setAttribute('aria-label', 'Landscape visibility');
-    landscapeControls.append(hedgeToggle, treeToggle);
+    landscapeControls.append(hedgeToggle, treeToggle, dimensionToggle);
     viewport.append(landscapeControls);
     lifetime.add(() => landscapeControls.remove());
     viewport.append(renderModes);
@@ -112,6 +128,11 @@ export function startSiteDefinition(initial: TypologyEntry) {
                 await house.setRepresentation(mode, true);
                 if (isDisposed()) return;
                 rendering.setGrassVisible(mode !== 'white');
+                if (mode === 'white') {
+                    treesVisible = false;
+                    rendering.setTreesVisible(false);
+                } else rendering.setTreesVisible(treesVisible);
+                syncTreeToggle();
                 for (const [id, candidate] of modeButtons)
                     candidate.setAttribute('aria-pressed', String(id === mode));
             });
@@ -155,11 +176,15 @@ export function startSiteDefinition(initial: TypologyEntry) {
         };
         lifetime.add(() => { hedgeToggle.onclick = null; });
         let treesVisible = true;
+        const syncTreeToggle = () => {
+            const visible = treesVisible;
+            treeToggle.setAttribute('aria-pressed', String(visible));
+            treeToggle.textContent = visible ? 'Trees · On' : 'Trees · Off';
+        };
         treeToggle.onclick = () => {
             treesVisible = !treesVisible;
             rendering.setTreesVisible(treesVisible);
-            treeToggle.setAttribute('aria-pressed', String(treesVisible));
-            treeToggle.textContent = treesVisible ? 'Trees · On' : 'Trees · Off';
+            syncTreeToggle();
         };
         lifetime.add(() => { treeToggle.onclick = null; });
         let editSnapshot: { mode: HouseRepresentation; trees: boolean; fence: boolean } | undefined;
@@ -168,8 +193,7 @@ export function startSiteDefinition(initial: TypologyEntry) {
             hedgeVisible = fence;
             rendering.setTreesVisible(trees);
             rendering.setHedgeVisible(fence);
-            treeToggle.setAttribute('aria-pressed', String(trees));
-            treeToggle.textContent = trees ? 'Trees · On' : 'Trees · Off';
+            syncTreeToggle();
             hedgeToggle.setAttribute('aria-pressed', String(fence));
             hedgeToggle.textContent = fence ? 'Fence · On' : 'Fence · Off';
         };
@@ -200,6 +224,7 @@ export function startSiteDefinition(initial: TypologyEntry) {
         lifetime.add(() => site.destroy());
 
         let contextVisible = true;
+        let photoModelPending = false;
         const updateHouseVisibility = () => {
             const activeCamera = app.root.findComponents('camera').find((component) => component.entity.enabled);
             const position = activeCamera?.entity.getPosition();
@@ -212,7 +237,27 @@ export function startSiteDefinition(initial: TypologyEntry) {
                 position.y <= max.y &&
                 position.z >= min.z &&
                 position.z <= max.z;
-            house.entity.enabled = contextVisible && !inside;
+            house.entity.enabled = contextVisible && !inside && !photoModelPending;
+        };
+        let visibilityChanges = Promise.resolve();
+        const setHouseVisible = (visible: boolean, model = house, valid: () => boolean = () => true) => {
+            visibilityChanges = visibilityChanges.catch(() => {}).then(async () => {
+                if (isDisposed() || !valid()) return;
+                const wasVisible = model.entity.enabled;
+                const animate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                if (visible) {
+                    if (model === house) { photoModelPending = false; updateHouseVisibility(); }
+                    else model.entity.enabled = true;
+                    if (!wasVisible && model.entity.enabled && animate)
+                        await fadeHouseModel(app, model.entity, 0, 1, lifetime.signal);
+                } else {
+                    if (wasVisible && animate) await fadeHouseModel(app, model.entity, 1, 0, lifetime.signal);
+                    if (isDisposed() || !valid()) return;
+                    if (model === house) photoModelPending = true;
+                    model.entity.enabled = false;
+                }
+            });
+            return visibilityChanges;
         };
         lifetime.add(camera.onMove(updateHouseVisibility));
 
@@ -250,8 +295,9 @@ export function startSiteDefinition(initial: TypologyEntry) {
         lifetime.add(camera.onMove(() => placement.refreshLabels()));
         lifetime.add(
             panel.onStepChange((step) => {
+                preserveSiteView = step === 'site';
                 placement.setPlacementActive(step === 'placement');
-                site.setMeasurementsVisible(step === 'site');
+                site.setMeasurementsVisible(step === 'site' && dimensionsVisible);
                 coordinator.resize({ width: viewport.clientWidth, height: viewport.clientHeight }, true);
                 site.refreshLabels(camera.project);
                 document.title =
@@ -272,7 +318,8 @@ export function startSiteDefinition(initial: TypologyEntry) {
         updateSiteContext();
 
         // Coordination: scene bounds and camera policy stay outside product rendering.
-        const coordinator = createSceneCoordinator(site, camera, () => house.bounds, () => site.getBounds());
+        let preserveSiteView = true;
+        const coordinator = createSceneCoordinator(site, camera, () => house.bounds, () => site.getBounds(), () => preserveSiteView);
         lifetime.add(camera.onMove(coordinator.refresh));
         // Controls: site dimensions and camera presets
         const dimensionControls = createSiteControls(
@@ -328,25 +375,41 @@ export function startSiteDefinition(initial: TypologyEntry) {
         dimensionControls.update(site.getLayout());
         viewControls.update(camera.getState().activePresetId);
         resize();
-        // Thumbnail: independent from the interactive scene camera. Photo typologies are seen
-        // from their modelled facade (often the back), presets from the front.
-        let preview: ReturnType<typeof createModelPreview> | undefined;
-        lifetime.add(() => preview?.destroy());
+        // Thumbnail models and image URLs live independently of the interactive house.
+        const previewAssets = createProductAssetStore(app, lifetime.signal);
+        const previews = new Map<string, ReturnType<typeof createModelPreview>>();
+        const previewRequests = new Map<string, number>();
+        lifetime.add(() => { for (const preview of previews.values()) preview.destroy(); previewAssets.destroy(); });
         const renderPreview = (entry: TypologyEntry) => {
             const typology = activeTypology();
-            const outward = typology.source === 'photo' ? (typology.installationFaces[0]?.outwardUnit.z ?? 1) : 1;
-            preview?.destroy();
-            const current = createModelPreview(app, house.entity, house.bounds, {
-                direction: { x: outward, y: 1, z: outward }
-            });
-            preview = current;
-            void current.ready
-                .then(async (url) => {
-                    if (isDisposed() || !url) return;
-                    if (!entry.previewUrl) void panel.setTypologyPreview(entry.id, url);
-                    await storePreview(entry, current.blob());
-                })
-                .catch((error) => console.warn('Model preview could not be generated', error));
+            const bounds = structuredClone(house.bounds);
+            const request = (previewRequests.get(entry.id) ?? 0) + 1;
+            previewRequests.set(entry.id, request);
+            void (async () => {
+                const url = `${entry.baseUrl}${typology.representations.render.model}`;
+                const resource = await previewAssets.load(`${url}${url.includes('?') ? '&' : '?'}thumbnail=${entry.buildVersion ?? 1}`);
+                if (isDisposed() || previewRequests.get(entry.id) !== request) return;
+                const model = resource.instantiateRenderEntity();
+                const { sourceFootprint: footprint, groundY } = typology.calibration;
+                model.setPosition(-(footprint.minX + footprint.maxX) / 2, -groundY, -(footprint.minZ + footprint.maxZ) / 2);
+                model.forEach(node => { if (node instanceof Entity && node.render) node.render.layers = []; });
+                app.root.addChild(model);
+                let current: ReturnType<typeof createModelPreview> | undefined;
+                try {
+                    current = createModelPreview(app, model, bounds);
+                    const imageUrl = await current.ready;
+                    if (isDisposed() || previewRequests.get(entry.id) !== request || !imageUrl) { current.destroy(); return; }
+                    const previous = previews.get(entry.id);
+                    previews.set(entry.id, current);
+                    if (entry.source === 'photo' || !entry.previewUrl) await panel.setTypologyPreview(entry.id, imageUrl);
+                    previous?.destroy();
+                    const stored = await storePreview(entry, current.blob());
+                    if (stored && !isDisposed() && previews.get(entry.id) === current) await panel.setTypologyPreview(entry.id, stored);
+                } catch (error) {
+                    if (current && previews.get(entry.id) !== current) current.destroy();
+                    throw error;
+                } finally { model.destroy(); }
+            })().catch(error => console.warn('Model preview could not be generated', error));
         };
         panel.setActiveTypology(initial.id);
         renderPreview(initial);
@@ -355,16 +418,16 @@ export function startSiteDefinition(initial: TypologyEntry) {
         // installation walls, placed products). App, camera, lighting, landscape and yard
         // dimensions are kept.
         let switching = Promise.resolve();
-        const switchTypology = (entry: TypologyEntry, pushHistory = true) => {
+        const switchTypology = (entry: TypologyEntry, pushHistory = true, supplied?: Typology) => {
             switching = switching.then(async () => {
-                if (isDisposed() || entry.id === activeTypology().id) return;
+                if (isDisposed() || (entry.id === activeTypology().id && !supplied)) return;
                 panel.setTypologyBusy(true);
                 panel.setActiveTypology(entry.id);
                 status.textContent = `Loading ${entry.name}…`;
                 status.hidden = false;
                 const previous = activeTypology();
                 try {
-                    const { typology } = await loadTypology(entry.id);
+                    const typology = supplied ?? (await loadTypology(entry.id)).typology;
                     setActiveTypology(typology);
                     const next = await loadHouse(app, lifetime.signal);
                     next.entity.enabled = false; // hidden until its representation is ready
@@ -379,10 +442,10 @@ export function startSiteDefinition(initial: TypologyEntry) {
                         return;
                     }
                     // Same fade as representation changes: old house out, new house in.
-                    const fade = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
                     const old = house;
-                    if (fade) await fadeHouseModel(app, old.entity, 1, 0, lifetime.signal);
+                    await setHouseVisible(false, old);
                     house = next;
+                    photoModelPending = false;
                     old.destroy();
                     placement.destroy();
                     placement = createPlacement();
@@ -392,8 +455,10 @@ export function startSiteDefinition(initial: TypologyEntry) {
                     updateSiteContext();
                     updateHouseVisibility();
                     coordinator.resize({ width: viewport.clientWidth, height: viewport.clientHeight }, true);
-                    if (fade && house.entity.enabled) await fadeHouseModel(app, house.entity, 0, 1, lifetime.signal);
-                    renderPreview(entry);
+                    // Refit while hidden, then reveal through the shared transition.
+                    house.entity.enabled = false;
+                    await setHouseVisible(true);
+                    if (!supplied) renderPreview(entry);
                     if (pushHistory) window.history.pushState({ typology: entry.id }, '', typologyUrl(entry.id));
                     status.hidden = true;
                 } catch (error) {
@@ -408,6 +473,259 @@ export function startSiteDefinition(initial: TypologyEntry) {
             });
             return switching;
         };
+        const intake = document.createElement('div');
+        intake.className = 'embedded-intake';
+        intake.hidden = true;
+        const back = document.createElement('button');
+        back.type = 'button';
+        back.className = 'product-edit-back';
+        back.textContent = '← Back to site setup';
+        back.hidden = true;
+        const navigation = document.querySelector('#product-edit-exit')!;
+        navigation.before(back);
+        const uploadHost = document.createElement('section');
+        const statusHost = document.createElement('section');
+        const photosHost = document.createElement('section');
+        intake.append(uploadHost, photosHost, statusHost);
+        document.querySelector('#panel')!.append(intake);
+        const siteStep = document.querySelector<HTMLElement>('#site-step')!;
+        const annotationHost = document.createElement('div');
+        annotationHost.className = 'photo-dimensions';
+        viewport.append(annotationHost);
+        const photoAnnotations = createAnnotations(app, annotationHost);
+        lifetime.add(() => { photoAnnotations.destroy(); annotationHost.remove(); });
+        lifetime.add(camera.onMove(() => photoAnnotations.refresh(camera.project)));
+        let dimensionsVisible = true;
+        const updateDimensions = () => {
+            site.setMeasurementsVisible(preserveSiteView && dimensionsVisible);
+            annotationHost.hidden = intake.hidden || !dimensionsVisible;
+            photoAnnotations.setVisible(!annotationHost.hidden);
+            photoAnnotations.refresh(camera.project);
+        };
+        annotationHost.hidden = true;
+        dimensionToggle.onclick = () => {
+            dimensionsVisible = !dimensionsVisible;
+            dimensionToggle.textContent = dimensionsVisible ? 'Dimensions · On' : 'Dimensions · Off';
+            dimensionToggle.setAttribute('aria-pressed', String(dimensionsVisible));
+            updateDimensions();
+        };
+        lifetime.add(() => { dimensionToggle.onclick = null; });
+        let projectId: string | null = null;
+        let session = 0;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let shownBuild = '';
+        let annotationBuild = '';
+        let selectedPhoto: string | null = null;
+        let localPhotoSelected = false;
+        let photoSummary: ProjectSummary | null = null;
+        let generationPending = false;
+        let generationVersion = 0;
+        const generationOverlay = document.createElement('div');
+        generationOverlay.className = 'generation-overlay';
+        generationOverlay.hidden = true;
+        generationOverlay.innerHTML = '<span class="generation-spinner" aria-hidden="true"></span><p role="status">Starting modelling…</p>';
+        viewport.append(generationOverlay);
+        const showGeneration = (text: string | null) => {
+            generationOverlay.hidden = text === null;
+            viewport.classList.toggle('is-generating', text !== null);
+            if (text) generationOverlay.querySelector('p')!.textContent = text;
+        };
+        lifetime.add(() => { generationOverlay.remove(); viewport.classList.remove('is-generating'); });
+        const heading = document.querySelector<HTMLElement>('.panel-heading')!;
+        const title = document.querySelector<HTMLElement>('#step-title')!;
+        let originalTitle = title.innerHTML;
+        const rename = document.createElement('button');
+        rename.type = 'button';
+        rename.className = 'model-name-edit';
+        rename.title = 'Rename model';
+        rename.setAttribute('aria-label', 'Rename model');
+        rename.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg>';
+        rename.hidden = true;
+        heading.append(rename);
+        lifetime.add(() => rename.remove());
+        rename.onclick = () => {
+            if (title.querySelector('input')) return;
+            const id = projectId;
+            const previous = title.textContent ?? 'New house';
+            const input = document.createElement('input');
+            input.className = 'model-name-input';
+            input.value = previous;
+            input.maxLength = 120;
+            input.setAttribute('aria-label', 'Model name');
+            title.replaceChildren(input);
+            input.focus(); input.select();
+            let finished = false;
+            const save = async () => {
+                if (finished) return;
+                finished = true;
+                const name = input.value.trim();
+                title.textContent = previous;
+                if (!name || name === previous) return;
+                if (!id) { title.textContent = name; return; }
+                try {
+                    const savedName = await renameProject(id, name);
+                    if (projectId === id && !intake.hidden) title.textContent = savedName;
+                    await panel.refreshTypologies();
+                } catch (error) { status.textContent = (error as Error).message; status.hidden = false; }
+            };
+            input.onblur = () => { void save(); };
+            input.onkeydown = event => {
+                if (event.key === 'Enter') { event.preventDefault(); void save(); }
+                if (event.key === 'Escape') { finished = true; title.textContent = previous; }
+            };
+        };
+        const photosPanel = createPhotosPanel(photosHost);
+        lifetime.add(() => photosPanel.destroy());
+        const statusPanel = createStatusPanel(statusHost, {
+            runAgain: async id => { await runAgain(id); await refreshPhoto(session); },
+            publish: async id => { await publish(id); await refreshPhoto(session); }
+        });
+        const uploadPanel = createUploadPanel(uploadHost, id => {
+            generationPending = true;
+            showGeneration('Starting modelling…');
+            if (id) panel.setGenerating({ ...photoSummary, id, name: title.textContent ?? 'New house', photos: photoSummary?.photos ?? [], job: { state: 'queued', run: 0 } } as ProjectSummary);
+            generationVersion = photoSummary?.latestBuild ?? 0;
+            localPhotoSelected = false;
+            if (projectId !== id) shownBuild = '';
+            projectId = id;
+            session++;
+            if (timer) clearTimeout(timer);
+            void pollPhoto(session);
+        }, (id, originalUrl) => {
+            selectedPhoto = id;
+            localPhotoSelected = Boolean(originalUrl);
+            if (originalUrl) { photosPanel.showOriginal(originalUrl); return; }
+            photosPanel.update(projectId, (photoSummary?.facadePhotos ? Object.values(photoSummary.facadePhotos).flat() : photoSummary?.photos) ?? [], selectedPhoto);
+        }, () => title.querySelector('input')?.value ?? title.textContent ?? 'New house');
+        lifetime.add(() => uploadPanel.destroy());
+        const refreshPhoto = async (token: number) => {
+            const id = projectId;
+            const summary = id ? await getProject(id) : null;
+            if (token !== session || intake.hidden || isDisposed()) return;
+            const busy = summary?.job?.state === 'queued' || summary?.job?.state === 'running';
+            showGeneration(busy ? statusText(summary!) : null);
+            if (busy) panel.setGenerating(summary!);
+            if (generationPending && summary) {
+                uploadPanel.updateProject(summary, false);
+                if (summary.job?.state === 'failed') { statusPanel.update(summary); return; }
+                if ((summary.latestBuild ?? 0) <= generationVersion || summary.job?.state === 'running' || summary.job?.state === 'queued'
+                    || summary.typology?.buildVersion !== summary.latestBuild) return;
+                generationPending = false;
+                selectedPhoto = null;
+            }
+            photoSummary = summary;
+            if (summary && !title.querySelector('input')) {
+                title.textContent = summary.name ?? summary.typology?.name ?? summary.id;
+                rename.hidden = false;
+            }
+            statusPanel.update(summary);
+            uploadPanel.updateProject(summary);
+            if (!localPhotoSelected) photosPanel.update(id, (summary?.facadePhotos ? Object.values(summary.facadePhotos).flat() : summary?.photos) ?? [], selectedPhoto);
+            if (!summary?.buildDir) return;
+            const key = `${id}/${summary.buildDir}/${summary.typology?.buildVersion ?? ''}`;
+            if (key !== shownBuild) {
+            if (summary.typology && summary.typology.buildVersion === summary.latestBuild) {
+                const loaded = await loadTypology(summary.typology.id);
+                if (token !== session) return;
+                await switchTypology(loaded.entry, false, loaded.typology);
+                await panel.refreshTypologies();
+                renderPreview(loaded.entry);
+            } else {
+                const baseUrl = `${fileUrl(id!, summary.buildDir)}/`;
+                const response = await fetch(`${baseUrl}scene.json`);
+                if (!response.ok) throw new Error('Could not load the photo model preview.');
+                const manifest = await response.json() as TypologyManifest;
+                if (token !== session) return;
+                const typology = parseTypology(manifest, baseUrl, 'photo');
+                await switchTypology({ id: typology.id, name: typology.name, source: 'photo', baseUrl, previewUrl: null }, false, typology);
+            }
+            }
+            if (token !== session) return;
+            const annotationUrl = `${activeTypology().baseUrl}annotations.json`;
+            const annotationKey = `${annotationUrl}/${key}`;
+            if (annotationBuild === annotationKey) return;
+            const response = await fetch(annotationUrl);
+            if (!response.ok) { shownBuild = key; annotationBuild = annotationKey; return; }
+            const items = await response.json() as Annotation[];
+            if (token !== session) return;
+            const calibration = activeTypology().calibration;
+            const footprint = calibration.sourceFootprint;
+            const transform = (point: Annotation['start']) => ({
+                x: point.x - (footprint.minX + footprint.maxX) / 2,
+                y: point.y - calibration.groundY,
+                z: point.z - (footprint.minZ + footprint.maxZ) / 2
+            });
+            photoAnnotations.set(items.map(item => ({ ...item, start: transform(item.start), end: transform(item.end) })));
+            updateDimensions();
+            shownBuild = key;
+            annotationBuild = annotationKey;
+        };
+        const pollPhoto = async (token: number) => {
+            try { await refreshPhoto(token); }
+            catch (error) { if (token === session) { status.textContent = (error as Error).message; status.hidden = false; } }
+            if (token === session && !intake.hidden && !isDisposed()) timer = setTimeout(() => void pollPhoto(token), 2000);
+        };
+        const closePhoto = async (id?: string) => {
+            session++;
+            if (timer) clearTimeout(timer);
+            intake.hidden = true;
+            showGeneration(null);
+            rename.hidden = true;
+            title.innerHTML = originalTitle;
+            back.hidden = true;
+            siteStep.hidden = false;
+            photoAnnotations.set([]);
+            updateDimensions();
+            status.hidden = true;
+            await switching;
+            await setHouseVisible(true);
+            if (id && id !== activeTypology().id) {
+                const loaded = await loadTypology(id);
+                await switchTypology(loaded.entry, false);
+            }
+            window.history.replaceState(null, '', typologyUrl(activeTypology().id));
+        };
+        back.onclick = () => { void closePhoto().catch(error => { status.textContent = (error as Error).message; status.hidden = false; }); };
+        const openPhoto = async (id: string | null) => {
+            if (intake.hidden) originalTitle = title.innerHTML;
+            rename.hidden = false;
+            if (id === null) title.textContent = 'New house';
+            session++;
+            if (timer) clearTimeout(timer);
+            const token = session;
+            projectId = id;
+            shownBuild = '';
+            annotationBuild = '';
+            siteStep.hidden = true;
+            intake.hidden = false;
+            back.hidden = false;
+            photoAnnotations.set([]);
+            updateDimensions();
+            if (id === null) {
+                await setHouseVisible(false, house, () => token === session);
+                if (token !== session || isDisposed()) return;
+            }
+            selectedPhoto = null;
+            localPhotoSelected = false;
+            photoSummary = null;
+            generationPending = false;
+            uploadPanel.setProject(id);
+            if (id) {
+                const summary = await getProject(id);
+                if (token !== session) return;
+                title.textContent = summary.name ?? summary.typology?.name ?? id;
+                uploadPanel.setProjectDetails(summary.facadeSide, summary.width.widthMm);
+                if (summary.buildDir) shownBuild = `${id}/${summary.buildDir}/${summary.typology?.buildVersion ?? ''}`;
+            } else uploadPanel.setProjectDetails('back', null);
+            void pollPhoto(token);
+        };
+        lifetime.add(panel.onPhotoIntake(id => {
+            void openPhoto(id).catch(error => { status.textContent = (error as Error).message; status.hidden = false; });
+        }));
+        lifetime.add(() => { session++; if (timer) clearTimeout(timer); back.remove(); intake.remove(); });
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('project') || params.get('photo') === 'new') void openPhoto(params.get('project'));
+
         lifetime.add(panel.onSelectTypology((entry) => void switchTypology(entry)));
         const onHistory = () => {
             const id = new URLSearchParams(window.location.search).get('typology') ?? initial.id;

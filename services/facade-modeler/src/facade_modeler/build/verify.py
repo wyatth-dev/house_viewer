@@ -37,7 +37,9 @@ def _check_scene(scene: dict) -> list[Issue]:
     if abs((footprint["maxX"] - footprint["minX"]) - width) > TOLERANCE_MM:
         issues.append(Issue("width_mismatch", "actualWidthMm does not match the envelope width along X"))
     faces = scene.get("installationFaces", [])
-    if len(faces) != 1 or abs(faces[0]["lengthMm"] - width) > TOLERANCE_MM:
+    facade_width = (footprint["maxZ"] - footprint["minZ"]
+                    if faces and faces[0]["side"] in ("left", "right") else width)
+    if len(faces) != 1 or abs(faces[0]["lengthMm"] - facade_width) > TOLERANCE_MM:
         issues.append(Issue("width_mismatch", "The installation face length must equal the facade width"))
     if calibration.get("yawDegrees") != 0:
         issues.append(Issue("contract", "yawDegrees must be 0"))
@@ -62,7 +64,9 @@ def _check_glb(path: Path, mode: str, scene: dict) -> list[Issue]:
                 issues.append(Issue("contract", f"{mode}/{mesh['name']}: normals, UVs or indices are missing", [mode]))
             if mesh["name"] == "Facade":
                 position = gltf["accessors"][primitive["attributes"]["POSITION"]]
-                if (abs(position["min"][0] - footprint["minX"]) > TOLERANCE_MM
-                        or abs(position["max"][0] - footprint["maxX"]) > TOLERANCE_MM):
+                lateral = scene["installationFaces"][0]["side"] in ("left", "right")
+                axis, name = (2, "Z") if lateral else (0, "X")
+                if (abs(position["min"][axis] - footprint[f"min{name}"]) > TOLERANCE_MM
+                        or abs(position["max"][axis] - footprint[f"max{name}"]) > TOLERANCE_MM):
                     issues.append(Issue("width_mismatch", f"{mode}: facade mesh width does not match scene.json", [mode]))
     return issues
