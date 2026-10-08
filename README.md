@@ -30,14 +30,14 @@ node -v
 
 ## New typology from photo
 
-The Typology section has two groups: **Preset** (round icons, bundled in `public/`) and **From photo**; each group scrolls sideways when it overflows. **New from photo** opens `/intake.html`. Upload photos of the front of a house (the facade width is optional). Modelling starts automatically; when it is submitted, the latest build is published as a typology and appears in the typology list. **Open in house viewer** loads it (`/?typology=<id>`). Choosing another typology swaps the house in place (same fade as representation changes): camera, lighting, landscape and yard dimensions stay; placed products are cleared because they belong to the previous house's walls. The URL follows (`?typology=`), and the browser back button returns to the previous house. Thumbnails: presets use static `preview.png` files; a photo typology's thumbnail is rendered from its facade side the first time it is opened and stored by the service.
+The Typology section has two groups: **Preset** (round icons, bundled in `public/`) and **From photo**; each group scrolls sideways when it overflows. **New from photo** (or the edit button on a photo card) opens photo intake inside the same page, in place of site setup (`/?photo=new`, `/?project=<id>`; the former `/intake.html` page has been removed). Upload photos of one facade (the wall width is optional). Modelling starts automatically and the model appears in the scene; when it is submitted, the latest build is published as a typology and appears in the typology list. Choosing another typology swaps the house in place (same fade as representation changes): camera, lighting, landscape and yard dimensions stay; placed products are cleared because they belong to the previous house's walls. The URL follows (`?typology=`), and the browser back button returns to the previous house. Thumbnails: presets use static `preview.png` files; a photo typology's thumbnail is rendered from its render model when it is opened and stored by the service.
 
-Photo typologies use the same contract as the built-in ones (`scene.json` + white / color-block / render GLBs, millimetres, front = +Z) with one installation face, `facade-main`. The intake form asks which side the photos show; the default is **Back of the house**, so the modelled facade faces the back yard (installation face `side: back`) and the street side is a plain wall. Choose *Front* for a street-side photo. Modelling details, tools and limits: `services/facade-modeler/README.md`.
+Photo typologies use the same contract as the built-in ones (`scene.json` + white / color-block / render GLBs, millimetres, front = +Z) with one installation face, `facade-main`. The upload panel has one entry per facade (Front / Back / Left / Right; one facade is modelled at a time, photos and widths are kept per facade). The modelled facade is placed on that side of the house (installation face `side`), so a back-garden photo faces the back yard and the other walls are plain. Modelling details, tools and limits: `services/facade-modeler/README.md`.
 
 ## Files and data
 
 ```text
-src/                 Front-end code only (two pages: index.html → src/main.ts, intake.html → src/photo-intake/)
+src/                 Front-end code only (one page: index.html → src/main.ts)
 public/              Static assets bundled with the app, including the built-in typologies (seed data)
 services/
   facade-modeler/    Python modelling service (uv project): HTTP API, MCP tools, GLB builder
@@ -86,13 +86,13 @@ src/
     materials/                # Site PBR loading and source/license records
     rendering/                # Site terrain, lighting and environment
   product-placement/          # Product placement, editing, production list and selection
-  scenes/typology/             # Catalog and calibrated scene input data
+  typology/                 # Typology catalogue (presets + photo typologies), validation and the active typology
+  photo-intake/             # Embedded photo intake: controller, service API, panels, photo dimensions
   products/
     parametric-engine/varenda/ # Parameters, catalog, datums and engineering relationships
     varenda/view/             # Product model manifest and PlayCanvas rendering adapter
   scene/
     house/                    # House loading and verified calibration
-    landscape/                # Road and tree context
     model-preview/            # One-shot model thumbnail
   shared/
     assets/                   # Generic GLB loading and scene-owned resource store
@@ -101,7 +101,7 @@ src/
     lifetime.ts               # Abort and resource disposal
 ```
 
-`/` loads `src/main.ts`, which resolves the typology (`?typology=`, default Fairy house) and then imports and calls `startSiteDefinition()`. `/intake.html` loads the photo intake page, `src/photo-intake/`, which reuses `src/shared/`. The main workflow includes site setup, product placement, parameter editing and production-list navigation. Unknown page URLs return 404. The former independent customization page and lab route have been removed.
+`/` (the only page) loads `src/main.ts`, which resolves the typology (`?typology=`, default Fairy house) and then imports and calls `startSiteDefinition()`. Photo intake runs inside the same page: `src/photo-intake/controller.ts` is created by `start.ts` and reuses its scene, camera and typology switching. The main workflow includes site setup, product placement, parameter editing and production-list navigation. Unknown page URLs return 404. The former independent customization page and lab route have been removed.
 
 `products/` owns product definitions and rendering metadata. Its `parametric-engine/` contains product-specific engineering modules and can later support other products alongside Varenda. Engineering has no DOM, PlayCanvas or GLB dependency. The view consumes engineering results and maps their coordinates into the scene. `products/varenda/view/assets.ts` lists model URLs and source sample lengths; downloadable GLBs remain at stable URLs in `public/models/varenda/`.
 
@@ -116,7 +116,7 @@ View changes do not rebuild the site. Separate control sections share one panel.
 - `src/`, `public/`, `tests/`: application code, served assets and tests.
 - `scripts/site-definition/`: site material integrity checker. Site texture source and license records live in `src/site-definition/materials/sources/`; served textures live in `public/site-definition/materials/`. Product models and their materials remain with the corresponding product assets.
 - `docs/`: designs, plans, material import instructions and development history (`history/`).
-- `index.html`, `intake.html`: the house viewer and the photo intake page.
+- `index.html`: the single application page.
 - `services/`, `data/`: see Files and data above.
 - `package.json`, `package-lock.json`, TypeScript/ESLint/Prettier/npm configuration: dependencies and build configuration.
 
@@ -153,10 +153,6 @@ The surroundings now use a locally hosted short green grass material (ambientCG 
 
 See [the material import workflow](docs/materials/import-workflow.md) for texture conventions, physical scale, source licenses, source imports, validation and known limits. Run `npm run materials:check` to verify all packaged texture hashes and metadata.
 
-## Road context
-
-`src/scene/landscape/` adds a 6 m road parallel to the front facade, outside the front-yard boundary. It follows property edits. Camera framing includes the property and nearby road strip. Procedural trees and their geometry have been removed. The road appearance remains a prototype.
-
 ## Customization and production preview
 
 After site setup, select and place a Varenda on an available house wall. Select a placed product to edit parameters or inspect its Production List. Installed components are grouped by material and specification, with placeholder thumbnails and explicit pending metadata. Selecting a row frames and highlights its instances and fades other components. Invalid parameter drafts retain the last valid product and list.
@@ -165,8 +161,8 @@ Expanded production rows support individual instance focus (including each Post 
 
 ## Typology scene inputs
 
-`public/scenes/typology/index.json` lists available house types and the default ID. Each type owns a folder containing `scene.json` and `model.glb`. Runtime metadata is imported through `src/scenes/typology/index.ts`; the panel, house calibration and installation walls use the same default definition.
+`public/scenes/typology/index.json` lists available house types and the default ID. Each type owns a folder containing `scene.json` and `model.glb`. Runtime metadata is imported through `src/typology/index.ts`; the panel, house calibration and installation walls read the active typology (`activeTypology()`), which can be switched at runtime.
 
 Version 1 manifests declare `id`, `name`, a relative `model` path, millimetre units, +Y up and +Z front axes, preview mode, calibration and installation faces. Wall origins and lengths use the original model coordinates, before centering and scaling; the loader applies the same calibration as the house. Wall IDs must be unique; along-wall and outward directions must be perpendicular unit vectors. These describe wall geometry, not verified structural attachment suitability. Preview mode is currently `generated`, using the existing model preview renderer; no placeholder thumbnail is required.
 
-To add a type, create its folder and manifest, add its entry to `index.json`, and register its JSON import in `src/scenes/typology/index.ts`. Set `defaultTypologyId` to activate it. Interactive type switching is not yet implemented. Version 1 requires zero yaw because site boundaries and placement directions are axis-aligned; orient the exported model accordingly. Invalid calibration or installation-wall data fails at startup.
+To add a type, create its folder and manifest, add its entry to `index.json`, and register its JSON import in `src/typology/index.ts`. Set `defaultTypologyId` to activate it. Version 1 requires zero yaw because site boundaries and placement directions are axis-aligned; orient the exported model accordingly. Invalid calibration or installation-wall data fails at startup.

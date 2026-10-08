@@ -29,14 +29,14 @@ cd ~/Documents/house-viewer && npm start         # 或：构建后单端口运�
 ## 2. 上传后自动建模
 
 上传照片后，服务会在后台自动运行 Claude Code 的无界面模式（`claude -p`），由 LM 通过本项目的 MCP 工具完成建模。
-照片录入页（/intake.html）显示进度，每生成一个版本就会自动刷新；失败时显示原因和日志末尾，并提供 Run again 按钮。
+house-viewer 主页面里的照片录入（New from photo，或 `/?photo=new`、`/?project=<id>`）显示进度，每生成一个版本就会自动刷新；失败时显示原因和日志末尾，并提供 Run again 按钮。
 
 前提：Mac 上已安装 Claude Code 并登录（`claude --version` 能显示版本号），使用的是你的 Claude 账号，不需要 API key。
 
 - 只允许本项目的 MCP 工具，内置工具全部关闭，因此无人值守运行不会弹出权限确认。
 - 每次运行的日志在 `data/intake/<id>/jobs/run-N.log`。
 - 找不到 `claude` 时，设置 `FACADE_CLAUDE_BIN=/path/to/claude`。
-- 提交（submit）后自动发布为 typology；没有提交但已有 build 时，录入页提供 Save as typology 按钮（`POST /api/projects/<id>/publish`）。
+- 提交（submit）后自动发布为 typology；没有提交但已有 build 时，录入面板提供 Save as typology 按钮（`POST /api/projects/<id>/publish`）。
 - 关闭自动建模：`FACADE_AUTORUN=0 uv run facade-modeler-http`。
 - 对已有项目手动重跑：`curl -X POST http://127.0.0.1:8765/api/projects/house-005/run`。
 
@@ -52,7 +52,7 @@ uv run python scripts/demo_sunningdale.py
 ```
 
 脚本会合成一张 Sunningdale 后立面的斜拍照片并上传，然后通过真实的 MCP 连接模拟 LM 完成矫正、测量、建模、build。
-在照片录入页的项目下拉框中选择新项目即可看到结果。
+在 house-viewer 的 From photo 列表里点新项目的编辑按钮即可看到结果。
 
 ## 代码结构
 

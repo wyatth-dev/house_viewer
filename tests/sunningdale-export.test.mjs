@@ -28,7 +28,7 @@ test('Sunningdale states share the calibrated millimeter envelope and are regist
         assert.ok(Math.abs(Math.min(...accessors.map((a) => a.min[2])) + 10400) < 0.01);
         assert.ok(gltf.meshes.every((m) => m.primitives.every((p) => gltf.accessors[p.indices].count >= 3)));
     }
-    const { typologies, defaultTypology } = await import('../src/scenes/typology/index.ts');
+    const { typologies, defaultTypology } = await import('../src/typology/index.ts');
     assert.equal(defaultTypology.id, 'fairy-house');
     const sunningdale = typologies.find(({ id }) => id === 'sunningdale-house');
     assert.equal(sunningdale.modelUrl, '/scenes/typology/sunningdale-house/model.glb');

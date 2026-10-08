@@ -1,8 +1,8 @@
-import { deletePhotoTypology, listTypologies, typologyUrl } from '../scenes/typology/catalog.ts';
 import { getProject, listProjects, fileUrl } from '../photo-intake/api.ts';
 import type { ProjectSummary } from '../photo-intake/api.ts';
 import { statusText } from '../photo-intake/panels/status-panel.ts';
-import type { TypologyEntry } from '../scenes/typology/catalog.ts';
+import { deletePhotoTypology, listTypologies, typologyUrl } from '../typology/catalog.ts';
+import type { TypologyEntry } from '../typology/catalog.ts';
 
 export type WorkflowStep = 'site' | 'placement' | 'rendering';
 
@@ -396,3 +396,5 @@ function createRail(rail: HTMLElement) {
         observer.disconnect();
     };
 }
+
+export type Panel = ReturnType<typeof createPanel>;

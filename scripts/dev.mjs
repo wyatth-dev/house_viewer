@@ -72,7 +72,7 @@ process.on('SIGTERM', () => stop());
 
 start('service', 'uv', ['run', '--quiet', '--project', service, 'facade-modeler-http']);
 if (serveBuilt) {
-    console.log(`\nHouse viewer: http://127.0.0.1:${port}/   (photo intake: /intake.html)\n`);
+    console.log(`\nHouse viewer: http://127.0.0.1:${port}/   (photo intake: /?photo=new)\n`);
 } else {
     start('vite', process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url))]);
 }

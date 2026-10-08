@@ -1,4 +1,4 @@
-import { activeTypology } from '../../scenes/typology/index.ts';
+import { activeTypology } from '../../typology/index.ts';
 
 /** Calibration of the active typology; read at load time, so a typology switch takes effect on the next load. */
 export const houseConfig = {

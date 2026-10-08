@@ -124,3 +124,6 @@ export async function loadHouse(app: AppBase, signal: AbortSignal) {
         throw error;
     }
 }
+
+/** A loaded house model with its representation switching and bounds. */
+export type House = Awaited<ReturnType<typeof loadHouse>>;

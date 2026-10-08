@@ -13,7 +13,6 @@ Roof thickness (120 mm) and eave projection (180 mm) are initial visual estimate
 Rebuild: `python3 scripts/typology/prepare-fairy-render.py`.
 Verify reference alignment: `python3 scripts/typology/verify-fairy-render.py`.
 Verify openings remove their original surface: `python3 scripts/typology/verify-fairy-openings.py`.
-Inspect variants: `/fairy-material-preview.html` on the Vite development server. The separate preview does not wire the main application’s Full render button.
 
 ## Front entry correction
 

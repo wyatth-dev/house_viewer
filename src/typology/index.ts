@@ -1,7 +1,7 @@
-import fairyHouse from '../../../public/scenes/typology/fairy-house/scene.json' with { type: 'json' };
-import sunningdaleHouse from '../../../public/scenes/typology/sunningdale-house/scene.json' with { type: 'json' };
-import catalog from '../../../public/scenes/typology/index.json' with { type: 'json' };
-import type { InstallationWallFace } from '../../product-placement/types.ts';
+import fairyHouse from '../../public/scenes/typology/fairy-house/scene.json' with { type: 'json' };
+import catalog from '../../public/scenes/typology/index.json' with { type: 'json' };
+import sunningdaleHouse from '../../public/scenes/typology/sunningdale-house/scene.json' with { type: 'json' };
+import type { InstallationWallFace } from '../product-placement/types.ts';
 
 type Vector2 = { x: number; z: number };
 type Vector3 = { x: number; y: number; z: number };

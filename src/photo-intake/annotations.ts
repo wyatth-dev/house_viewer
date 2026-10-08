@@ -1,8 +1,8 @@
 /** 尺寸标注：读取 build 产出的 annotations.json，用 house-viewer 的尺寸标注组件显示（只读）。 */
 import type { AppBase } from 'playcanvas';
 
-import type { Point3, ProjectPoint } from '../../shared/geometry/types.ts';
-import { createDimensionOverlay } from '../../shared/measurements/dimension-overlay.ts';
+import type { Point3, ProjectPoint } from '../shared/geometry/types.ts';
+import { createDimensionOverlay } from '../shared/measurements/dimension-overlay.ts';
 
 export type Annotation = {
     id: string;

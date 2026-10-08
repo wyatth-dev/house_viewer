@@ -18,7 +18,7 @@ test('typology catalog packages the default model and its calibration', () => {
 });
 
 test('typology calibration uses the corrected millimeter product installation coordinates', async () => {
-    const { defaultTypology } = await import('../src/scenes/typology/index.ts');
+    const { defaultTypology } = await import('../src/typology/index.ts');
     const { houseConfig } = await import('../src/scene/house/house-config.ts');
     assert.equal(houseConfig.url, '/scenes/typology/fairy-house/model.glb');
     assert.equal(defaultTypology.name, 'Fairy house');

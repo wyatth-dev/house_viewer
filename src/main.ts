@@ -1,4 +1,4 @@
-import { resolveActiveTypology } from './scenes/typology/catalog.ts';
+import { resolveActiveTypology } from './typology/catalog.ts';
 // Load the stylesheet with the entry, not with the lazily imported app chunk: a failed
 // web-font request inside a lazy chunk's CSS would otherwise stop the app from starting.
 import './site-definition/style.css';
