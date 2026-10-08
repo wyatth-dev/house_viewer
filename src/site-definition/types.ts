@@ -1,3 +1,4 @@
+import type { Footprint } from '../scene/house/types.ts';
 import type { Bounds3, ProjectPoint } from '../shared/geometry/types.ts';
 export type SiteSide = 'front' | 'back' | 'left' | 'right';
 /** Yard clearances in millimeters. UI may display meters. */
@@ -15,5 +16,7 @@ export type SiteController = {
     setVisible(visible: boolean): void;
     setMeasurementsVisible(visible: boolean): void;
     setDimensionEditor(editor: (side: SiteSide, valueMm: number) => string | undefined): void;
+    /** Replace the house envelope (typology switch); yard dimensions are kept. */
+    setFootprint(footprint: Footprint): void;
     destroy(): void;
 };

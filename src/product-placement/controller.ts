@@ -100,9 +100,10 @@ export function createPlacementController(
     };
     const occupied = (except?: string) =>
         [...instances.values()].filter((instance) => instance.id !== except).map((instance) => instance.envelope);
+    const faces = houseInstallationFaces(); // the house this controller was created for
     const preview = createPlacementPreview(
         app,
-        houseInstallationFaces,
+        faces,
         getProperty,
         screenToGround,
         signal,
@@ -160,7 +161,7 @@ export function createPlacementController(
     };
     const refreshAvailableAreas = () => {
         availableAreas.setAreas(
-            solveInstallationAreas(houseInstallationFaces, getProperty(), occupied()).map((area) => area.corners)
+            solveInstallationAreas(faces, getProperty(), occupied()).map((area) => area.corners)
         );
         availableAreas.setActive(isPlacing());
     };

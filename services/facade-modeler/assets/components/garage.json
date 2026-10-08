@@ -1,0 +1,23 @@
+{
+  "id": "door/garage",
+  "category": "component",
+  "generator": "garage",
+  "tags": [
+    "门",
+    "车库门",
+    "卷帘门",
+    "garage",
+    "garage door",
+    "sectional door"
+  ],
+  "description": "Sectional garage door with horizontal panels.",
+  "params": {
+    "sections": {
+      "type": "int",
+      "min": 3,
+      "max": 6,
+      "default": 5,
+      "doc": "Number of horizontal panels"
+    }
+  }
+}

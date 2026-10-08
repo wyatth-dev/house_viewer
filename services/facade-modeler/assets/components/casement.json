@@ -1,0 +1,22 @@
+{
+  "id": "win/casement",
+  "category": "component",
+  "generator": "casement",
+  "tags": [
+    "窗",
+    "平开窗",
+    "window",
+    "casement",
+    "casement window"
+  ],
+  "description": "Casement window: white frame with vertical mullions; a transom bar is added when the window is at least 1000 mm high.",
+  "params": {
+    "panes": {
+      "type": "int",
+      "min": 1,
+      "max": 6,
+      "default": null,
+      "doc": "Number of vertical panes; if omitted, chosen from the width (≤700 one, ≥1700 three, otherwise two)"
+    }
+  }
+}

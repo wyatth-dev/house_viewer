@@ -1,0 +1,15 @@
+{
+  "id": "vent/gable",
+  "category": "component",
+  "generator": "vent",
+  "tags": [
+    "通风口",
+    "百叶",
+    "山墙通风",
+    "vent",
+    "louvre",
+    "gable vent"
+  ],
+  "description": "Louvred gable vent.",
+  "params": {}
+}

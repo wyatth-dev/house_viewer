@@ -1,0 +1,32 @@
+# Facade Modeler 默认数值。单位：毫米（另有说明除外）。
+# 这些值来自 house-viewer 的 Sunningdale 生成规则，是视觉估计值，不是施工数据。
+
+[roof]
+thickness_mm = 120     # 屋面厚度，向上生长
+overhang_mm = 180      # 出檐 / 山墙挑出
+pitch_deg = 40         # 新项目的初始坡度
+eave_height_mm = 2700  # 新项目的初始檐高（单层）
+type = "gable"
+ridge = "parallel"
+material = "mat/slate-grey"
+
+[facade]
+plinth_height_mm = 520 # 石材勒脚高度
+plinth_material = "mat/stone-ashlar"
+wall_material = "mat/siding-horizontal"
+gable_material = "mat/siding-vertical"
+
+[massing]
+depth_mm = 8000        # 白模进深，只用于闭合体块
+
+[opening]
+reveal_depth_mm = 170  # 洞口侧壁深度
+frame_width_mm = 75    # 外框宽度
+frame_proud_mm = 25    # 外框凸出墙面
+glass_inset_mm = 165   # 玻璃 / 门板退进墙面
+
+[photos]
+rectified_width_px = 2000  # 矫正图固定宽度
+
+[annotations]
+offset_mm = 600        # 尺寸线离开墙面的距离

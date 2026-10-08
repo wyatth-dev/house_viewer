@@ -5,6 +5,10 @@
         {
             "id": "fairy-house",
             "manifest": "fairy-house/scene.json"
+        },
+        {
+            "id": "sunningdale-house",
+            "manifest": "sunningdale-house/scene.json"
         }
     ]
 }

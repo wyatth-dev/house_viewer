@@ -1,0 +1,25 @@
+{
+  "id": "door/patio",
+  "category": "component",
+  "generator": "patio",
+  "tags": [
+    "门",
+    "庭院门",
+    "落地门",
+    "玻璃门",
+    "patio",
+    "french door",
+    "patio door",
+    "glazed door"
+  ],
+  "description": "Patio door: full-height glazed leaves separated by mullions.",
+  "params": {
+    "panels": {
+      "type": "int",
+      "min": 2,
+      "max": 4,
+      "default": 2,
+      "doc": "Number of leaves"
+    }
+  }
+}

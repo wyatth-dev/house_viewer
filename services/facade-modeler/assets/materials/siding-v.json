@@ -1,0 +1,20 @@
+{
+  "id": "mat/siding-vertical",
+  "category": "material",
+  "tags": [
+    "墙面",
+    "山墙",
+    "竖向挂板",
+    "board and batten",
+    "siding",
+    "vertical siding",
+    "gable"
+  ],
+  "description": "Off-white vertical cladding, mostly for gables",
+  "color": [
+    235,
+    233,
+    224
+  ],
+  "texture": "vertical"
+}

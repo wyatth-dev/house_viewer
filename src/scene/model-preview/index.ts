@@ -2,10 +2,19 @@ import { Color, Entity, Layer, PIXELFORMAT_RGBA8, PROJECTION_ORTHOGRAPHIC, Rende
 import type { AppBase, MeshInstance } from 'playcanvas';
 
 import { fitOrthographic } from '../../shared/camera/framing.ts';
-import type { Bounds3 } from '../../shared/geometry/types.ts';
+import type { Bounds3, Point3 } from '../../shared/geometry/types.ts';
 
-/** Render the supplied model once. The returned image remains cached until destroy(). */
-export function createModelPreview(app: AppBase, model: Entity, bounds: Bounds3) {
+export type ModelPreviewOptions = {
+    /** Direction from the model towards the thumbnail camera; default front-right (+X, +Y, +Z). */
+    direction?: Point3;
+};
+
+/**
+ * Render the supplied model once. The returned image remains cached until destroy().
+ * `ready` resolves with the object URL; `blob()` gives the encoded PNG (for storing it).
+ */
+export function createModelPreview(app: AppBase, model: Entity, bounds: Bounds3, options: ModelPreviewOptions = {}) {
+    const direction = options.direction ?? { x: 1, y: 1, z: 1 };
     const width = 320,
         height = 240;
     const layer = new Layer({ name: 'Model thumbnail' });
@@ -18,7 +27,7 @@ export function createModelPreview(app: AppBase, model: Entity, bounds: Bounds3)
     const texture = new Texture(app.graphicsDevice, { width, height, format: PIXELFORMAT_RGBA8, mipmaps: false });
     const target = new RenderTarget({ colorBuffer: texture, depth: true });
     const camera = new Entity('Thumbnail camera');
-    const frame = fitOrthographic(bounds, { width, height }, { x: 1, y: 1, z: 1 });
+    const frame = fitOrthographic(bounds, { width, height }, direction);
     camera.addComponent('camera', {
         layers: [layer.id],
         projection: PROJECTION_ORTHOGRAPHIC,
@@ -32,12 +41,15 @@ export function createModelPreview(app: AppBase, model: Entity, bounds: Bounds3)
     camera.lookAt(frame.center.x, frame.center.y, frame.center.z);
     const light = new Entity('Thumbnail light');
     light.addComponent('light', { type: 'directional', layers: [layer.id], intensity: 1.25 });
-    light.setEulerAngles(50, -30, 0);
+    // Keep the light over the camera's shoulder whichever side the camera looks from.
+    const yaw = (Math.atan2(direction.x, direction.z) * 180) / Math.PI;
+    light.setEulerAngles(50, yaw - 75, 0);
     app.root.addChild(camera);
     app.root.addChild(light);
     let disposed = false;
     let released = false;
     let url: string | undefined;
+    let png: Blob | undefined;
     const release = () => {
         if (released) return;
         released = true;
@@ -73,6 +85,7 @@ export function createModelPreview(app: AppBase, model: Entity, bounds: Bounds3)
                 }, 'image/png')
             );
             if (disposed) return undefined;
+            png = blob;
             url = URL.createObjectURL(blob);
             return url;
         } finally {
@@ -81,6 +94,7 @@ export function createModelPreview(app: AppBase, model: Entity, bounds: Bounds3)
     })();
     return {
         ready,
+        blob: () => png,
         destroy() {
             disposed = true;
             release();

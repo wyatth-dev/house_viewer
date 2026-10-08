@@ -411,6 +411,148 @@ h2 span {
     display: none;
 }
 
+.typology-group {
+    margin-top: 14px;
+}
+.typology-group h3 {
+    margin: 0 0 7px;
+    color: #7d8b7f;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+.typology-rail {
+    position: relative;
+}
+.typology-strip {
+    display: flex;
+    gap: 8px;
+    padding-bottom: 8px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    scrollbar-color: #b9c6b6 #edf1e9;
+}
+.typology-strip::-webkit-scrollbar {
+    height: 4px;
+}
+.typology-strip::-webkit-scrollbar-track {
+    border-radius: 2px;
+    background: #edf1e9;
+}
+.typology-strip::-webkit-scrollbar-thumb {
+    border-radius: 2px;
+    background: #b9c6b6;
+}
+.typology-card {
+    flex: 0 0 104px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    scroll-snap-align: start;
+    color: #284e3e;
+    font-size: 11px;
+    text-decoration: none;
+}
+.typology-thumb {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border: 1px solid #d5ddd2;
+    border-radius: 6px;
+    background: #edf1e9;
+    color: #b9c6b6;
+}
+.typology-thumb svg {
+    width: 44%;
+}
+.typology-thumb img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+.typology-thumb img[hidden] {
+    display: none;
+}
+.typology-card:hover .typology-thumb {
+    border-color: #719c85;
+}
+.typology-card[aria-current='true'] .typology-thumb {
+    border: 2px solid #284e3e;
+}
+.typology-card[aria-current='true'] .typology-name {
+    font-weight: 600;
+}
+.typology-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.typology-new .typology-thumb {
+    border-style: dashed;
+    border-color: #9fb3a2;
+    background: #fafcf7;
+    color: #284e3e;
+    font-size: 22px;
+}
+.typology-arrow {
+    position: absolute;
+    top: calc((104px * 3 / 4) / 2 - 13px);
+    width: 26px;
+    height: 26px;
+    border: 1px solid #c9d4c6;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.95);
+    color: #284e3e;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(35, 62, 52, 0.15);
+}
+.typology-arrow.previous {
+    left: -6px;
+}
+.typology-arrow.next {
+    right: -6px;
+}
+.typology-arrow[hidden] {
+    display: none;
+}
+/* Presets: round icons */
+.typology-group.preset .typology-card {
+    flex-basis: 76px;
+    align-items: center;
+    text-align: center;
+}
+.typology-group.preset .typology-thumb {
+    width: 76px;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: #fff;
+}
+.typology-group.preset .typology-thumb img {
+    object-fit: cover;
+    transform: scale(1.15);
+}
+.typology-group.preset .typology-name {
+    max-width: 76px;
+}
+.typology-group.preset .typology-arrow {
+    top: calc(76px / 2 - 13px);
+}
+.typology-strip[aria-busy] .typology-card {
+    pointer-events: none;
+}
+#scene-controls:disabled .typology-card {
+    pointer-events: none;
+    opacity: 0.5;
+}
+
 .step-button {
     width: 100%;
     margin-top: 24px;

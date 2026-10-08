@@ -13,6 +13,7 @@ export async function loadHouse(app: AppBase, signal: AbortSignal) {
     const { actualWidthMm, sourceFootprint: source } = houseConfig;
     if (!Number.isFinite(actualWidthMm) || actualWidthMm <= 0)
         throw new Error('Confirm the house width in millimeters to finish model calibration.');
+    const representationUrls = houseRepresentationUrls(); // fixed for this house, even if the typology changes later
     const asset = await loadContainer(app.assets, houseConfig.url, signal);
     signal.throwIfAborted();
     const house = new Entity('House');
@@ -74,7 +75,7 @@ export async function loadHouse(app: AppBase, signal: AbortSignal) {
                 if (mode === representation || destroyed) return;
                 const resource = mode === 'white'
                     ? asset.resource as ContainerResource
-                    : await variants.load(houseRepresentationUrls[mode]);
+                    : await variants.load(representationUrls[mode]);
                 if (destroyed || signal.aborted || currentRequest !== request) return;
                 const next = resource.instantiateRenderEntity();
                 const legacyFloor = next.findByName('Restored house floor');

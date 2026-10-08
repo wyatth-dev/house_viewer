@@ -9,8 +9,8 @@ import type { SiteController } from './types.ts';
 export function createSiteController(app: AppBase, footprint: Footprint, overlay: HTMLElement): SiteController {
     let dimensions = { ...defaults },
         layout = calculateLayout(footprint, dimensions);
-    const ground = createGround(app),
-        measurements = createMeasurements(app, overlay, footprint);
+    const ground = createGround(app);
+    const measurements = createMeasurements(app, overlay, () => footprint);
     const update = () => {
         ground.update(layout);
         measurements.update(layout, dimensions);
@@ -34,6 +34,11 @@ export function createSiteController(app: AppBase, footprint: Footprint, overlay
         setVisible: ground.setVisible,
         setMeasurementsVisible: measurements.setVisible,
         setDimensionEditor: measurements.setEditor,
+        setFootprint(value) {
+            footprint = value;
+            layout = calculateLayout(footprint, dimensions);
+            update();
+        },
         refreshLabels: (project) => measurements.refresh(project),
         destroy() {
             ground.destroy();

@@ -4,19 +4,50 @@ A PlayCanvas application for defining a property around a Rhino house model, pla
 
 ## Run locally
 
-Use Node.js **22.23.2 or later**. From this repository:
+Requirements (one-time): **Node.js 22.23.2 or later**, **[uv](https://docs.astral.sh/uv/)** (`brew install uv`), and for automatic photo modelling, **Claude Code** signed in on this Mac (the service runs `claude -p` in the background).
 
 ```sh
-npm install
-npm run dev
+npm run dev      # front end (hot reload) + Python modelling service, one command
 ```
 
-Open the local address printed by Vite. If an older Node is selected on this Mac, the existing Homebrew installation can be selected for the current terminal with:
+Open the address Vite prints (usually http://localhost:5173). `Ctrl+C` stops both processes. The first run installs npm packages if `node_modules` is missing and runs `uv sync` for the Python service (fast when already up to date), so there is no separate Python step.
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Vite dev server + Python service (`/api`, `/files`, `/data` are proxied to it) |
+| `npm start` | Build once, then the Python service serves everything at http://127.0.0.1:8765 |
+| `npm run dev:web` | Front end only; built-in typologies work, photo typologies and intake need the service |
+| `npm test` / `npm run test:service` | Front-end tests / Python service tests |
+
+Environment variables: `FACADE_HTTP_PORT` (default 8765), `FACADE_DATA_DIR` (default `./data`), `FACADE_AUTORUN=0` (no automatic modelling), `FACADE_CLAUDE_BIN` (path to `claude` if it is not found automatically).
+
+If an older Node is selected on this Mac, the existing Homebrew installation can be selected for the current terminal with:
 
 ```sh
 export PATH="/opt/homebrew/opt/node/bin:$PATH"
 node -v
 ```
+
+## New typology from photo
+
+The Typology section has two groups: **Preset** (round icons, bundled in `public/`) and **From photo**; each group scrolls sideways when it overflows. **New from photo** opens `/intake.html`. Upload photos of the front of a house (the facade width is optional). Modelling starts automatically; when it is submitted, the latest build is published as a typology and appears in the typology list. **Open in house viewer** loads it (`/?typology=<id>`). Choosing another typology swaps the house in place (same fade as representation changes): camera, lighting, landscape and yard dimensions stay; placed products are cleared because they belong to the previous house's walls. The URL follows (`?typology=`), and the browser back button returns to the previous house. Thumbnails: presets use static `preview.png` files; a photo typology's thumbnail is rendered from its facade side the first time it is opened and stored by the service.
+
+Photo typologies use the same contract as the built-in ones (`scene.json` + white / color-block / render GLBs, millimetres, front = +Z) with one installation face, `facade-main`. The intake form asks which side the photos show; the default is **Back of the house**, so the modelled facade faces the back yard (installation face `side: back`) and the street side is a plain wall. Choose *Front* for a street-side photo. Modelling details, tools and limits: `services/facade-modeler/README.md`.
+
+## Files and data
+
+```text
+src/                 Front-end code only (two pages: index.html → src/main.ts, intake.html → src/photo-intake/)
+public/              Static assets bundled with the app, including the built-in typologies (seed data)
+services/
+  facade-modeler/    Python modelling service (uv project): HTTP API, MCP tools, GLB builder
+data/                Local data store standing in for a database; not in git (see data/README.md)
+  intake/<project>/  Photo intake workspaces: photos, spec, builds/vN, job logs
+  typologies/        Published photo typologies + index.json (what the viewer reads)
+scripts/dev.mjs      The one-command launcher behind npm run dev / npm start
+```
+
+The front end never writes files. It reads built-in typologies from `public/` and photo typologies through the service (`GET /api/typologies`, `/data/typologies/<id>/…`). Only the service writes to `data/`.
 
 ## Controls
 
@@ -70,7 +101,7 @@ src/
     lifetime.ts               # Abort and resource disposal
 ```
 
-`/` loads the sole entry, `src/main.ts`, which calls `startSiteDefinition()`. The main workflow includes site setup, product placement, parameter editing and production-list navigation. Unknown page URLs return 404. The former independent customization page and lab route have been removed.
+`/` loads `src/main.ts`, which resolves the typology (`?typology=`, default Fairy house) and then imports and calls `startSiteDefinition()`. `/intake.html` loads the photo intake page, `src/photo-intake/`, which reuses `src/shared/`. The main workflow includes site setup, product placement, parameter editing and production-list navigation. Unknown page URLs return 404. The former independent customization page and lab route have been removed.
 
 `products/` owns product definitions and rendering metadata. Its `parametric-engine/` contains product-specific engineering modules and can later support other products alongside Varenda. Engineering has no DOM, PlayCanvas or GLB dependency. The view consumes engineering results and maps their coordinates into the scene. `products/varenda/view/assets.ts` lists model URLs and source sample lengths; downloadable GLBs remain at stable URLs in `public/models/varenda/`.
 
@@ -85,7 +116,8 @@ View changes do not rebuild the site. Separate control sections share one panel.
 - `src/`, `public/`, `tests/`: application code, served assets and tests.
 - `scripts/site-definition/`: site material integrity checker. Site texture source and license records live in `src/site-definition/materials/sources/`; served textures live in `public/site-definition/materials/`. Product models and their materials remain with the corresponding product assets.
 - `docs/`: designs, plans, material import instructions and development history (`history/`).
-- `index.html`: the single application page entry.
+- `index.html`, `intake.html`: the house viewer and the photo intake page.
+- `services/`, `data/`: see Files and data above.
 - `package.json`, `package-lock.json`, TypeScript/ESLint/Prettier/npm configuration: dependencies and build configuration.
 
 `node_modules/` is installed dependency data; `dist/` is generated by the production build. Neither is source. Verify packaged site textures with `npm run materials:check`. Completed Python asset-generation/import scripts and download caches have been removed.

@@ -6,7 +6,8 @@ import { createDimensionOverlay } from '../shared/measurements/dimension-overlay
 import { sides } from './layout.ts';
 import type { Dimensions, Layout, SiteSide } from './types.ts';
 
-export function createMeasurements(app: AppBase, overlay: HTMLElement, footprint: Footprint) {
+/** `footprint` is read on every update, so the house envelope can change (typology switch). */
+export function createMeasurements(app: AppBase, overlay: HTMLElement, footprint: () => Footprint) {
     const view = createDimensionOverlay(app, overlay);
     let edit: ((side: SiteSide, valueMm: number) => string | undefined) | undefined;
     return {
@@ -15,8 +16,9 @@ export function createMeasurements(app: AppBase, overlay: HTMLElement, footprint
             edit = callback;
         },
         update(layout: Layout, dimensions: Dimensions) {
-            const x = footprint.width / 2,
-                z = footprint.depth / 2,
+            const { width, depth } = footprint();
+            const x = width / 2,
+                z = depth / 2,
                 p = layout.property;
             const lines = {
                 front: [

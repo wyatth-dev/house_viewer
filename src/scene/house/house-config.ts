@@ -1,14 +1,31 @@
-import { defaultTypology } from '../../scenes/typology/index.ts';
+import { activeTypology } from '../../scenes/typology/index.ts';
 
-/** Calibration is stored with the selected typology's model. */
+/** Calibration of the active typology; read at load time, so a typology switch takes effect on the next load. */
 export const houseConfig = {
-    url: defaultTypology.modelUrl,
-    ...defaultTypology.calibration
+    get url() {
+        return activeTypology().modelUrl;
+    },
+    get actualWidthMm() {
+        return activeTypology().calibration.actualWidthMm;
+    },
+    get sourceFootprint() {
+        return activeTypology().calibration.sourceFootprint;
+    },
+    get groundY() {
+        return activeTypology().calibration.groundY;
+    },
+    get yawDegrees() {
+        return activeTypology().calibration.yawDegrees;
+    }
 };
 
 export type HouseRepresentation = 'white' | 'color-block' | 'render';
-export const houseRepresentationUrls: Record<HouseRepresentation, string> = Object.fromEntries(
-    Object.entries(defaultTypology.representations).map(([mode, { model }]) => [
-        mode, houseConfig.url.slice(0, houseConfig.url.lastIndexOf('/') + 1) + model
-    ])
-) as Record<HouseRepresentation, string>;
+export function houseRepresentationUrls(): Record<HouseRepresentation, string> {
+    const url = houseConfig.url;
+    return Object.fromEntries(
+        Object.entries(activeTypology().representations).map(([mode, { model }]) => [
+            mode,
+            url.slice(0, url.lastIndexOf('/') + 1) + model
+        ])
+    ) as Record<HouseRepresentation, string>;
+}

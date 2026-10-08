@@ -1,0 +1,71 @@
+:root {
+    font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: #233e34;
+    --line: #dfe4dc;
+    --muted: #7d8b7f;
+    --accent: #284e3e;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: #f6f7f4; }
+.workspace { display: grid; grid-template-columns: 1fr 340px; height: 100dvh; }
+#viewport { position: relative; overflow: hidden; background: #fafbfc; }
+#application-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.panel { overflow-y: auto; border-left: 1px solid var(--line); background: #fff; padding: 18px 20px; }
+.panel section + section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+h2 { font-size: 13px; letter-spacing: 0.04em; margin: 0 0 12px; }
+.field { display: grid; gap: 6px; font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+.field input, .field select { font: inherit; color: #233e34; padding: 7px 9px; border: 1px solid var(--line); border-radius: 5px; }
+.drop-zone {
+    width: 100%; padding: 26px 12px; margin-bottom: 12px; border: 1.5px dashed #b9c6b6; border-radius: 8px;
+    background: #fafcf7; color: var(--muted); font: inherit; cursor: pointer;
+}
+.drop-zone.dragging { border-color: var(--accent); background: #eef4ec; }
+button.primary { width: 100%; padding: 10px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+button.primary:disabled { opacity: 0.45; cursor: default; }
+.form-message { font-size: 12px; color: var(--muted); min-height: 1em; }
+.row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; padding: 4px 0; }
+.row span { color: var(--muted); }
+blockquote { margin: 8px 0; padding: 8px 10px; background: #f3f6f1; border-radius: 5px; font-size: 12px; white-space: pre-wrap; }
+.issues { font-size: 12px; color: #a33c2e; padding-left: 18px; }
+.muted { font-size: 12px; color: var(--muted); }
+.photo-list { display: grid; gap: 12px; }
+.photo { margin: 0; display: grid; gap: 4px; }
+.photo img { width: 100%; border-radius: 5px; border: 1px solid var(--line); background: #fff; }
+.photo figcaption { font-size: 11px; color: var(--muted); }
+.scene-controls { position: absolute; top: 14px; left: 14px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.segmented { display: flex; background: #ffffffe6; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.segmented button { border: 0; background: transparent; padding: 7px 11px; font: inherit; font-size: 12px; color: #233e34; cursor: pointer; }
+.segmented button[aria-pressed='true'] { background: var(--accent); color: #fff; }
+.toggle { display: flex; gap: 6px; align-items: center; font-size: 12px; background: #ffffffe6; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+#scene-status {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    background: #fafbf7; padding: 18px 24px; border-radius: 10px; box-shadow: 0 10px 50px #203b2415; font-size: 13px;
+}
+#scene-status[hidden] { display: none; }
+
+/* 尺寸标注样式，取自 house-viewer/src/site-definition/style.css */
+#measurements { position: absolute; inset: 0; pointer-events: none; }
+.measurement {
+    position: absolute; transform: translate(-50%, -50%); border: 1px solid #c9d4c7; background: #fafcf5ee;
+    box-shadow: 0 2px 8px #27402d0a; border-radius: 4px; padding: 5px 8px; font-size: 10px; font-weight: 500;
+    white-space: nowrap; color: #34533e;
+}
+.measurement[hidden] { display: none; }
+.editable-measurement button { border: 0; background: transparent; color: inherit; font: inherit; padding: 0; }
+.editable-measurement button:disabled { cursor: default; opacity: 1; }
+.measurement-error:empty { display: none; }
+.measurement-lock[hidden] { display: none; }
+@media (max-width: 800px) {
+    .workspace { grid-template-columns: 1fr; grid-template-rows: 60dvh auto; height: auto; }
+    .panel { border-left: 0; border-top: 1px solid var(--line); }
+}
+.job-error { font-size: 12px; color: #a33c2e; margin: 8px 0; }
+.job-log { font-size: 10px; background: #f6f6f3; border: 1px solid var(--line); border-radius: 5px; padding: 8px; max-height: 160px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+
+/* house-viewer 集成：返回链接、typology 链接与保存按钮 */
+.intake-header { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 18px; }
+.intake-header a { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
+.intake-header strong { font-size: 12px; letter-spacing: 0.06em; }
+a.primary-link { display: block; margin: 10px 0; padding: 10px; border-radius: 6px; background: var(--accent); color: #fff; text-align: center; text-decoration: none; font-size: 13px; }
+button.secondary { width: 100%; margin: 6px 0; padding: 9px; border: 1px solid var(--accent); border-radius: 6px; background: #fff; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; }
+button.secondary:disabled { opacity: 0.45; cursor: default; }

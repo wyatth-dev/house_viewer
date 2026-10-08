@@ -28,3 +28,11 @@ dist-ssr
 # Python material import tooling
 __pycache__/
 skill-zips/
+
+# Data store (mock database): generated at runtime, never committed
+data/*
+!data/README.md
+
+# Python service environment
+.venv/
+.pytest_cache/

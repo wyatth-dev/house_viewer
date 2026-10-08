@@ -1,0 +1,21 @@
+{
+  "id": "mat/trim-white",
+  "category": "material",
+  "tags": [
+    "白色",
+    "线脚",
+    "封檐板",
+    "trim",
+    "white",
+    "white render",
+    "render",
+    "white wall"
+  ],
+  "description": "White trim / fascia / window frames; also usable as white render",
+  "color": [
+    245,
+    243,
+    235
+  ],
+  "texture": null
+}

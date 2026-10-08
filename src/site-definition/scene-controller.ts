@@ -5,13 +5,15 @@ import type { Dimensions, SiteController } from './index.ts';
 export function createSceneCoordinator(
     site: SiteController,
     camera: CameraController,
-    house: Bounds3,
+    /** House bounds, or a getter when the house can be replaced (typology switch). */
+    houseBounds: Bounds3 | (() => Bounds3),
     contextBounds?: () => Bounds3
 ) {
     let viewport: Viewport = { width: 1, height: 1 };
     const refresh = () => site.refreshLabels(camera.project);
     const fit = (animate = false) => {
         const ground = site.getBounds();
+        const house = typeof houseBounds === 'function' ? houseBounds() : houseBounds;
         const bounds: Bounds3 = {
             min: {
                 x: Math.min(house.min.x, ground.min.x),

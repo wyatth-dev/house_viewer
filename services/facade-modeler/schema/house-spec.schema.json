@@ -1,0 +1,495 @@
+{
+  "$defs": {
+    "Facade": {
+      "properties": {
+        "side": {
+          "default": "back",
+          "enum": [
+            "front",
+            "back"
+          ],
+          "title": "Side",
+          "type": "string"
+        },
+        "widthMm": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Widthmm"
+        },
+        "segments": {
+          "items": {
+            "$ref": "#/$defs/Segment"
+          },
+          "title": "Segments",
+          "type": "array"
+        },
+        "materials": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MaterialSlot"
+          },
+          "title": "Materials",
+          "type": "object"
+        },
+        "openings": {
+          "items": {
+            "$ref": "#/$defs/Opening"
+          },
+          "title": "Openings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "materials"
+      ],
+      "title": "Facade",
+      "type": "object"
+    },
+    "Massing": {
+      "properties": {
+        "depthMm": {
+          "exclusiveMinimum": 0,
+          "title": "Depthmm",
+          "type": "number"
+        }
+      },
+      "required": [
+        "depthMm"
+      ],
+      "title": "Massing",
+      "type": "object"
+    },
+    "MaterialSlot": {
+      "properties": {
+        "asset": {
+          "title": "Asset",
+          "type": "string"
+        },
+        "heightMm": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heightmm"
+        }
+      },
+      "required": [
+        "asset"
+      ],
+      "title": "MaterialSlot",
+      "type": "object"
+    },
+    "Measurement": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "photo": {
+          "title": "Photo",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "point",
+            "box"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "px": {
+          "items": {
+            "type": "number"
+          },
+          "title": "Px",
+          "type": "array"
+        },
+        "normalized": {
+          "additionalProperties": {
+            "type": "number"
+          },
+          "title": "Normalized",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "photo",
+        "kind",
+        "px",
+        "normalized"
+      ],
+      "title": "Measurement",
+      "type": "object"
+    },
+    "Opening": {
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "asset": {
+          "title": "Asset",
+          "type": "string"
+        },
+        "uMm": {
+          "title": "Umm",
+          "type": "number"
+        },
+        "sillMm": {
+          "title": "Sillmm",
+          "type": "number"
+        },
+        "widthMm": {
+          "exclusiveMinimum": 0,
+          "title": "Widthmm",
+          "type": "number"
+        },
+        "heightMm": {
+          "exclusiveMinimum": 0,
+          "title": "Heightmm",
+          "type": "number"
+        },
+        "params": {
+          "additionalProperties": true,
+          "title": "Params",
+          "type": "object"
+        },
+        "evidence": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence"
+        }
+      },
+      "required": [
+        "id",
+        "asset",
+        "uMm",
+        "sillMm",
+        "widthMm",
+        "heightMm"
+      ],
+      "title": "Opening",
+      "type": "object"
+    },
+    "Photo": {
+      "properties": {
+        "file": {
+          "title": "File",
+          "type": "string"
+        },
+        "primary": {
+          "default": false,
+          "title": "Primary",
+          "type": "boolean"
+        },
+        "rectification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rectification"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "file"
+      ],
+      "title": "Photo",
+      "type": "object"
+    },
+    "ProvenanceEntry": {
+      "properties": {
+        "source": {
+          "enum": [
+            "user",
+            "photo-measured",
+            "photo-estimate",
+            "default"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "measurement": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Measurement"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "ProvenanceEntry",
+      "type": "object"
+    },
+    "Rectification": {
+      "properties": {
+        "cornersPx": {
+          "items": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array"
+          },
+          "title": "Cornerspx",
+          "type": "array"
+        },
+        "homography": {
+          "items": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array"
+          },
+          "title": "Homography",
+          "type": "array"
+        },
+        "aspect": {
+          "title": "Aspect",
+          "type": "number"
+        },
+        "method": {
+          "enum": [
+            "perspective",
+            "affine",
+            "reference"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "size": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "title": "Size",
+          "type": "array"
+        },
+        "originPx": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Originpx",
+          "type": "array"
+        },
+        "pxPerWidth": {
+          "title": "Pxperwidth",
+          "type": "number"
+        },
+        "file": {
+          "title": "File",
+          "type": "string"
+        }
+      },
+      "required": [
+        "cornersPx",
+        "homography",
+        "aspect",
+        "method",
+        "size",
+        "originPx",
+        "pxPerWidth",
+        "file"
+      ],
+      "title": "Rectification",
+      "type": "object"
+    },
+    "Roof": {
+      "properties": {
+        "type": {
+          "enum": [
+            "gable",
+            "hip",
+            "mono",
+            "flat"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "ridge": {
+          "enum": [
+            "parallel",
+            "perpendicular"
+          ],
+          "title": "Ridge",
+          "type": "string"
+        },
+        "eaveHeightMm": {
+          "exclusiveMinimum": 0,
+          "title": "Eaveheightmm",
+          "type": "number"
+        },
+        "pitchDeg": {
+          "exclusiveMaximum": 80,
+          "minimum": 0,
+          "title": "Pitchdeg",
+          "type": "number"
+        },
+        "overhangMm": {
+          "minimum": 0,
+          "title": "Overhangmm",
+          "type": "number"
+        },
+        "thicknessMm": {
+          "exclusiveMinimum": 0,
+          "title": "Thicknessmm",
+          "type": "number"
+        },
+        "material": {
+          "$ref": "#/$defs/MaterialSlot"
+        }
+      },
+      "required": [
+        "type",
+        "ridge",
+        "eaveHeightMm",
+        "pitchDeg",
+        "overhangMm",
+        "thicknessMm",
+        "material"
+      ],
+      "title": "Roof",
+      "type": "object"
+    },
+    "Segment": {
+      "properties": {
+        "id": {
+          "default": "main",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "title": "Segment",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "schemaVersion": {
+      "default": 1,
+      "title": "Schemaversion",
+      "type": "integer"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "units": {
+      "const": "mm",
+      "default": "mm",
+      "title": "Units",
+      "type": "string"
+    },
+    "facade": {
+      "$ref": "#/$defs/Facade"
+    },
+    "roof": {
+      "$ref": "#/$defs/Roof"
+    },
+    "massing": {
+      "$ref": "#/$defs/Massing"
+    },
+    "photos": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Photo"
+      },
+      "title": "Photos",
+      "type": "object"
+    },
+    "measurements": {
+      "additionalProperties": {
+        "$ref": "#/$defs/Measurement"
+      },
+      "title": "Measurements",
+      "type": "object"
+    },
+    "provenance": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ProvenanceEntry"
+      },
+      "title": "Provenance",
+      "type": "object"
+    },
+    "widthSkipped": {
+      "default": false,
+      "title": "Widthskipped",
+      "type": "boolean"
+    },
+    "counters": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Counters",
+      "type": "object"
+    }
+  },
+  "required": [
+    "id",
+    "facade",
+    "roof",
+    "massing"
+  ],
+  "title": "HouseSpec",
+  "type": "object"
+}

@@ -1,0 +1,19 @@
+{
+  "id": "mat/stone-ashlar",
+  "category": "material",
+  "tags": [
+    "石材",
+    "勒脚",
+    "毛石",
+    "stone",
+    "plinth",
+    "ashlar"
+  ],
+  "description": "Grey ashlar stone plinth",
+  "color": [
+    131,
+    127,
+    114
+  ],
+  "texture": "stone"
+}

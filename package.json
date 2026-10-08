@@ -6,14 +6,16 @@
     "type": "module",
     "scripts": {
     "build": "vite build",
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite",
     "fmt": "prettier --check .",
     "fmt:fix": "prettier --write .",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "materials:check": "node scripts/site-definition/check-materials.mjs",
-    "start": "vite preview",
+    "start": "node scripts/dev.mjs --serve",
     "test": "node --test tests/*.test.mjs",
+    "test:service": "uv run --project services/facade-modeler pytest services/facade-modeler/tests",
     "typecheck": "tsc --noEmit"
   },
     "dependencies": {

@@ -1,4 +1,5 @@
-import { defaultTypology } from '../scenes/typology/index.ts';
+import { listTypologies, typologyUrl } from '../scenes/typology/catalog.ts';
+import type { TypologyEntry } from '../scenes/typology/catalog.ts';
 
 export function createPanel(host: HTMLElement) {
     host.innerHTML = `
@@ -22,11 +23,18 @@ export function createPanel(host: HTMLElement) {
                 <section class="typology-section">
                     <h2><span>01</span> Typology</h2>
                     <p class="hint">Your house base model.</p>
-                    <figure class="typology-option" aria-label="Current base model:">
-                        <img class="typology-axon" alt="House model in axonometric view" hidden>
-                        <span id="preview-status" class="hint">Generating model preview…</span>
-                        <figcaption></figcaption>
-                    </figure>
+                    <div class="typology-group preset">
+                        <h3>Preset</h3>
+                        <div class="typology-rail">
+                            <div class="typology-strip" id="typology-builtin" role="group" aria-label="Preset base models"></div>
+                        </div>
+                    </div>
+                    <div class="typology-group">
+                        <h3>From photo</h3>
+                        <div class="typology-rail">
+                            <div class="typology-strip" id="typology-photo" role="group" aria-label="Base models from photos"></div>
+                        </div>
+                    </div>
                 </section>
                 <section>
                     <h2><span>02</span> Yard dimensions</h2>
@@ -93,9 +101,42 @@ export function createPanel(host: HTMLElement) {
             </fieldset>
         </div>
     `;
-    host.querySelector('.typology-option')!.setAttribute('aria-label', `Current base model: ${defaultTypology.name}`);
-    host.querySelector('.typology-axon')!.setAttribute('alt', `${defaultTypology.name} model in axonometric view`);
-    host.querySelector('.typology-option figcaption')!.textContent = defaultTypology.name;
+    const strips = {
+        builtin: host.querySelector<HTMLElement>('#typology-builtin')!,
+        photo: host.querySelector<HTMLElement>('#typology-photo')!
+    };
+    const removeRails = [...host.querySelectorAll<HTMLElement>('.typology-rail')].map(createRail);
+    const typologyListeners = new Set<(entry: TypologyEntry) => void>();
+    let activeTypologyId = '';
+    const cards = () => host.querySelectorAll<HTMLAnchorElement>('.typology-card[data-typology]');
+    const markActive = () => {
+        for (const card of cards()) {
+            if (card.dataset.typology === activeTypologyId) card.setAttribute('aria-current', 'true');
+            else card.removeAttribute('aria-current');
+        }
+    };
+    const select = (entry: TypologyEntry) => (event: MouseEvent) => {
+        // Plain click switches the house in place; modified clicks keep the link behaviour (new tab).
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        if (entry.id === activeTypologyId) return;
+        for (const listener of typologyListeners) listener(entry);
+    };
+    const renderTypologies = (entries: TypologyEntry[]) => {
+        const card = (entry: TypologyEntry) => {
+            const element = typologyCard(entry);
+            element.addEventListener('click', select(entry));
+            return element;
+        };
+        strips.builtin.replaceChildren(...entries.filter(({ source }) => source === 'builtin').map(card));
+        strips.photo.replaceChildren(newFromPhotoCard(), ...entries.filter(({ source }) => source === 'photo').map(card));
+        markActive();
+        for (const strip of Object.values(strips)) {
+            strip.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'center' });
+            strip.dispatchEvent(new Event('scroll'));
+        }
+    };
+    const loadingTypologies = listTypologies().then(renderTypologies);
     const siteStep = host.querySelector<HTMLElement>('#site-step')!;
     const placementStep = host.querySelector<HTMLElement>('#placement-step')!;
     const next = host.querySelector<HTMLButtonElement>('#placement-next')!;
@@ -127,14 +168,28 @@ export function createPanel(host: HTMLElement) {
         summary: host.querySelector<HTMLElement>('#property-summary')!,
         dimensions: host.querySelector<HTMLElement>('#dimension-controls')!,
         views: host.querySelector<HTMLElement>('#view-controls')!,
-        showModelPreview(url: string) {
-            const image = host.querySelector<HTMLImageElement>('.typology-axon')!;
-            image.src = url;
-            image.hidden = false;
-            host.querySelector<HTMLElement>('#preview-status')!.hidden = true;
+        /** Mark the typology shown in the scene. */
+        setActiveTypology(id: string) {
+            activeTypologyId = id;
+            markActive();
         },
-        previewFailed() {
-            host.querySelector<HTMLElement>('#preview-status')!.textContent = 'Model preview unavailable';
+        /** Show a thumbnail on a typology's card (e.g. one just rendered). */
+        async setTypologyPreview(id: string, url: string) {
+            await loadingTypologies;
+            for (const card of cards()) {
+                if (card.dataset.typology !== id) continue;
+                const image = card.querySelector<HTMLImageElement>('img')!;
+                image.src = url;
+            }
+        },
+        setTypologyBusy(busy: boolean) {
+            for (const strip of Object.values(strips)) strip.toggleAttribute('aria-busy', busy);
+        },
+        onSelectTypology(listener: (entry: TypologyEntry) => void) {
+            typologyListeners.add(listener);
+            return () => {
+                typologyListeners.delete(listener);
+            };
         },
         onStepChange(listener: (step: 'site' | 'placement') => void) {
             stepListeners.add(listener);
@@ -149,7 +204,74 @@ export function createPanel(host: HTMLElement) {
             next.removeEventListener('click', goNext);
             back.removeEventListener('click', goBack);
             stepListeners.clear();
+            typologyListeners.clear();
+            for (const remove of removeRails) remove();
             host.replaceChildren();
         }
+    };
+}
+
+const PLACEHOLDER = `<svg viewBox="0 0 64 48" aria-hidden="true"><path d="M14 40 V22 L32 9 L50 22 V40 Z M26 40 V29 H38 V40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></svg>`;
+
+/** One typology as a preview card. The link also works on its own (new tab, no script). */
+function typologyCard(entry: TypologyEntry) {
+    const card = document.createElement('a');
+    card.className = 'typology-card';
+    card.href = typologyUrl(entry.id);
+    card.title = entry.name;
+    card.dataset.typology = entry.id;
+    const thumb = document.createElement('span');
+    thumb.className = 'typology-thumb';
+    thumb.innerHTML = PLACEHOLDER;
+    const image = document.createElement('img');
+    image.alt = '';
+    image.hidden = true;
+    image.addEventListener('load', () => (image.hidden = false));
+    image.addEventListener('error', () => (image.hidden = true));
+    if (entry.previewUrl) image.src = entry.previewUrl;
+    thumb.append(image);
+    const name = document.createElement('span');
+    name.className = 'typology-name';
+    name.textContent = entry.name.replace(/^Photo · /, '');
+    card.append(thumb, name);
+    return card;
+}
+
+function newFromPhotoCard() {
+    const card = document.createElement('a');
+    card.className = 'typology-card typology-new';
+    card.href = '/intake.html';
+    card.innerHTML = '<span class="typology-thumb"><span aria-hidden="true">+</span></span><span class="typology-name">New from photo</span>';
+    return card;
+}
+
+/** Horizontal scroll axis: arrow buttons appear only when the strip overflows. */
+function createRail(rail: HTMLElement) {
+    const strip = rail.querySelector<HTMLElement>('.typology-strip')!;
+    const arrow = (direction: -1 | 1) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `typology-arrow ${direction < 0 ? 'previous' : 'next'}`;
+        button.setAttribute('aria-label', direction < 0 ? 'Scroll left' : 'Scroll right');
+        button.textContent = direction < 0 ? '‹' : '›';
+        button.addEventListener('click', () => strip.scrollBy({ left: direction * strip.clientWidth * 0.8, behavior: 'smooth' }));
+        return button;
+    };
+    const previous = arrow(-1),
+        next = arrow(1);
+    rail.append(previous, next);
+    const update = () => {
+        const overflow = strip.scrollWidth > strip.clientWidth + 1;
+        rail.classList.toggle('overflowing', overflow);
+        previous.hidden = !overflow || strip.scrollLeft <= 1;
+        next.hidden = !overflow || strip.scrollLeft + strip.clientWidth >= strip.scrollWidth - 1;
+    };
+    strip.addEventListener('scroll', update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(strip);
+    update();
+    return () => {
+        strip.removeEventListener('scroll', update);
+        observer.disconnect();
     };
 }

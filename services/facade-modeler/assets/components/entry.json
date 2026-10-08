@@ -1,0 +1,21 @@
+{
+  "id": "door/entry",
+  "category": "component",
+  "generator": "door",
+  "tags": [
+    "门",
+    "入户门",
+    "前门",
+    "door",
+    "entry",
+    "front door"
+  ],
+  "description": "Entry door: dark timber leaf, optionally with upper glazing.",
+  "params": {
+    "glazed": {
+      "type": "bool",
+      "default": true,
+      "doc": "Whether the upper part of the leaf is glazed"
+    }
+  }
+}

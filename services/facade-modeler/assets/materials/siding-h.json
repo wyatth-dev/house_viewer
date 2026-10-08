@@ -1,0 +1,19 @@
+{
+  "id": "mat/siding-horizontal",
+  "category": "material",
+  "tags": [
+    "墙面",
+    "挂板",
+    "水平挂板",
+    "siding",
+    "cladding",
+    "horizontal siding"
+  ],
+  "description": "Light beige horizontal cladding",
+  "color": [
+    224,
+    222,
+    213
+  ],
+  "texture": "horizontal"
+}

@@ -1,0 +1,17 @@
+{
+  "id": "mat/concrete",
+  "category": "material",
+  "tags": [
+    "混凝土",
+    "地面",
+    "concrete",
+    "grey"
+  ],
+  "description": "Light grey concrete",
+  "color": [
+    188,
+    185,
+    176
+  ],
+  "texture": null
+}

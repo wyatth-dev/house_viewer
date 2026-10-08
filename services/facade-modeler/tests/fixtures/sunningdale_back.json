@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "id": "house-001",
+  "units": "mm",
+  "facade": {
+    "widthMm": 11300,
+    "segments": [
+      {
+        "id": "main"
+      }
+    ],
+    "materials": {
+      "plinth": {
+        "asset": "mat/stone-ashlar",
+        "heightMm": 520
+      },
+      "wall": {
+        "asset": "mat/siding-horizontal"
+      },
+      "gable": {
+        "asset": "mat/siding-vertical"
+      }
+    },
+    "openings": [
+      {
+        "id": "o1",
+        "asset": "win/casement",
+        "uMm": 9550,
+        "sillMm": 825.0,
+        "widthMm": 1500,
+        "heightMm": 1350,
+        "params": {},
+        "evidence": {
+          "source": "house-viewer sunningdale_baseline.py Rear_Snug_Window"
+        }
+      },
+      {
+        "id": "o2",
+        "asset": "win/casement",
+        "uMm": 7000,
+        "sillMm": 1150.0,
+        "widthMm": 600,
+        "heightMm": 900,
+        "params": {},
+        "evidence": {
+          "source": "house-viewer sunningdale_baseline.py Rear_Utility_Window"
+        }
+      },
+      {
+        "id": "o3",
+        "asset": "door/patio",
+        "uMm": 4500,
+        "sillMm": 0.0,
+        "widthMm": 1800,
+        "heightMm": 2100,
+        "params": {},
+        "evidence": {
+          "source": "house-viewer sunningdale_baseline.py Rear_Patio_Doors"
+        }
+      },
+      {
+        "id": "o4",
+        "asset": "win/casement",
+        "uMm": 1700,
+        "sillMm": 1025.0,
+        "widthMm": 1200,
+        "heightMm": 1050,
+        "params": {},
+        "evidence": {
+          "source": "house-viewer sunningdale_baseline.py Rear_Kitchen_Window"
+        }
+      },
+      {
+        "id": "o5",
+        "asset": "win/casement",
+        "uMm": 10000,
+        "sillMm": 3850.0,
+        "widthMm": 600,
+        "heightMm": 900,
+        "params": {},
+        "evidence": {
+          "source": "house-viewer sunningdale_baseline.py Rear_Ensuite2_Window"
+        }
+      },
+      {
+        "id": "o6",
+        "asset": "win/casement",
+        "uMm": 7550,
+        "sillMm": 3500.0,
+        "widthMm": 1200,
+        "heightMm": 1200,
+        "params": {},
+        "evidence": {
+          "source": "house-viewer sunningdale_baseline.py Rear_Bedroom2_Window"
+        }
+      },
+      {
+        "id": "o7",
+        "asset": "win/casement",
+        "uMm": 4800,
+        "sillMm": 3500.0,
+        "widthMm": 1200,
+        "heightMm": 1200,
+        "params": {},
+        "evidence": {
+          "source": "house-viewer sunningdale_baseline.py Rear_Bedroom3_Window"
+        }
+      },
+      {
+        "id": "o8",
+        "asset": "win/casement",
+        "uMm": 1800,
+        "sillMm": 3500.0,
+        "widthMm": 1200,
+        "heightMm": 1200,
+        "params": {},
+        "evidence": {
+          "source": "house-viewer sunningdale_baseline.py Rear_Bedroom4_Window"
+        }
+      }
+    ]
+  },
+  "roof": {
+    "type": "gable",
+    "ridge": "parallel",
+    "eaveHeightMm": 5200,
+    "pitchDeg": 40.36453657309736,
+    "overhangMm": 180,
+    "thicknessMm": 120,
+    "material": {
+      "asset": "mat/slate-grey"
+    }
+  },
+  "massing": {
+    "depthMm": 6800
+  },
+  "counters": {
+    "o": 8
+  },
+  "provenance": {
+    "facade.widthMm": {
+      "source": "user",
+      "note": "Sunningdale regression fixture"
+    }
+  }
+}

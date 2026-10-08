@@ -1,0 +1,25 @@
+{
+  "id": "win/sash",
+  "category": "component",
+  "generator": "sash",
+  "tags": [
+    "窗",
+    "上下推拉窗",
+    "推拉窗",
+    "window",
+    "sash",
+    "georgian",
+    "sash window",
+    "sliding sash"
+  ],
+  "description": "Sash window: upper and lower sashes with a horizontal meeting rail; optional glazing bars.",
+  "params": {
+    "grid": {
+      "type": "int",
+      "min": 0,
+      "max": 4,
+      "default": 0,
+      "doc": "Vertical glazing bars per sash; 0 for none"
+    }
+  }
+}

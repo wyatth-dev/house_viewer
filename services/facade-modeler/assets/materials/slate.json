@@ -1,0 +1,18 @@
+{
+  "id": "mat/slate-grey",
+  "category": "material",
+  "tags": [
+    "屋面",
+    "瓦",
+    "石板瓦",
+    "slate",
+    "roof"
+  ],
+  "description": "Dark grey slate roof",
+  "color": [
+    72,
+    78,
+    83
+  ],
+  "texture": "roof"
+}

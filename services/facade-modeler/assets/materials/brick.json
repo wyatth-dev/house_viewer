@@ -1,0 +1,20 @@
+{
+  "id": "mat/brick-red",
+  "category": "material",
+  "tags": [
+    "砖",
+    "红砖",
+    "砖墙",
+    "brick",
+    "wall",
+    "red brick",
+    "brickwork"
+  ],
+  "description": "Red brick wall, stretcher bond",
+  "color": [
+    150,
+    74,
+    52
+  ],
+  "texture": "brick"
+}

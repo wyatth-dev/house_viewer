@@ -1,11 +1,45 @@
 import fairyHouse from '../../../public/scenes/typology/fairy-house/scene.json' with { type: 'json' };
+import sunningdaleHouse from '../../../public/scenes/typology/sunningdale-house/scene.json' with { type: 'json' };
 import catalog from '../../../public/scenes/typology/index.json' with { type: 'json' };
 import type { InstallationWallFace } from '../../product-placement/types.ts';
 
-/** Public manifests are the source of truth; register new manifests here for bundling. */
-const manifests = [fairyHouse];
-export const typologies = catalog.typologies.map((entry) => {
-    const scene = manifests.find(({ id }) => id === entry.id);
+type Vector2 = { x: number; z: number };
+type Vector3 = { x: number; y: number; z: number };
+
+/** Fields of a typology scene.json that the viewer relies on (built-in or photo-generated). */
+export type TypologyManifest = {
+    schemaVersion: number;
+    id: string;
+    name: string;
+    model: string;
+    units: string;
+    axes: { up: string; front: string };
+    preview?: { mode: string };
+    calibration: {
+        actualWidthMm: number;
+        sourceFootprint: { minX: number; maxX: number; minZ: number; maxZ: number };
+        groundY: number;
+        yawDegrees: number;
+    };
+    installationFaces: {
+        wallFaceId: string;
+        side: string;
+        originMm: Vector3;
+        lengthMm: number;
+        alongWallUnit: Vector2;
+        outwardUnit: Vector2;
+    }[];
+    representations: Record<string, { model: string }>;
+};
+export type Typology = ReturnType<typeof parseTypology>;
+export type TypologySource = 'builtin' | 'photo';
+
+/**
+ * Validate and calibrate one manifest. `baseUrl` is the folder that holds scene.json
+ * (e.g. `/scenes/typology/fairy-house/` or `/data/typologies/house-002/`).
+ */
+export function parseTypology(scene: TypologyManifest, baseUrl: string, origin: TypologySource) {
+    const id = scene?.id;
     if (
         !scene ||
         scene.schemaVersion !== 1 ||
@@ -13,7 +47,7 @@ export const typologies = catalog.typologies.map((entry) => {
         scene.axes.up !== '+Y' ||
         scene.axes.front !== '+Z'
     ) {
-        throw new Error(`Unsupported typology: ${entry.id}`);
+        throw new Error(`Unsupported typology: ${id}`);
     }
     const { actualWidthMm, sourceFootprint: source, groundY, yawDegrees } = scene.calibration;
     if (
@@ -26,7 +60,7 @@ export const typologies = catalog.typologies.map((entry) => {
         source.maxZ <= source.minZ ||
         yawDegrees !== 0
     ) {
-        throw new Error(`Invalid calibration for typology: ${entry.id}`);
+        throw new Error(`Invalid calibration for typology: ${id}`);
     }
     const scale = 1; // Model coordinates are millimeters; never repair units by scaling.
     const ids = new Set<string>();
@@ -62,8 +96,26 @@ export const typologies = catalog.typologies.map((entry) => {
             lengthMm: lengthMm * scale
         };
     });
+    return { ...scene, source: origin, baseUrl, modelUrl: `${baseUrl}${scene.model}`, installationFaces };
+}
+
+/** Built-in manifests are bundled; register new built-in manifests here. */
+const manifests: TypologyManifest[] = [fairyHouse, sunningdaleHouse];
+export const typologies = catalog.typologies.map((entry) => {
+    const scene = manifests.find(({ id }) => id === entry.id);
+    if (!scene) throw new Error(`Unsupported typology: ${entry.id}`);
     const directory = entry.manifest.slice(0, entry.manifest.lastIndexOf('/') + 1);
-    return { ...scene, modelUrl: `/scenes/typology/${directory}${scene.model}`, installationFaces };
+    return parseTypology(scene, `/scenes/typology/${directory}`, 'builtin');
 });
 export const defaultTypology = typologies.find(({ id }) => id === catalog.defaultTypologyId)!;
 if (!defaultTypology) throw new Error('The default typology is not registered.');
+
+/**
+ * The typology this page shows. main.ts sets it before it imports the app, so
+ * modules that read it at load time (house-config, installation-faces) see the chosen one.
+ */
+let active: Typology = defaultTypology;
+export const activeTypology = (): Typology => active;
+export function setActiveTypology(typology: Typology) {
+    active = typology;
+}

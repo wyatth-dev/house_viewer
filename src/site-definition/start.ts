@@ -12,10 +12,14 @@ import {
 } from 'playcanvas';
 
 import { createPlacementController } from '../product-placement/controller.ts';
+import { fadeHouseModel } from '../scene/house/fade.ts';
 import type { HouseRepresentation } from '../scene/house/house-config.ts';
 import { loadHouse } from '../scene/house/house.ts';
 import { houseRepresentationIcon } from '../scene/house/representation-icon.ts';
 import { createModelPreview } from '../scene/model-preview/index.ts';
+import { loadTypology, storePreview, typologyUrl } from '../scenes/typology/catalog.ts';
+import type { TypologyEntry } from '../scenes/typology/catalog.ts';
+import { activeTypology, setActiveTypology } from '../scenes/typology/index.ts';
 import { createCameraController, createCameraControls, createOrbitControls } from '../shared/camera/index.ts';
 import { createLifetime } from '../shared/lifetime.ts';
 
@@ -26,7 +30,8 @@ import { createRendering, daylightConfig } from './rendering/index.ts';
 import { createSceneCoordinator } from './scene-controller.ts';
 import './style.css';
 
-export function startSiteDefinition() {
+/** `initial` is the typology already made active by main.ts. */
+export function startSiteDefinition(initial: TypologyEntry) {
     const canvas = document.querySelector<HTMLCanvasElement>('#application-canvas')!;
     const viewport = document.querySelector<HTMLElement>('#viewport')!;
     const status = document.querySelector<HTMLElement>('#status')!;
@@ -93,8 +98,8 @@ export function startSiteDefinition() {
         lifetime.add(() => app.destroy());
 
         // Scene assets: House and the temporary product preview
-        const house = await loadHouse(app, lifetime.signal);
-        lifetime.add(house.destroy);
+        let house = await loadHouse(app, lifetime.signal);
+        lifetime.add(() => house.destroy());
         lifetime.signal.throwIfAborted();
         await house.setRepresentation('render');
         lifetime.signal.throwIfAborted();
@@ -212,7 +217,7 @@ export function startSiteDefinition() {
         lifetime.add(camera.onMove(updateHouseVisibility));
 
         const productChoice = document.querySelector<HTMLButtonElement>('#select-varenda')!;
-        const placement = createPlacementController(
+        const createPlacement = () => createPlacementController(
             app,
             document.querySelector<HTMLElement>('#measurements')!,
             () => site.getLayout().property,
@@ -234,13 +239,15 @@ export function startSiteDefinition() {
             },
             editModeChanged
         );
+        // Recreated when the typology changes: placed products belong to the previous house's walls.
+        let placement = createPlacement();
         lifetime.add(() => placement.destroy());
 
         const selectProduct = () => placement.toggleProduct('varenda');
         productChoice.addEventListener('click', selectProduct);
         lifetime.add(() => productChoice.removeEventListener('click', selectProduct));
 
-        lifetime.add(camera.onMove(placement.refreshLabels));
+        lifetime.add(camera.onMove(() => placement.refreshLabels()));
         lifetime.add(
             panel.onStepChange((step) => {
                 placement.setPlacementActive(step === 'placement');
@@ -265,7 +272,7 @@ export function startSiteDefinition() {
         updateSiteContext();
 
         // Coordination: scene bounds and camera policy stay outside product rendering.
-        const coordinator = createSceneCoordinator(site, camera, house.bounds, () => site.getBounds());
+        const coordinator = createSceneCoordinator(site, camera, () => house.bounds, () => site.getBounds());
         lifetime.add(camera.onMove(coordinator.refresh));
         // Controls: site dimensions and camera presets
         const dimensionControls = createSiteControls(
@@ -321,19 +328,95 @@ export function startSiteDefinition() {
         dimensionControls.update(site.getLayout());
         viewControls.update(camera.getState().activePresetId);
         resize();
-        // Thumbnail: independent from the interactive scene camera
-        const preview = createModelPreview(app, house.entity, house.bounds);
-        lifetime.add(() => preview.destroy());
-        void preview.ready
-            .then((url) => {
-                if (!isDisposed() && url) panel.showModelPreview(url);
-            })
-            .catch((error) => {
-                if (!isDisposed()) {
-                    console.warn('Model preview could not be generated', error);
-                    panel.previewFailed();
+        // Thumbnail: independent from the interactive scene camera. Photo typologies are seen
+        // from their modelled facade (often the back), presets from the front.
+        let preview: ReturnType<typeof createModelPreview> | undefined;
+        lifetime.add(() => preview?.destroy());
+        const renderPreview = (entry: TypologyEntry) => {
+            const typology = activeTypology();
+            const outward = typology.source === 'photo' ? (typology.installationFaces[0]?.outwardUnit.z ?? 1) : 1;
+            preview?.destroy();
+            const current = createModelPreview(app, house.entity, house.bounds, {
+                direction: { x: outward, y: 1, z: outward }
+            });
+            preview = current;
+            void current.ready
+                .then(async (url) => {
+                    if (isDisposed() || !url) return;
+                    if (!entry.previewUrl) void panel.setTypologyPreview(entry.id, url);
+                    await storePreview(entry, current.blob());
+                })
+                .catch((error) => console.warn('Model preview could not be generated', error));
+        };
+        panel.setActiveTypology(initial.id);
+        renderPreview(initial);
+
+        // Typology switch: replace only the house and what depends on it (yard envelope,
+        // installation walls, placed products). App, camera, lighting, landscape and yard
+        // dimensions are kept.
+        let switching = Promise.resolve();
+        const switchTypology = (entry: TypologyEntry, pushHistory = true) => {
+            switching = switching.then(async () => {
+                if (isDisposed() || entry.id === activeTypology().id) return;
+                panel.setTypologyBusy(true);
+                panel.setActiveTypology(entry.id);
+                status.textContent = `Loading ${entry.name}…`;
+                status.hidden = false;
+                const previous = activeTypology();
+                try {
+                    const { typology } = await loadTypology(entry.id);
+                    setActiveTypology(typology);
+                    const next = await loadHouse(app, lifetime.signal);
+                    next.entity.enabled = false; // hidden until its representation is ready
+                    try {
+                        if (currentMode !== 'white') await next.setRepresentation(currentMode);
+                    } catch (error) {
+                        next.destroy();
+                        throw error;
+                    }
+                    if (isDisposed()) {
+                        next.destroy();
+                        return;
+                    }
+                    // Same fade as representation changes: old house out, new house in.
+                    const fade = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    const old = house;
+                    if (fade) await fadeHouseModel(app, old.entity, 1, 0, lifetime.signal);
+                    house = next;
+                    old.destroy();
+                    placement.destroy();
+                    placement = createPlacement();
+                    placement.setPlacementActive(false);
+                    site.setFootprint(house.footprint);
+                    dimensionControls.update(site.getLayout());
+                    updateSiteContext();
+                    updateHouseVisibility();
+                    coordinator.resize({ width: viewport.clientWidth, height: viewport.clientHeight }, true);
+                    if (fade && house.entity.enabled) await fadeHouseModel(app, house.entity, 0, 1, lifetime.signal);
+                    renderPreview(entry);
+                    if (pushHistory) window.history.pushState({ typology: entry.id }, '', typologyUrl(entry.id));
+                    status.hidden = true;
+                } catch (error) {
+                    if (isDisposed()) return;
+                    console.error(error);
+                    setActiveTypology(previous);
+                    panel.setActiveTypology(previous.id);
+                    status.textContent = `Could not load ${entry.name}. ${(error as Error).message}`;
+                } finally {
+                    panel.setTypologyBusy(false);
                 }
             });
+            return switching;
+        };
+        lifetime.add(panel.onSelectTypology((entry) => void switchTypology(entry)));
+        const onHistory = () => {
+            const id = new URLSearchParams(window.location.search).get('typology') ?? initial.id;
+            void loadTypology(id)
+                .then(({ entry }) => switchTypology(entry, false))
+                .catch((error) => console.error(error));
+        };
+        window.addEventListener('popstate', onHistory);
+        lifetime.add(() => window.removeEventListener('popstate', onHistory));
         // Startup
         app.start();
         panel.enable();
