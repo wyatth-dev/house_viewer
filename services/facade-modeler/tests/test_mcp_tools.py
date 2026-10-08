@@ -5,7 +5,7 @@ import json
 from facade_modeler.adapters.mcp_server import TOOL_NAMES, create_server
 from facade_modeler.assets.catalog import Catalog
 from facade_modeler.config import load_defaults
-from facade_modeler.project.store import ProjectStore
+from facade_modeler.photo_model.store import PhotoModelStore
 from facade_modeler.service.context import ServiceContext
 
 PERCEPTION = {"get_context", "view_photo", "rectify_photo", "measure", "search_assets", "render_preview"}
@@ -14,7 +14,7 @@ MODELING = {"estimate_width", "set_roof", "set_materials", "add_opening", "updat
 
 
 def make_server(tmp_path):
-    ctx = ServiceContext(ProjectStore(tmp_path), Catalog.load(), load_defaults())
+    ctx = ServiceContext(PhotoModelStore(tmp_path), Catalog.load(), load_defaults())
     return create_server(ctx), ctx
 
 
@@ -50,7 +50,7 @@ def test_bad_vertical_ref_returns_reason(tmp_path):
     from helpers import jpeg_bytes
 
     server, ctx = make_server(tmp_path)
-    pid = user_actions.upload_photos(ctx, None, [(jpeg_bytes(), "a.jpg")], 8000).result["projectId"]
+    pid = user_actions.upload_photos(ctx, None, [(jpeg_bytes(), "a.jpg")], 8000).result["photoModelId"]
     payload = call(server, "rectify_photo", {"project_id": pid, "photo_id": "p1",
                                              "corners_px": [[50, 400], [600, 400], [600, 100], [50, 100]],
                                              "vertical_ref": {"box_px": [1, 2, 3, 4]}})
@@ -62,7 +62,7 @@ def test_measure_wrong_shape_returns_reason(tmp_path):
     from helpers import jpeg_bytes
 
     server, ctx = make_server(tmp_path)
-    pid = user_actions.upload_photos(ctx, None, [(jpeg_bytes(), "a.jpg")], 8000).result["projectId"]
+    pid = user_actions.upload_photos(ctx, None, [(jpeg_bytes(), "a.jpg")], 8000).result["photoModelId"]
     call(server, "rectify_photo", {"project_id": pid, "photo_id": "p1",
                                    "corners_px": [[50, 400], [600, 400], [600, 100], [50, 100]]})
     payload = call(server, "measure", {"project_id": pid, "photo_id": "p1", "box_px": [1, 2, 3]})

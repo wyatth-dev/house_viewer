@@ -16,13 +16,13 @@ from facade_modeler.spec.validate import validate
 
 def upload_photos(ctx: ServiceContext, project_id: Optional[str], files: list[tuple[bytes, str]],
                   width_mm: Optional[float], facade_side: Optional[str] = None) -> Result:
-    """project_id 为 None 时新建项目；width_mm 为 None 时视为跳过（已有宽度则保留）。
+    """project_id 为 None 时新建照片模型；width_mm 为 None 时视为跳过（已有宽度则保留）。
     facade_side：照片拍的是 front、back、left 或 right；None 时保留原值（新项目默认 back）。"""
     if not files:
         return fail("Upload at least one photo")
     if width_mm is not None and not (math.isfinite(width_mm) and width_mm > 0):
         return fail("Width must be a number of millimetres greater than 0")
-    try:  # 先全部解码成功，再新建项目，避免留下空项目
+    try:  # 先全部解码成功，再新建照片模型，避免留下空照片模型
         photos = [normalize_photo(data) for data, _ in files]
     except ValueError as error:
         return fail(str(error))
@@ -62,14 +62,14 @@ def upload_photos(ctx: ServiceContext, project_id: Optional[str], files: list[tu
         if facade_side is not None:
             spec.facade.side = facade_side
         project.save_spec(spec)
-    return ok({"projectId": project.id, "photoIds": photo_ids})
+    return ok({"photoModelId": project.id, "photoIds": photo_ids})
 
 
-def list_projects(ctx: ServiceContext) -> Result:
+def list_photo_models(ctx: ServiceContext) -> Result:
     return ok({"projects": ctx.store.list()})
 
 
-def project_summary(ctx: ServiceContext, project_id: str) -> Result:
+def photo_model_summary(ctx: ServiceContext, project_id: str) -> Result:
     project = ctx.project(project_id)
     spec = project.load_spec()
     photos = [{"id": pid, "file": p.file, "primary": p.primary,

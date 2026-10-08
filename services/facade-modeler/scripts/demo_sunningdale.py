@@ -1,12 +1,13 @@
 """End-to-end demo: a scripted stand-in for the LM (a smoke test, not a real LM).
 
 1. Synthesise an oblique "photo" of the Sunningdale rear facade (known size and opening positions).
-2. Upload it over HTTP (the same endpoint as the viewer's upload button).
+2. Upload it over HTTP into a user project (the same endpoint as the viewer's upload button);
+   without --project a new project is created.
 3. Drive the tools through an MCP stdio client: rectify → measure → add openings → set roof → build →
    preview → submit.
 
 Usage (start uv run facade-modeler-http first):
-    uv run python scripts/demo_sunningdale.py [--server http://127.0.0.1:8765] [--out preview.png]
+    uv run python scripts/demo_sunningdale.py [--server http://127.0.0.1:8765] [--project p-0001] [--out preview.png]
 """
 from __future__ import annotations
 
@@ -79,9 +80,13 @@ def save_images(result, prefix: str) -> list[str]:
     return paths
 
 
-async def model_with_mcp(project_id: str, corners, out: str) -> None:
+async def model_with_mcp(pid: str, project_id: str, corners, out: str) -> None:
+    """project_id 是照片模型 id（MCP 工具的参数名）；pid 是它所在的用户项目。"""
+    from facade_modeler.paths import projects_dir
+    env = {**os.environ, "FACADE_PHOTO_MODELS_DIR": str(projects_dir() / pid / "photo-models"),
+           "FACADE_TYPOLOGIES_DIR": str(projects_dir() / pid / "typologies")}
     params = StdioServerParameters(command=sys.executable, args=["-m", "facade_modeler.adapters.mcp_server"],
-                                   env={**os.environ})
+                                   env=env)
     async with stdio_client(params) as (read, write), ClientSession(read, write) as session:
         await session.initialize()
         tools = await session.list_tools()
@@ -114,16 +119,22 @@ async def model_with_mcp(project_id: str, corners, out: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--server", default="http://127.0.0.1:8765")
+    parser.add_argument("--project", default=None, help="user project id (default: create a new project)")
     parser.add_argument("--out", default="demo-preview.png")
     args = parser.parse_args()
+    pid = args.project
+    if pid is None:
+        created = httpx.post(f"{args.server}/api/projects", json={"name": "Sunningdale demo"})
+        created.raise_for_status()
+        pid = created.json()["result"]["id"]
     photo, corners = oblique_photo(facade_image())
     encoded = cv2.imencode(".jpg", photo)[1].tobytes()
-    response = httpx.post(f"{args.server}/api/uploads", data={"widthMm": str(WIDTH)},
+    response = httpx.post(f"{args.server}/api/projects/{pid}/photo-models", data={"widthMm": str(WIDTH)},
                           files=[("files", ("sunningdale-back.jpg", encoded, "image/jpeg"))])
     response.raise_for_status()
-    project_id = response.json()["result"]["projectId"]
-    print("Uploaded:", project_id)
-    asyncio.run(model_with_mcp(project_id, corners, args.out))
+    project_id = response.json()["result"]["photoModelId"]
+    print("Uploaded:", pid, project_id)
+    asyncio.run(model_with_mcp(pid, project_id, corners, args.out))
 
 
 if __name__ == "__main__":

@@ -1,10 +1,11 @@
-import { componentGeometryIds, containedInstanceIds } from '../products/parametric-engine/varenda/component-data.ts';
 import type { AppBase } from 'playcanvas';
 
+import { componentGeometryIds, containedInstanceIds } from '../products/parametric-engine/varenda/component-data.ts';
 import type { VarendaParams } from '../products/parametric-engine/varenda/parameters.ts';
 import { solveVarenda } from '../products/parametric-engine/varenda/solution.ts';
 import { createVarendaView } from '../products/varenda/view/varenda-view.ts';
 import type { VarendaView } from '../products/varenda/view/varenda-view.ts';
+import type { ProductRecord } from '../projects/state.ts';
 import { houseInstallationFaces } from '../scene/house/installation-faces.ts';
 import { createProductAssetStore } from '../shared/assets/containers.ts';
 import type { CameraBasis } from '../shared/camera/types.ts';
@@ -49,7 +50,8 @@ export function createPlacementController(
     signal: AbortSignal,
     onFocus?: (bounds: Bounds3 | undefined, basis?: CameraBasis, preserveView?: boolean) => void,
     setContextVisible?: (visible: boolean) => void,
-    onEditModeChange?: (editing: boolean) => void
+    onEditModeChange?: (editing: boolean) => void,
+    onChange?: () => void
 ) {
     let placementActive = false;
     let selectedProduct: 'varenda' | undefined;
@@ -195,6 +197,28 @@ export function createPlacementController(
         instance.envelope = envelope;
         placeView(instance);
         refreshAvailableAreas();
+        onChange?.();
+    };
+    /** Validates, solves and adds a product; resolves undefined when the controller was disposed meanwhile. */
+    const buildInstance = async (
+        product: Omit<PlacedProduct, 'view'>
+    ): Promise<PlacedProduct | undefined> => {
+        validateEnvelope(product.envelope, product.wall);
+        const solution = solveVarenda(product.params);
+        let view: VarendaView | undefined = await createVarendaView(app, assets);
+        try {
+            view.setFastenerAxesVisible(false);
+            if (disposed || signal.aborted) return undefined;
+            validateEnvelope(product.envelope, product.wall);
+            view.update(solution);
+            const instance = { ...product, params: { ...product.params }, view };
+            placeView(instance);
+            instances.set(instance.id, instance);
+            view = undefined;
+            return instance;
+        } finally {
+            view?.destroy();
+        }
     };
     const measurements = createPreviewMeasurements(
         app,
@@ -250,6 +274,7 @@ export function createPlacementController(
                 if (instance.lockedDimensions.has(field)) instance.lockedDimensions.delete(field);
                 else instance.lockedDimensions.add(field);
                 if (detailId === instance.id) refreshDetail?.();
+                onChange?.();
             }
         }
     );
@@ -271,6 +296,7 @@ export function createPlacementController(
         } else if (instance.lockedParameters.has(key)) instance.lockedParameters.delete(key);
         else instance.lockedParameters.add(key);
         refreshDetail?.();
+        onChange?.();
     });
 
     const button = (label: string, action: () => void) => {
@@ -582,6 +608,7 @@ export function createPlacementController(
                             focus?.(undefined);
                             renderCards();
                             refreshAvailableAreas();
+                            onChange?.();
                         },
                         true
                     )
@@ -637,29 +664,17 @@ export function createPlacementController(
         committing = true;
         syncPlacementMode();
         showFeedback('Placing Varenda…');
-        let view: VarendaView | undefined;
         let failure: string | undefined;
         try {
-            validateEnvelope(envelope, state.wall);
-            const solution = solveVarenda(params);
-            view = await createVarendaView(app, assets);
-            view.setFastenerAxesVisible(false);
-            if (disposed || signal.aborted) {
-                view.destroy();
-                return;
-            }
-            validateEnvelope(envelope, state.wall);
-            view.update(solution);
-            const instance = { id, name: `Varenda ${serial}`, wall: state.wall, envelope, params: { ...params }, view, lockedDimensions: preview.getDimensionLocks(), lockedParameters: new Set<keyof VarendaParams>() };
-            placeView(instance);
-            instances.set(id, instance);
+            const instance = await buildInstance({ id, name: `Varenda ${serial}`, wall: state.wall, envelope, params, lockedDimensions: preview.getDimensionLocks(), lockedParameters: new Set<keyof VarendaParams>() });
+            if (!instance) return;
             selectedId = undefined;
             selectedProduct = undefined;
             closeDetail();
             renderCards();
             showFeedback();
+            onChange?.();
         } catch (error) {
-            view?.destroy();
             failure = error instanceof Error ? error.message : 'Unable to place Varenda.';
         } finally {
             committing = false;
@@ -731,6 +746,67 @@ export function createPlacementController(
         },
         refreshLabels() {
             preview.refresh();
+        },
+        /** Placed products in creation order, in the project file's `products` format. */
+        snapshot(): ProductRecord[] {
+            return [...instances.values()].map((instance) => ({
+                instanceId: instance.id,
+                productType: 'varenda',
+                name: instance.name,
+                attachment: {
+                    wallFaceId: instance.envelope.attachment.wallFaceId,
+                    alongWallOffsetMm: instance.envelope.attachment.alongWallOffsetMm
+                },
+                params: { ...instance.params },
+                lockedDimensions: [...instance.lockedDimensions],
+                lockedParameters: [...instance.lockedParameters]
+            }));
+        },
+        /** Re-creates saved products without notifying onChange; records that fail validation are skipped. */
+        async restore(records: ProductRecord[]): Promise<{ restored: number; skipped: number }> {
+            let restored = 0;
+            let skipped = 0;
+            for (const record of records) {
+                const suffix = Number(/(\d+)$/.exec(record.instanceId)?.[1]);
+                if (Number.isFinite(suffix)) serial = Math.max(serial, suffix);
+                const wall = faces.find((face) => face.wallFaceId === record.attachment.wallFaceId);
+                if (!wall || record.productType !== 'varenda' || instances.has(record.instanceId)) {
+                    skipped++;
+                    continue;
+                }
+                const envelope: CustomizableEnvelope = {
+                    instanceId: record.instanceId,
+                    productType: 'varenda',
+                    attachment: {
+                        kind: 'wall',
+                        structureId: 'house-1',
+                        wallFaceId: record.attachment.wallFaceId,
+                        alongWallOffsetMm: record.attachment.alongWallOffsetMm
+                    },
+                    widthMm: record.params.widthMm,
+                    depthMm: record.params.depthMm
+                };
+                try {
+                    const instance = await buildInstance({
+                        id: record.instanceId,
+                        name: record.name,
+                        wall,
+                        envelope,
+                        params: record.params,
+                        lockedDimensions: new Set(record.lockedDimensions as PreviewDimensionKey[]),
+                        lockedParameters: new Set(record.lockedParameters as (keyof VarendaParams)[])
+                    });
+                    if (!instance) break;
+                    restored++;
+                } catch {
+                    skipped++;
+                }
+            }
+            if (!disposed) {
+                renderCards();
+                refreshAvailableAreas();
+            }
+            return { restored, skipped };
         },
         focusBasis,
         focusBounds: () => {

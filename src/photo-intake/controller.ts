@@ -1,27 +1,30 @@
 /**
  * Embedded photo intake: the sidebar that replaces site setup while a photo model is
  * uploaded, generated and reviewed (New from photo, the edit button on a photo card,
- * `/?photo=new`, `/?project=<id>`). It reuses the main scene through `deps.scene`.
+ * `/?project=<pid>&photo=new`, `/?project=<pid>&photo=<mid>`). Photo models belong to the
+ * user project `deps.projectId`. It reuses the main scene through `deps.scene`.
  */
 import type { AppBase } from 'playcanvas';
 
 import type { House } from '../scene/house/house.ts';
 import type { CameraController } from '../shared/camera/index.ts';
 import type { Panel } from '../site-definition/panel.ts';
-import { loadTypology, typologyUrl } from '../typology/catalog.ts';
+import { loadTypology } from '../typology/catalog.ts';
 import type { TypologyEntry } from '../typology/catalog.ts';
 import { activeTypology, parseTypology } from '../typology/index.ts';
 import type { Typology, TypologyManifest } from '../typology/index.ts';
 
 import { createAnnotations } from './annotations.ts';
 import type { Annotation } from './annotations.ts';
-import { fileUrl, getProject, publish, renameProject, runAgain } from './api.ts';
-import type { ProjectSummary } from './api.ts';
+import { fileUrl, getPhotoModel, publish, renamePhotoModel, runAgain } from './api.ts';
+import type { PhotoModelSummary } from './api.ts';
 import { createPhotosPanel } from './panels/photos-panel.ts';
 import { createStatusPanel, statusText } from './panels/status-panel.ts';
 import { createUploadPanel } from './panels/upload-panel.ts';
 
 export type PhotoIntakeDeps = {
+    /** The user project whose photo models are edited here. */
+    projectId: string;
     app: AppBase;
     /** Holds the photo dimension layer and the generation overlay. */
     viewport: HTMLElement;
@@ -29,14 +32,18 @@ export type PhotoIntakeDeps = {
     panelHost: HTMLElement;
     /** Scene status line. */
     status: HTMLElement;
-    panel: Pick<Panel, 'onPhotoIntake' | 'setGenerating' | 'refreshTypologies'>;
+    panel: Pick<Panel, 'onPhotoIntake' | 'setGenerating' | 'refreshTypologies'> & Partial<Pick<Panel, 'onStepChange'>>;
+    /** Uploaded projects embed their existing model editor as Step 01. */
+    integratedPhotoModelId?: string;
     camera: Pick<CameraController, 'project' | 'onMove'>;
     signal: AbortSignal;
     isDisposed(): boolean;
     /** Re-apply the site dimension labels (this also closes an open label editor). */
     syncSiteDimensions(): void;
     scene: {
-        switchTypology(entry: TypologyEntry, pushHistory?: boolean, supplied?: Typology): Promise<void>;
+        switchTypology(entry: TypologyEntry, supplied?: Typology): Promise<void>;
+        /** When a not yet published build is shown, switch back to the project's saved house. */
+        leavePreview(): Promise<void>;
         /** Resolves when the typology switch in progress (if any) has finished. */
         whenSwitched(): Promise<void>;
         setHouseVisible(visible: boolean, model?: House, valid?: () => boolean): Promise<void>;
@@ -52,7 +59,7 @@ export type PhotoIntake = {
 };
 
 export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
-    const { app, viewport, status, panel, camera, isDisposed } = deps;
+    const { app, viewport, status, panel, camera, isDisposed, projectId } = deps;
     const { switchTypology, setHouseVisible, renderPreview } = deps.scene;
     const cleanups: (() => void)[] = [];
     const lifetime = { add: (cleanup: () => void) => void cleanups.push(cleanup) };
@@ -70,6 +77,14 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
     const statusHost = document.createElement('section');
     const photosHost = document.createElement('section');
     intake.append(uploadHost, photosHost, statusHost);
+    const integrated = Boolean(deps.integratedPhotoModelId);
+    if (integrated) {
+        const yard = deps.panelHost.querySelector<HTMLElement>('#yard-dimensions-section')!;
+        const next = deps.panelHost.querySelector<HTMLButtonElement>('#placement-next')!;
+        yard.querySelector('h2 span')!.textContent = '03';
+        statusHost.before(yard);
+        intake.append(next);
+    }
     deps.panelHost.append(intake);
     const siteStep = document.querySelector<HTMLElement>('#site-step')!;
     const annotationHost = document.createElement('div');
@@ -87,14 +102,17 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
         photoAnnotations.refresh(camera.project);
     };
     annotationHost.hidden = true;
-    let projectId: string | null = null;
+    /** Page address for the intake: `photo` is a model id or `new`; null closes the intake. */
+    const intakeUrl = (photo: string | null) =>
+        `/?project=${encodeURIComponent(projectId)}${photo === null ? '' : `&photo=${encodeURIComponent(photo)}`}`;
+    let modelId: string | null = null;
     let session = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let shownBuild = '';
     let annotationBuild = '';
     let selectedPhoto: string | null = null;
     let localPhotoSelected = false;
-    let photoSummary: ProjectSummary | null = null;
+    let photoSummary: PhotoModelSummary | null = null;
     let generationPending = false;
     let generationVersion = 0;
     const generationOverlay = document.createElement('div');
@@ -122,7 +140,7 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
     lifetime.add(() => rename.remove());
     rename.onclick = () => {
         if (title.querySelector('input')) return;
-        const id = projectId;
+        const id = modelId;
         const previous = title.textContent ?? 'New house';
         const input = document.createElement('input');
         input.className = 'model-name-input';
@@ -140,8 +158,8 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
             if (!name || name === previous) return;
             if (!id) { title.textContent = name; return; }
             try {
-                const savedName = await renameProject(id, name);
-                if (projectId === id && !intake.hidden) title.textContent = savedName;
+                const savedName = await renamePhotoModel(projectId, id, name);
+                if (modelId === id && !intake.hidden) title.textContent = savedName;
                 await panel.refreshTypologies();
             } catch (error) { status.textContent = (error as Error).message; status.hidden = false; }
         };
@@ -151,20 +169,22 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
             if (event.key === 'Escape') { finished = true; title.textContent = previous; }
         };
     };
-    const photosPanel = createPhotosPanel(photosHost);
+    const photosPanel = createPhotosPanel(photosHost, projectId);
     lifetime.add(() => photosPanel.destroy());
     const statusPanel = createStatusPanel(statusHost, {
-        runAgain: async id => { await runAgain(id); await refreshPhoto(session); },
-        publish: async id => { await publish(id); await refreshPhoto(session); }
+        runAgain: async id => { await runAgain(projectId, id); await refreshPhoto(session); },
+        publish: async id => { await publish(projectId, id); await refreshPhoto(session); }
     });
-    const uploadPanel = createUploadPanel(uploadHost, id => {
+    if (integrated) statusHost.querySelector('h2 span')!.textContent = '04';
+    const uploadPanel = createUploadPanel(uploadHost, projectId, id => {
         generationPending = true;
         showGeneration('Starting modelling…');
-        if (id) panel.setGenerating({ ...photoSummary, id, name: title.textContent ?? 'New house', photos: photoSummary?.photos ?? [], job: { state: 'queued', run: 0 } } as ProjectSummary);
+        if (id) panel.setGenerating({ ...photoSummary, id, name: title.textContent ?? 'New house', photos: photoSummary?.photos ?? [], job: { state: 'queued', run: 0 } } as PhotoModelSummary);
         generationVersion = photoSummary?.latestBuild ?? 0;
         localPhotoSelected = false;
-        if (projectId !== id) shownBuild = '';
-        projectId = id;
+        if (modelId !== id) shownBuild = '';
+        modelId = id;
+        if (id) window.history.replaceState(null, '', intakeUrl(id));
         session++;
         if (timer) clearTimeout(timer);
         void pollPhoto(session);
@@ -172,18 +192,18 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
         selectedPhoto = id;
         localPhotoSelected = Boolean(originalUrl);
         if (originalUrl) { photosPanel.showOriginal(originalUrl); return; }
-        photosPanel.update(projectId, (photoSummary?.facadePhotos ? Object.values(photoSummary.facadePhotos).flat() : photoSummary?.photos) ?? [], selectedPhoto);
+        photosPanel.update(modelId, (photoSummary?.facadePhotos ? Object.values(photoSummary.facadePhotos).flat() : photoSummary?.photos) ?? [], selectedPhoto);
     }, () => title.querySelector('input')?.value ?? title.textContent ?? 'New house');
     lifetime.add(() => uploadPanel.destroy());
     const refreshPhoto = async (token: number) => {
-        const id = projectId;
-        const summary = id ? await getProject(id) : null;
+        const id = modelId;
+        const summary = id ? await getPhotoModel(projectId, id) : null;
         if (token !== session || intake.hidden || isDisposed()) return;
         const busy = summary?.job?.state === 'queued' || summary?.job?.state === 'running';
         showGeneration(busy ? statusText(summary!) : null);
         if (busy) panel.setGenerating(summary!);
         if (generationPending && summary) {
-            uploadPanel.updateProject(summary, false);
+            uploadPanel.updatePhotoModel(summary, false);
             if (summary.job?.state === 'failed') { statusPanel.update(summary); return; }
             if ((summary.latestBuild ?? 0) <= generationVersion || summary.job?.state === 'running' || summary.job?.state === 'queued'
                 || summary.typology?.buildVersion !== summary.latestBuild) return;
@@ -196,25 +216,25 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
             rename.hidden = false;
         }
         statusPanel.update(summary);
-        uploadPanel.updateProject(summary);
+        uploadPanel.updatePhotoModel(summary);
         if (!localPhotoSelected) photosPanel.update(id, (summary?.facadePhotos ? Object.values(summary.facadePhotos).flat() : summary?.photos) ?? [], selectedPhoto);
         if (!summary?.buildDir) return;
         const key = `${id}/${summary.buildDir}/${summary.typology?.buildVersion ?? ''}`;
         if (key !== shownBuild) {
         if (summary.typology && summary.typology.buildVersion === summary.latestBuild) {
-            const loaded = await loadTypology(summary.typology.id);
+            const loaded = await loadTypology(summary.typology.id, projectId);
             if (token !== session) return;
-            await switchTypology(loaded.entry, false, loaded.typology);
+            await switchTypology(loaded.entry, loaded.typology);
             await panel.refreshTypologies();
             renderPreview(loaded.entry);
         } else {
-            const baseUrl = `${fileUrl(id!, summary.buildDir)}/`;
+            const baseUrl = `${fileUrl(projectId, id!, summary.buildDir)}/`;
             const response = await fetch(`${baseUrl}scene.json`);
             if (!response.ok) throw new Error('Could not load the photo model preview.');
             const manifest = await response.json() as TypologyManifest;
             if (token !== session) return;
             const typology = parseTypology(manifest, baseUrl, 'photo');
-            await switchTypology({ id: typology.id, name: typology.name, source: 'photo', baseUrl, previewUrl: null }, false, typology);
+            await switchTypology({ id: typology.id, name: typology.name, source: 'photo', projectId, photoModelId: id!, baseUrl, previewUrl: null }, typology);
         }
         }
         if (token !== session) return;
@@ -242,7 +262,7 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
         catch (error) { if (token === session) { status.textContent = (error as Error).message; status.hidden = false; } }
         if (token === session && !intake.hidden && !isDisposed()) timer = setTimeout(() => void pollPhoto(token), 2000);
     };
-    const closePhoto = async (id?: string) => {
+    const closePhoto = async () => {
         session++;
         if (timer) clearTimeout(timer);
         intake.hidden = true;
@@ -256,11 +276,9 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
         status.hidden = true;
         await deps.scene.whenSwitched();
         await setHouseVisible(true);
-        if (id && id !== activeTypology().id) {
-            const loaded = await loadTypology(id);
-            await switchTypology(loaded.entry, false);
-        }
-        window.history.replaceState(null, '', typologyUrl(activeTypology().id));
+        // A not yet published build was only previewed: show the project's saved house again.
+        await deps.scene.leavePreview();
+        window.history.replaceState(null, '', intakeUrl(null));
     };
     back.onclick = () => { void closePhoto().catch(error => { status.textContent = (error as Error).message; status.hidden = false; }); };
     const openPhoto = async (id: string | null) => {
@@ -270,12 +288,12 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
         session++;
         if (timer) clearTimeout(timer);
         const token = session;
-        projectId = id;
+        modelId = id;
         shownBuild = '';
         annotationBuild = '';
         siteStep.hidden = true;
         intake.hidden = false;
-        back.hidden = false;
+        back.hidden = integrated;
         photoAnnotations.set([]);
         applyDimensions();
         if (id === null) {
@@ -286,24 +304,52 @@ export function createPhotoIntake(deps: PhotoIntakeDeps): PhotoIntake {
         localPhotoSelected = false;
         photoSummary = null;
         generationPending = false;
-        uploadPanel.setProject(id);
+        window.history.replaceState(null, '', intakeUrl(id ?? 'new'));
+        uploadPanel.setPhotoModel(id);
         if (id) {
-            const summary = await getProject(id);
+            const summary = await getPhotoModel(projectId, id);
             if (token !== session) return;
             generationPending = summary.job?.state === 'queued' || summary.job?.state === 'running';
             generationVersion = summary.typology?.buildVersion ?? 0;
             title.textContent = summary.name ?? summary.typology?.name ?? id;
-            uploadPanel.setProjectDetails(summary.facadeSide, summary.width.widthMm);
-            if (summary.buildDir) shownBuild = `${id}/${summary.buildDir}/${summary.typology?.buildVersion ?? ''}`;
-        } else uploadPanel.setProjectDetails('back', null);
+            uploadPanel.setPhotoModelDetails(summary.facadeSide, summary.width.widthMm);
+            // Skip the first switch only when the scene already shows this model's published build
+            // (e.g. Edit on the active card): re-switching would recreate placement and drop the
+            // placed products. Otherwise (deep link /?project=<pid>&photo=<mid> while another house
+            // is shown) shownBuild stays empty, so the first refresh switches this model in and
+            // reads its annotations.
+            const published = summary.typology;
+            if (summary.buildDir && published && published.buildVersion === summary.latestBuild
+                && activeTypology().source === 'photo' && activeTypology().id === published.id)
+                shownBuild = `${id}/${summary.buildDir}/${published.buildVersion}`;
+        } else uploadPanel.setPhotoModelDetails('back', null);
         void pollPhoto(token);
     };
     lifetime.add(panel.onPhotoIntake(id => {
         void openPhoto(id).catch(error => { status.textContent = (error as Error).message; status.hidden = false; });
     }));
     lifetime.add(() => { session++; if (timer) clearTimeout(timer); back.remove(); intake.remove(); });
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('project') || params.get('photo') === 'new') void openPhoto(params.get('project'));
+    const showError = (error: unknown) => { status.textContent = (error as Error).message; status.hidden = false; };
+    if (integrated && panel.onStepChange) {
+        lifetime.add(panel.onStepChange(step => {
+            if (step === 'site') {
+                void openPhoto(modelId ?? deps.integratedPhotoModelId!).catch(showError);
+            } else {
+                session++;
+                if (timer) clearTimeout(timer);
+                intake.hidden = true;
+                rename.hidden = true;
+                back.hidden = true;
+                showGeneration(null);
+                photoAnnotations.set([]);
+                applyDimensions();
+                window.history.replaceState(null, '', intakeUrl(null));
+            }
+        }));
+    }
+    const photo = new URLSearchParams(window.location.search).get('photo');
+    const initialPhoto = deps.integratedPhotoModelId ?? photo;
+    if (initialPhoto) void openPhoto(initialPhoto === 'new' ? null : initialPhoto).catch(showError);
 
     return {
         setDimensionsVisible(visible: boolean) {

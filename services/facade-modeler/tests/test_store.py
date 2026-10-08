@@ -1,16 +1,16 @@
-"""文件式项目存储。"""
+"""文件式照片模型存储。"""
 import json
 
 import pytest
 
 from facade_modeler.config import load_defaults
-from facade_modeler.project.store import ProjectStore
+from facade_modeler.photo_model.store import PhotoModelStore
 from facade_modeler.spec.model import HouseSpec
 
 
 @pytest.fixture
 def store(tmp_path):
-    return ProjectStore(tmp_path)
+    return PhotoModelStore(tmp_path)
 
 
 def test_create_open_list(store):

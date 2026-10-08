@@ -8,7 +8,7 @@ from facade_modeler.build.pipeline import run_build
 from facade_modeler.build.typology import annotations, scene_json
 from facade_modeler.build.verify import verify_build
 from facade_modeler.config import load_defaults
-from facade_modeler.project.store import ProjectStore
+from facade_modeler.photo_model.store import PhotoModelStore
 from helpers import sunningdale_spec
 
 CATALOG, DEFAULTS = Catalog.load(), load_defaults()
@@ -16,7 +16,7 @@ CATALOG, DEFAULTS = Catalog.load(), load_defaults()
 
 @pytest.fixture
 def project(tmp_path):
-    project = ProjectStore(tmp_path).create()
+    project = PhotoModelStore(tmp_path).create()
     spec = sunningdale_spec()
     spec.id = project.id
     project.save_spec(spec)

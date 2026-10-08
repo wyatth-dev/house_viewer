@@ -1,9 +1,10 @@
 /** 单面照片上传：预留四个立面入口，当前一次只处理一个面。 */
-import { fileUrl, runAgain, upload } from '../api.ts';
-import type { FacadeSide, ProjectSummary } from '../api.ts';
+import { fileUrl, runAgain, uploadPhotos } from '../api.ts';
+import type { FacadeSide, PhotoModelSummary } from '../api.ts';
 import { el } from './dom.ts';
 
-export function createUploadPanel(host: HTMLElement, onProjectChange: (projectId: string | null) => void, onPhotoSelect: (id: string | null, originalUrl?: string) => void = () => {}, getName: () => string = () => '') {
+/** `projectId` is the user project; the photo model being edited is set with setPhotoModel. */
+export function createUploadPanel(host: HTMLElement, projectId: string, onModelChange: (photoModelId: string | null) => void, onPhotoSelect: (id: string | null, originalUrl?: string) => void = () => {}, getName: () => string = () => '') {
     const width = el('input', { type: 'number', min: '1', step: '1', placeholder: 'Optional; the LM estimates it if blank', className: 'width-input' });
     const widthLabel = el('span', { className: 'wall-width-label' }, 'Back wall width (mm) · Optional');
     let widthSide: FacadeSide = 'back';
@@ -21,11 +22,11 @@ export function createUploadPanel(host: HTMLElement, onProjectChange: (projectId
     const clear = el('button', { type: 'button', className: 'product-edit-back', hidden: true }, 'Clear selected photos');
     const message = el('p', { className: 'form-message' });
     const faces = el('div', { className: 'photo-face-inputs' });
-    let projectId: string | null = null;
+    let modelId: string | null = null;
     let selected: FacadeSide | null = null;
     let chosen: File[] = [];
     let uploading = false;
-    let saved: ProjectSummary | null = null;
+    let saved: PhotoModelSummary | null = null;
     let photoSignature = '';
     const localUrls: string[] = [];
     const releaseLocal = () => { for (const url of localUrls) URL.revokeObjectURL(url); localUrls.length = 0; };
@@ -107,7 +108,7 @@ export function createUploadPanel(host: HTMLElement, onProjectChange: (projectId
         photoSignature = signature;
         for (const [side, control] of controls) {
             control.thumbnails.replaceChildren(...(saved?.facadePhotos?.[side] ?? (saved?.facadeSide === side ? saved.photos : [])).map(photo => {
-                const image = el('img', { src: fileUrl(saved!.id, photo.file), alt: photo.id, tabIndex: 0 });
+                const image = el('img', { src: fileUrl(projectId, saved!.id, photo.file), alt: photo.id, tabIndex: 0 });
                 image.setAttribute('role', 'button');
                 image.setAttribute('aria-label', `Compare ${photo.id}`);
                 const selectPhoto = () => {
@@ -146,13 +147,13 @@ export function createUploadPanel(host: HTMLElement, onProjectChange: (projectId
         message.textContent = saved?.latestBuild ? 'Regenerating…' : 'Generating…';
         try {
             if (chosen.length && selected) {
-                projectId = await upload(chosen, widthMm, projectId, selected, getName());
+                modelId = await uploadPhotos(projectId, chosen, widthMm, modelId, selected, getName());
                 chosen = [];
-            } else if (projectId) await runAgain(projectId, widthMm);
+            } else if (modelId) await runAgain(projectId, modelId, widthMm);
             if (uploadSide) editedWidths.delete(uploadSide);
             if (selected) widthDrafts.set(selected, widthValue);
             message.textContent = 'Modelling has started.';
-            onProjectChange(projectId);
+            onModelChange(modelId);
         } catch (error) { message.textContent = (error as Error).message; }
         finally { uploading = false; update(); }
     };
@@ -160,8 +161,8 @@ export function createUploadPanel(host: HTMLElement, onProjectChange: (projectId
         el('label', { className: 'field wall-width-field' }, widthLabel, width), submit, message);
     update();
     return {
-        setProject(current: string | null) { projectId = current; saved = null; widthDrafts.clear(); editedWidths.clear(); width.value = ''; reset(); message.textContent = ''; },
-        updateProject(summary: ProjectSummary | null, commit = true) {
+        setPhotoModel(current: string | null) { modelId = current; saved = null; widthDrafts.clear(); editedWidths.clear(); width.value = ''; reset(); message.textContent = ''; },
+        updatePhotoModel(summary: PhotoModelSummary | null, commit = true) {
             if (!commit) {
                 if (saved && summary) saved = { ...saved, job: summary.job };
                 update();
@@ -181,7 +182,7 @@ export function createUploadPanel(host: HTMLElement, onProjectChange: (projectId
             update();
         },
         destroy() { releaseLocal(); notice.close(); notice.remove(); },
-        setProjectDetails(facadeSide: FacadeSide, widthMm: number | null) {
+        setPhotoModelDetails(facadeSide: FacadeSide, widthMm: number | null) {
             selectWidth(facadeSide);
             width.value = widthMm === null ? '' : String(widthMm);
             widthDrafts.set(facadeSide, width.value);

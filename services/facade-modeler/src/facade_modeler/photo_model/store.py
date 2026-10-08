@@ -1,4 +1,4 @@
-"""文件式项目存储：每栋房屋一个目录，磁盘是唯一状态。
+"""文件式照片模型存储：每栋房屋一个目录，磁盘是唯一状态。
 
 projects/<id>/
   spec.json      当前 HouseSpec
@@ -19,14 +19,14 @@ from pathlib import Path
 from typing import Optional
 
 from facade_modeler.config import Defaults, load_defaults
-from facade_modeler.project.lock import project_lock
+from facade_modeler.photo_model.lock import project_lock
 from facade_modeler.spec.model import HouseSpec, Photo
 
 PROJECT_ID = re.compile(r"^house-(\d{3,})$")
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".heic"}
 
 
-class Project:
+class PhotoModel:
     def __init__(self, root: Path):
         self.root = root
         self.id = root.name
@@ -106,7 +106,7 @@ class Project:
         return project_lock(self.root / ".lock")
 
 
-class ProjectStore:
+class PhotoModelStore:
     def __init__(self, root: Path, defaults: Optional[Defaults] = None):
         self.root = Path(root)
         self.defaults = defaults or load_defaults()
@@ -115,7 +115,7 @@ class ProjectStore:
     def list(self) -> list[str]:
         return sorted(p.name for p in self.root.iterdir() if PROJECT_ID.match(p.name) and (p / "spec.json").exists())
 
-    def create(self, project_id: Optional[str] = None) -> Project:
+    def create(self, project_id: Optional[str] = None) -> PhotoModel:
         with project_lock(self.root / ".create.lock"):
             if project_id is None:
                 numbers = [int(PROJECT_ID.match(name).group(1)) for name in self.list()]
@@ -123,15 +123,15 @@ class ProjectStore:
             root = self.root / project_id
             for sub in ("photos", "rectified", "builds"):
                 (root / sub).mkdir(parents=True, exist_ok=True)
-            project = Project(root)
+            project = PhotoModel(root)
             project.save_spec(HouseSpec.new(project_id, self.defaults))
             return project
 
-    def open(self, project_id: str) -> Project:
+    def open(self, project_id: str) -> PhotoModel:
         root = self.root / project_id
         if not PROJECT_ID.match(project_id) or not (root / "spec.json").exists():
             raise KeyError(f"Project {project_id} does not exist")
-        return Project(root)
+        return PhotoModel(root)
 
 
 def _write_atomic(path: Path, text: str) -> None:

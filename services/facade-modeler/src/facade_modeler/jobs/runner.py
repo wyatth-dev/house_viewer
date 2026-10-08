@@ -1,8 +1,9 @@
 """上传后自动建模：在后台用 Claude Code 的无界面模式（claude -p）跑一次建模。
 
-每个项目同一时间只有一个任务；运行中再次触发只排队一次重跑。
-状态写在 data/intake/<id>/jobs/job.json，日志写在 jobs/run-N.log，
-查看页通过 project_summary 读取并显示进度。
+每个照片模型同一时间只有一个任务（按 "<pid>/<mid>" 区分）；运行中再次触发只排队一次重跑。
+状态写在 data/projects/<pid>/photo-models/<mid>/jobs/job.json，日志写在 jobs/run-N.log，
+查看页通过照片模型详情接口读取并显示进度。MCP 子进程通过 FACADE_PHOTO_MODELS_DIR 和
+FACADE_TYPOLOGIES_DIR 拿到这个项目的两个目录，只能操作本项目的照片模型。
 
 安全：只允许本项目的 facade-modeler MCP 工具（--allowedTools），关闭全部内置工具
 （--tools ""），遇到其他需要确认的操作一律拒绝（--permission-mode dontAsk），
@@ -20,15 +21,16 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 
-from facade_modeler.paths import data_dir
-from facade_modeler.project.store import ProjectStore
+from facade_modeler.photo_model.store import PhotoModel
+from facade_modeler.projects.store import ProjectNotFound
+from facade_modeler.service.context import ServiceContext
 
 SERVER_NAME = "facade-modeler"
 MAX_TURNS = 60
 LOG_TAIL_LINES = 12
 _AUTO = object()  # claude_bin 的默认值：自动查找
 
-PROMPT = (
+PROMPT = (  # project_id 是照片模型 id：MCP 工具的参数名沿用 project_id
     "Model the facade in facade-modeler project {project_id}. Work autonomously and do not ask questions. "
     "Follow the facade-modeler server instructions: get_context, view_photo, rectify_photo, estimate the width "
     "if the user skipped it, measure and add every door and window, set the roof and materials, build, check "
@@ -36,7 +38,7 @@ PROMPT = (
     "values are estimates."
 )
 
-Command = Callable[[str, Path], Optional[list]]
+Command = Callable[[str, Path], Optional[list]]  # (照片模型 id, mcp.json) → 命令行
 
 
 def find_claude() -> Optional[str]:
@@ -62,106 +64,125 @@ def build_command(claude_bin: str, project_id: str, mcp_config: Path) -> list:
     ]
 
 
-def write_mcp_config(path: Path, projects_dir: Path) -> Path:
-    """MCP 服务用当前 Python 解释器启动，保证和本服务是同一个环境。"""
+def write_mcp_config(path: Path, photo_models_dir: Path, typologies_dir: Path) -> Path:
+    """MCP 服务用当前 Python 解释器启动，保证和本服务是同一个环境；两个目录都属于同一个用户项目。"""
     config = {"mcpServers": {SERVER_NAME: {
         "command": sys.executable,
         "args": ["-m", "facade_modeler.adapters.mcp_server"],
-        "env": {"FACADE_PROJECTS_DIR": str(projects_dir.resolve()), "FACADE_DATA_DIR": str(data_dir().resolve())},
+        "env": {"FACADE_PHOTO_MODELS_DIR": str(Path(photo_models_dir).resolve()),
+                "FACADE_TYPOLOGIES_DIR": str(Path(typologies_dir).resolve())},
     }}}
     path.write_text(json.dumps(config, indent=2), encoding="utf-8")
     return path
 
 
 class JobRunner:
-    def __init__(self, store: ProjectStore, command: Optional[Command] = None, claude_bin=_AUTO):
-        self.store = store
+    """context_for(pid) 返回这个项目的 ServiceContext（项目不存在时抛 ProjectNotFound）。"""
+
+    def __init__(self, context_for: Callable[[str], ServiceContext], command: Optional[Command] = None,
+                 claude_bin=_AUTO):
+        self.context_for = context_for
         self._guard = threading.RLock()
         self._threads: dict[str, threading.Thread] = {}
         if command is not None:
             self._command = command
         else:
             binary = find_claude() if claude_bin is _AUTO else claude_bin
-            self._command = (lambda pid, cfg: build_command(binary, pid, cfg)) if binary else (lambda pid, cfg: None)
+            self._command = (lambda mid, cfg: build_command(binary, mid, cfg)) if binary else (lambda mid, cfg: None)
 
     # ---- 对外接口 ------------------------------------------------------------------
-    def start(self, project_id: str) -> dict:
+    def start(self, pid: str, mid: str) -> dict:
         """启动建模；已在运行则排队一次重跑。"""
+        key = f"{pid}/{mid}"
         with self._guard:
-            if self._running(project_id):
-                return self._update(project_id, rerunPending=True)
-            job = self._update(project_id, state="queued", rerunPending=False, error=None)
-            thread = threading.Thread(target=self._loop, args=(project_id,), daemon=True)
-            self._threads[project_id] = thread
+            if self._running(key):
+                return self._update(pid, mid, rerunPending=True)
+            job = self._update(pid, mid, state="queued", rerunPending=False, error=None)
+            thread = threading.Thread(target=self._loop, args=(pid, mid), daemon=True)
+            self._threads[key] = thread
             thread.start()
             return job
 
-    def status(self, project_id: str) -> Optional[dict]:
+    def status(self, pid: str, mid: str) -> Optional[dict]:
         with self._guard:
-            job = self._read(project_id)
-            if job and job.get("state") in ("queued", "running") and not self._running(project_id):
+            job = self._read(pid, mid)
+            if job and job.get("state") in ("queued", "running") and not self._running(f"{pid}/{mid}"):
                 # 服务重启前没跑完的任务：进程已经不在了
-                job = self._update(project_id, state="failed", rerunPending=False,
+                job = self._update(pid, mid, state="failed", rerunPending=False,
                                    error="The modelling run was interrupted (the server restarted).")
             return job
 
     # ---- 后台线程 ------------------------------------------------------------------
-    def _loop(self, project_id: str) -> None:
-        while True:
-            self._run_once(project_id)
+    def _loop(self, pid: str, mid: str) -> None:
+        key = f"{pid}/{mid}"
+        try:
+            while True:
+                self._run_once(pid, mid)
+                with self._guard:
+                    job = self._read(pid, mid) or {}
+                    if not job.get("rerunPending"):
+                        # 判定和登记退出必须在同一段锁里：否则 start() 会看到线程还活着，只写 rerunPending，重跑就丢了
+                        self._threads.pop(key, None)
+                        return
+                    self._update(pid, mid, rerunPending=False)
+        except (ProjectNotFound, KeyError):  # 项目或照片模型在运行期间被删除：任务随之结束
+            return
+        finally:  # 只给异常路径兜底；正常退出时上面已经移除，这里不会误删新启动的线程
             with self._guard:
-                job = self._read(project_id) or {}
-                if not job.get("rerunPending"):
-                    self._threads.pop(project_id, None)
-                    return
-                self._update(project_id, rerunPending=False)
+                if self._threads.get(key) is threading.current_thread():
+                    self._threads.pop(key, None)
 
-    def _run_once(self, project_id: str) -> None:
-        project = self.store.open(project_id)
-        jobs_dir = project.root / "jobs"
+    def _run_once(self, pid: str, mid: str) -> None:
+        ctx = self.context_for(pid)
+        model = ctx.store.open(mid)
+        jobs_dir = model.root / "jobs"
         jobs_dir.mkdir(exist_ok=True)
         with self._guard:
-            run = (self._read(project_id) or {}).get("run", 0) + 1
-            self._update(project_id, state="running", run=run, startedAt=_now(), finishedAt=None,
+            run = (self._read(pid, mid) or {}).get("run", 0) + 1
+            self._update(pid, mid, state="running", run=run, startedAt=_now(), finishedAt=None,
                          exitCode=None, error=None, logTail="")
-        command = self._command(project_id, write_mcp_config(jobs_dir / "mcp.json", self.store.root))
+        config = write_mcp_config(jobs_dir / "mcp.json", ctx.store.root, ctx.typologies.root)
+        command = self._command(mid, config)
         if not command:
-            self._finish(project_id, None, "Claude Code was not found. Install it and sign in, or set "
-                                           "FACADE_CLAUDE_BIN to the path of the claude command.", "")
+            self._finish(pid, mid, None, "Claude Code was not found. Install it and sign in, or set "
+                                         "FACADE_CLAUDE_BIN to the path of the claude command.", "")
             return
         log_path = jobs_dir / f"run-{run}.log"
         env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}  # 用订阅登录，不用 API key
         try:
             with open(log_path, "w", encoding="utf-8") as log:
                 code = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                      cwd=project.root, env=env, check=False).returncode
+                                      cwd=model.root, env=env, check=False).returncode
         except OSError as error:
-            self._finish(project_id, None, f"Could not start Claude Code: {error}", "")
+            self._finish(pid, mid, None, f"Could not start Claude Code: {error}", "")
             return
         tail = _tail(log_path)
-        self._finish(project_id, code, None if code == 0 else f"Claude Code exited with code {code}.", tail)
+        self._finish(pid, mid, code, None if code == 0 else f"Claude Code exited with code {code}.", tail)
 
-    def _finish(self, project_id, code, error, tail) -> None:
+    def _finish(self, pid, mid, code, error, tail) -> None:
         with self._guard:
-            self._update(project_id, state="done" if code == 0 else "failed", exitCode=code,
+            self._update(pid, mid, state="done" if code == 0 else "failed", exitCode=code,
                          finishedAt=_now(), error=error, logTail=tail)
 
-    # ---- job.json ----------------------------------------------------------------
-    def _running(self, project_id: str) -> bool:
-        thread = self._threads.get(project_id)
+    # ---- job.json（放在照片模型目录里）----------------------------------------------------
+    def _running(self, key: str) -> bool:
+        thread = self._threads.get(key)
         return bool(thread and thread.is_alive())
 
-    def _path(self, project_id: str) -> Path:
-        return self.store.open(project_id).root / "jobs" / "job.json"
+    def _model(self, pid: str, mid: str) -> PhotoModel:
+        return self.context_for(pid).store.open(mid)
 
-    def _read(self, project_id: str) -> Optional[dict]:
-        path = self._path(project_id)
+    def _path(self, pid: str, mid: str) -> Path:
+        return self._model(pid, mid).root / "jobs" / "job.json"
+
+    def _read(self, pid: str, mid: str) -> Optional[dict]:
+        path = self._path(pid, mid)
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
-    def _update(self, project_id: str, **fields) -> dict:
-        path = self._path(project_id)
+    def _update(self, pid: str, mid: str, **fields) -> dict:
+        path = self._path(pid, mid)
         path.parent.mkdir(exist_ok=True)
-        job = {**(self._read(project_id) or {"run": 0}), **fields}
+        job = {**(self._read(pid, mid) or {"run": 0}), **fields}
         temporary = path.with_suffix(".tmp")
         temporary.write_text(json.dumps(job, ensure_ascii=False, indent=2), encoding="utf-8")
         temporary.replace(path)

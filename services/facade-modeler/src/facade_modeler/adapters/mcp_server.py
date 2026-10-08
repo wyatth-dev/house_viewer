@@ -1,7 +1,8 @@
 """MCP 适配：把 LM 的感知与建模操作暴露给 Claude Desktop（stdio）。
 
 只做协议转换：参数原样转给 service 层，结果转成"JSON 文本 + PNG 图片"。
-数据目录见 facade_modeler/paths.py（默认 house-viewer/data；FACADE_DATA_DIR / FACADE_PROJECTS_DIR 可覆盖）。
+一个 MCP 进程只处理一个用户项目：目录由环境变量 FACADE_PHOTO_MODELS_DIR、FACADE_TYPOLOGIES_DIR 给出
+（JobRunner 写进 mcp.json）。工具参数 project_id 沿用旧名，指的是这个项目里的照片模型（house-001）。
 """
 from __future__ import annotations
 
@@ -56,7 +57,8 @@ def create_server(ctx: ServiceContext) -> MCPServer:
     # ---- 感知：只观察，不改动几何 ----------------------------------------------
     @tool
     def get_context(project_id: str) -> list:
-        """Project overview: photos, width status, current HouseSpec summary, issues, latest build and submission status."""
+        """Photo model overview: photos, width status, current HouseSpec summary, issues, latest build and submission
+        status. In every tool, project_id is the photo model ID (e.g. house-001) given in your task."""
         return _reply(perception.get_context(ctx, project_id))
 
     @tool
