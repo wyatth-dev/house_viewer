@@ -808,6 +808,9 @@ export function createPlacementController(
             }
             return { restored, skipped };
         },
+        getProductBounds(id: string) {
+            return instances.get(id)?.view.getBounds();
+        },
         focusBasis,
         focusBounds: () => {
             const instance = selected();

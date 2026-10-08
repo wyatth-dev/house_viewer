@@ -13,10 +13,6 @@ export function createProjectBar(autosave: Autosave, rename: (name: string) => v
     back.href = '/';
     back.setAttribute('aria-label', 'Home — Your projects');
     back.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="m3 10 9-7 9 7v10H3zM9 20v-7h6v7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>Home</span>';
-    const navigation = document.createElement('nav');
-    navigation.className = 'project-home-navigation';
-    navigation.setAttribute('aria-label', 'Project navigation');
-    navigation.append(back);
     const name = document.createElement('button');
     name.type = 'button';
     name.className = 'project-title';
@@ -25,7 +21,7 @@ export function createProjectBar(autosave: Autosave, rename: (name: string) => v
     save.className = 'save-status';
     save.setAttribute('role', 'status');
     save.setAttribute('aria-live', 'polite');
-    element.append(navigation, name, save);
+    element.append(back, name, save);
 
     const showName = () => {
         name.textContent = autosave.get().name;

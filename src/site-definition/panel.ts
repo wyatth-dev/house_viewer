@@ -1,3 +1,5 @@
+import type { CameraSnapshot } from '../shared/camera/types.ts';
+export type ReferenceCapture = { url: string; camera?: CameraSnapshot };
 import { getPhotoModel, listPhotoModels } from '../photo-intake/api.ts';
 import type { PhotoModelSummary } from '../photo-intake/api.ts';
 import { listTypologies } from '../typology/catalog.ts';
@@ -23,9 +25,15 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
                 <button type="button" id="product-edit-exit" class="product-edit-back" hidden><span aria-hidden="true">←</span> Exit product edit</button>
                 <button type="button" id="rendering-back" class="product-edit-back" hidden><span aria-hidden="true">←</span> Back to product placement</button>
                 <button type="button" id="site-back" class="product-edit-back" hidden><span aria-hidden="true">←</span> Back to site setup</button>
+                <div id="perspective-controls">
                 <h2>Your perspective</h2>
                 <div id="view-controls"></div>
                 <p class="hint view-hint">Four fixed views. No dragging required.</p>
+                </div>
+                <div id="rendering-focus-section" hidden>
+                    <h2>Focus on</h2>
+                    <div id="rendering-focus-controls" class="view-grid" aria-label="Focus object"></div>
+                </div>
             </section>
         </fieldset>
         <div id="site-step">
@@ -110,9 +118,14 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
             </fieldset>
         </div>
         <div id="rendering-step" hidden>
+            <section id="rendering-photos-section" hidden>
+                <h2><span>01</span> Main Perspective</h2>
+                <div class="rendering-photos" id="rendering-photos"></div>
+            </section>
             <section>
-                <h2><span>01</span> Render preview</h2>
-                <p class="hint">Your house and products are shown in detailed render. Use the views above to explore your design.</p>
+                <h2><span>02</span> Rendering Queue</h2>
+                <div id="reference-captures"></div>
+                <p id="reference-capture-error" class="hint" role="alert" hidden></p>
             </section>
         </div>
     `;
@@ -210,12 +223,80 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
         back.hidden = step !== 'placement';
         renderingBack.hidden = !isRendering;
         renderingStep.hidden = !isRendering;
+        host.querySelector<HTMLElement>('#perspective-controls')!.hidden = isRendering;
+        host.querySelector<HTMLElement>('#rendering-focus-section')!.hidden = !isRendering;
         siteStep.hidden = step !== 'site';
         placementStep.hidden = step !== 'placement';
         host.scrollTop = 0;
         for (const listener of stepListeners) listener(step);
         (isSite ? next : isRendering ? renderingBack : back).focus();
     };
+    const cameraIcon = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M4 6h4l2-3h4l2 3h4v14H4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+    let captureView: (() => Promise<ReferenceCapture>) | undefined;
+    let saveCapture: ((capture: ReferenceCapture) => void) | undefined;
+    let removeCapture: ((index: number) => void) | undefined;
+    let restoreCapture: ((capture: ReferenceCapture) => void) | undefined;
+    let requestRender: ((capture: ReferenceCapture, index: number) => void) | undefined;
+    let openRender: ((capture: ReferenceCapture, index: number) => boolean) | undefined;
+    const captures: ReferenceCapture[] = [];
+    const renderCaptures = () => {
+        const list = host.querySelector<HTMLElement>('#reference-captures')!;
+        list.replaceChildren(...captures.map((capture, index) => {
+            const image = document.createElement('img');
+            image.src = capture.url; image.alt = `Reference photo ${index + 1}`;
+            const card = document.createElement('div');
+            card.className = 'rendering-photo reference-capture';
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'reference-capture-delete';
+            remove.setAttribute('aria-label', `Delete reference photo ${index + 1}`);
+            remove.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            remove.onclick = () => {
+                removeCapture?.(index);
+                captures.splice(index, 1);
+                renderCaptures();
+            };
+            const render = document.createElement('button');
+            render.type = 'button';
+            render.className = 'rendering-photo-camera reference-capture-render';
+            render.textContent = 'Render';
+            render.setAttribute('aria-label', `Render reference photo ${index + 1}`);
+            const photo = document.createElement('button');
+            photo.type = 'button'; photo.className = 'reference-capture-photo';
+            photo.setAttribute('aria-label', `Restore view for reference photo ${index + 1}`);
+            photo.onclick = () => { if (!openRender?.(capture, index)) restoreCapture?.(capture); };
+            photo.append(image);
+            render.onclick = () => requestRender?.(capture, index);
+            card.append(photo, render, remove);
+            return card;
+        }));
+        const empty = document.createElement('button');
+        empty.type = 'button'; empty.className = 'reference-capture-empty';
+        empty.setAttribute('aria-label', 'Capture current model view');
+        empty.innerHTML = cameraIcon;
+        empty.disabled = !captureView;
+        empty.onclick = async () => {
+            if (!captureView) return;
+            empty.disabled = true;
+            const error = host.querySelector<HTMLElement>('#reference-capture-error')!;
+            error.hidden = true;
+            try {
+                const url = await captureView();
+                if (disposed) return;
+                saveCapture?.(url);
+                captures.push(url);
+                renderCaptures();
+            } catch (cause) {
+                if (disposed) return;
+                empty.disabled = false;
+                error.textContent = 'Could not capture this view. Please try again.';
+                error.hidden = false;
+                console.error(cause);
+            }
+        };
+        list.append(empty);
+    };
+    renderCaptures();
     const goNext = () => showStep('placement');
     const goBack = () => showStep('site');
     const goRendering = () => showStep('rendering');
@@ -224,6 +305,49 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
     next.addEventListener('click', goNext);
     back.addEventListener('click', goBack);
     return {
+        setRenderingFocusObjects(objects: { id: string; label: string }[], onFocus: (id: string) => void) {
+            const group = host.querySelector<HTMLElement>('#rendering-focus-controls')!;
+            group.replaceChildren(...objects.map(object => {
+                const button = document.createElement('button');
+                button.type = 'button'; button.textContent = object.label;
+                button.setAttribute('aria-pressed', 'false');
+                button.onclick = () => {
+                    onFocus(object.id);
+                    for (const item of group.querySelectorAll('button')) item.setAttribute('aria-pressed', String(item === button));
+                };
+                return button;
+            }));
+        },
+        configureRenderingActions(request: (capture: ReferenceCapture, index: number) => void, open: (capture: ReferenceCapture, index: number) => boolean) {
+            requestRender = request; openRender = open;
+        },
+        setRenderingMessage(message: string) {
+            const status = host.querySelector<HTMLElement>('#reference-capture-error')!;
+            status.textContent = message; status.hidden = !message;
+        },
+        configureReferenceCaptures(capture: () => Promise<ReferenceCapture>, save: (capture: ReferenceCapture) => void, existing: ReferenceCapture[], remove: (index: number) => void, restore: (capture: ReferenceCapture) => void) {
+            captureView = capture; saveCapture = save; removeCapture = remove; restoreCapture = restore;
+            captures.splice(0, captures.length, ...existing);
+            renderCaptures();
+        },
+        setRenderingPhotos(photos: { url: string; name: string }[]) {
+            const images = photos.map(photo => {
+                const image = document.createElement('img');
+                image.src = photo.url;
+                image.alt = photo.name;
+                const card = document.createElement('div');
+                card.className = 'rendering-photo';
+                const camera = document.createElement('button');
+                camera.type = 'button';
+                camera.className = 'rendering-photo-camera';
+                camera.setAttribute('aria-label', 'Use this photo as camera reference');
+                camera.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h4l2-3h4l2 3h4v14H4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+                card.append(image, camera);
+                return card;
+            });
+            host.querySelector('#rendering-photos')!.replaceChildren(...images);
+            host.querySelector<HTMLElement>('#rendering-photos-section')!.hidden = images.length === 0;
+        },
         summary: host.querySelector<HTMLElement>('#property-summary')!,
         dimensions: host.querySelector<HTMLElement>('#dimension-controls')!,
         views: host.querySelector<HTMLElement>('#view-controls')!,
