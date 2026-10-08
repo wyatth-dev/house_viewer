@@ -78,7 +78,7 @@ class Rectification(SpecModel):
     size: tuple[int, int]  # 矫正图像素尺寸 (宽, 高)
     origin_px: tuple[float, float]  # 立面左下角在矫正图中的像素位置
     px_per_width: float  # 立面宽度对应的像素数
-    file: str  # 相对项目目录
+    file: str  # 相对照片模型目录
 
 
 class Photo(SpecModel):

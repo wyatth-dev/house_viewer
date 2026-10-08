@@ -4,7 +4,8 @@ import type { PhotoInfo } from '../api.ts';
 
 import { el } from './dom.ts';
 
-export function createPhotosPanel(host: HTMLElement) {
+/** `projectId` is the user project the shown photo models belong to. */
+export function createPhotosPanel(host: HTMLElement, projectId: string) {
     const list = el('div', { className: 'photo-list' });
     host.append(el('h2', {}, el('span', {}, '02'), ' Photo Rectification'), list);
     const preview = el('dialog', { className: 'photo-preview-dialog' });
@@ -28,20 +29,20 @@ export function createPhotosPanel(host: HTMLElement) {
                 el('figure', { className: 'photo' }, el('figcaption', {}, 'Original'), image(url, 'Original photo')),
                 el('figure', { className: 'photo' }, el('figcaption', {}, 'Rectified'), el('p', { className: 'muted' }, 'Waiting for generation'))));
         },
-        update(projectId: string | null, photos: PhotoInfo[], selectedId: string | null = null) {
-            const next = JSON.stringify([projectId, photos, selectedId]);
+        update(photoModelId: string | null, photos: PhotoInfo[], selectedId: string | null = null) {
+            const next = JSON.stringify([photoModelId, photos, selectedId]);
             if (next === signature) return;
             signature = next;
-            if (!projectId || !photos.length) {
+            if (!photoModelId || !photos.length) {
                 list.replaceChildren(el('p', { className: 'muted' }, 'No photos yet'));
                 return;
             }
             const photo = photos.find(item => item.id === selectedId) ?? photos.find(item => item.primary) ?? photos[0];
             list.replaceChildren(el('div', { className: 'photo-comparison' },
                 el('figure', { className: 'photo' }, el('figcaption', {}, 'Original'),
-                    image(fileUrl(projectId, photo.file), `${photo.id} original`)),
+                    image(fileUrl(projectId, photoModelId, photo.file), `${photo.id} original`)),
                 el('figure', { className: 'photo' }, el('figcaption', {}, 'Rectified'),
-                    photo.rectified ? image(fileUrl(projectId, photo.rectified), `${photo.id} rectified`)
+                    photo.rectified ? image(fileUrl(projectId, photoModelId, photo.rectified), `${photo.id} rectified`)
                         : el('p', { className: 'muted' }, 'Waiting for rectification'))));
         }
     };

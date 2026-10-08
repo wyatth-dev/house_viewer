@@ -36,7 +36,7 @@ export type TypologySource = 'builtin' | 'photo';
 
 /**
  * Validate and calibrate one manifest. `baseUrl` is the folder that holds scene.json
- * (e.g. `/scenes/typology/fairy-house/` or `/data/typologies/house-002/`).
+ * (e.g. `/scenes/typology/fairy-house/` or `/data/projects/p-0001/typologies/house-002/`).
  */
 export function parseTypology(scene: TypologyManifest, baseUrl: string, origin: TypologySource) {
     const id = scene?.id;

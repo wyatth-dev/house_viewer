@@ -1,4 +1,4 @@
-"""发布为 typology：提交后最新 build 复制到 data/typologies，并登记在 index.json。"""
+"""发布为 typology：提交后最新 build 复制到本项目的 typologies/，并登记在 index.json。"""
 import json
 import struct
 
@@ -9,19 +9,29 @@ from facade_modeler.adapters.http_server import create_app
 from facade_modeler.assets.catalog import Catalog
 from facade_modeler.build.pipeline import run_build
 from facade_modeler.config import load_defaults
-from facade_modeler.project.store import ProjectStore
+from facade_modeler.projects.store import ProjectRegistry
 from facade_modeler.service import modeling, user_actions
-from facade_modeler.service.context import ServiceContext
-from facade_modeler.typologies.store import NotPublishable, TypologyStore
+from facade_modeler.service.context import AppContext
+from facade_modeler.typologies.store import NotPublishable
 from helpers import sunningdale_spec
 
 CATALOG, DEFAULTS = Catalog.load(), load_defaults()
+PID = "p-0001"
+MODELS = f"/api/projects/{PID}/photo-models"
+TYPOLOGIES = f"/api/projects/{PID}/typologies"
+DATA = f"/data/projects/{PID}/typologies"
 
 
 @pytest.fixture
-def ctx(tmp_path):
-    return ServiceContext(ProjectStore(tmp_path / "intake", DEFAULTS), CATALOG, DEFAULTS,
-                          TypologyStore(tmp_path / "typologies"))
+def app_ctx(tmp_path):
+    app_ctx = AppContext(ProjectRegistry(tmp_path / "projects"), CATALOG, DEFAULTS)
+    assert app_ctx.projects.create("Test").id == PID
+    return app_ctx
+
+
+@pytest.fixture
+def ctx(app_ctx):
+    return app_ctx.service(PID)
 
 
 def built_project(ctx):
@@ -44,7 +54,7 @@ def test_submit_publishes_latest_build(ctx):
     assert scene["id"] == project.id and scene["name"] == f"Photo · {project.id}"
     [entry] = ctx.typologies.entries()
     assert entry["projectId"] == project.id and entry["buildVersion"] == 1 and entry["manifest"] == f"{project.id}/scene.json"
-    assert user_actions.project_summary(ctx, project.id).result["typology"]["id"] == project.id
+    assert user_actions.photo_model_summary(ctx, project.id).result["typology"]["id"] == project.id
 
 
 def test_republish_replaces_files_and_keeps_one_row(ctx):
@@ -67,17 +77,20 @@ def test_submit_without_build_does_not_publish(ctx):
         ctx.typologies.publish(project, CATALOG, DEFAULTS)
 
 
-def test_http_typology_routes(ctx):
+def test_http_typology_routes(ctx, app_ctx):
     project = built_project(ctx)
-    client = TestClient(create_app(ctx, viewer_dist=None))
-    assert client.get("/api/typologies").json()["result"]["typologies"] == []
-    assert client.post(f"/api/projects/{project.id}/publish").json()["result"]["typology"]["id"] == project.id
-    [row] = client.get("/api/typologies").json()["result"]["typologies"]
-    assert row["baseUrl"] == f"/data/typologies/{project.id}/"
-    assert client.get(f"/data/typologies/{project.id}/scene.json").json()["id"] == project.id
-    assert client.get(f"/data/typologies/{project.id}/render/model.glb").status_code == 200
-    assert client.get(f"/data/typologies/{project.id}/../index.json").status_code == 404
-    assert client.get("/data/typologies/unknown/scene.json").status_code == 404
+    client = TestClient(create_app(app_ctx, viewer_dist=None))
+    assert client.get(TYPOLOGIES).json()["result"]["typologies"] == []
+    assert client.post(f"{MODELS}/{project.id}/publish").json()["result"]["typology"]["id"] == project.id
+    [row] = client.get(TYPOLOGIES).json()["result"]["typologies"]
+    assert row["baseUrl"] == f"{DATA}/{project.id}/"
+    assert client.get(f"{DATA}/{project.id}/scene.json").json()["id"] == project.id
+    assert client.get(f"{DATA}/{project.id}/render/model.glb").status_code == 200
+    assert client.get(f"{DATA}/{project.id}/../index.json").status_code == 404
+    assert client.get(f"{DATA}/unknown/scene.json").status_code == 404
+    assert client.delete(f"{TYPOLOGIES}/{project.id}").status_code == 200
+    assert client.get(TYPOLOGIES).json()["result"]["typologies"] == []
+    assert client.delete(f"{TYPOLOGIES}/{project.id}").status_code == 404
 
 
 def _facade_z(path):
@@ -119,48 +132,48 @@ def test_old_specs_default_to_back(ctx):
     assert project.load_spec().facade.side == "back"
 
 
-def test_upload_sets_facade_side(ctx):
+def test_upload_sets_facade_side(ctx, app_ctx):
     from helpers import jpeg_bytes
-    client = TestClient(create_app(ctx, viewer_dist=None))
+    client = TestClient(create_app(app_ctx, viewer_dist=None))
     files = [("files", ("a.jpg", jpeg_bytes(), "image/jpeg"))]
-    pid = client.post("/api/uploads", data={"facadeSide": "front"}, files=files).json()["result"]["projectId"]
-    assert client.get(f"/api/projects/{pid}").json()["result"]["facadeSide"] == "front"
-    pid = client.post("/api/uploads", files=files).json()["result"]["projectId"]
-    assert client.get(f"/api/projects/{pid}").json()["result"]["facadeSide"] == "back"
+    pid = client.post(MODELS, data={"facadeSide": "front"}, files=files).json()["result"]["photoModelId"]
+    assert client.get(f"{MODELS}/{pid}").json()["result"]["facadeSide"] == "front"
+    pid = client.post(MODELS, files=files).json()["result"]["photoModelId"]
+    assert client.get(f"{MODELS}/{pid}").json()["result"]["facadeSide"] == "back"
     for side in ("left", "right"):
-        reply = client.post("/api/uploads", data={"facadeSide": side}, files=files)
+        reply = client.post(MODELS, data={"facadeSide": side}, files=files)
         assert reply.status_code == 200
-        project_id = reply.json()["result"]["projectId"]
-        assert client.get(f"/api/projects/{project_id}").json()["result"]["facadeSide"] == side
-    assert client.post("/api/uploads", data={"facadeSide": "unknown"}, files=files).status_code == 400
+        project_id = reply.json()["result"]["photoModelId"]
+        assert client.get(f"{MODELS}/{project_id}").json()["result"]["facadeSide"] == side
+    assert client.post(MODELS, data={"facadeSide": "unknown"}, files=files).status_code == 400
 
 
-def test_preview_is_stored_and_dropped_on_republish(ctx):
+def test_preview_is_stored_and_dropped_on_republish(ctx, app_ctx):
     project = built_project(ctx)
-    client = TestClient(create_app(ctx, viewer_dist=None))
-    client.post(f"/api/projects/{project.id}/publish")
+    client = TestClient(create_app(app_ctx, viewer_dist=None))
+    client.post(f"{MODELS}/{project.id}/publish")
     png = b"\x89PNG\r\n\x1a\n" + b"0" * 100
-    assert client.put(f"/api/typologies/{project.id}/preview", content=b"not a png").status_code == 400
-    assert client.put("/api/typologies/unknown/preview", content=png).status_code == 404
-    assert client.put(f"/api/typologies/{project.id}/preview", content=png).json()["result"]["typology"]["preview"] == "preview.png"
-    assert client.get(f"/data/typologies/{project.id}/preview.png").content == png
-    [row] = client.get("/api/typologies").json()["result"]["typologies"]
+    assert client.put(f"{TYPOLOGIES}/{project.id}/preview", content=b"not a png").status_code == 400
+    assert client.put(f"{TYPOLOGIES}/unknown/preview", content=png).status_code == 404
+    assert client.put(f"{TYPOLOGIES}/{project.id}/preview", content=png).json()["result"]["typology"]["preview"] == "preview.png"
+    assert client.get(f"{DATA}/{project.id}/preview.png").content == png
+    [row] = client.get(TYPOLOGIES).json()["result"]["typologies"]
     assert row["preview"] == "preview.png"
-    client.post(f"/api/projects/{project.id}/publish")  # 新版本：旧预览图作废
-    [row] = client.get("/api/typologies").json()["result"]["typologies"]
+    client.post(f"{MODELS}/{project.id}/publish")  # 新版本：旧预览图作废
+    [row] = client.get(TYPOLOGIES).json()["result"]["typologies"]
     assert "preview" not in row
-    assert client.get(f"/data/typologies/{project.id}/preview.png").status_code == 404
+    assert client.get(f"{DATA}/{project.id}/preview.png").status_code == 404
 
 
-def test_edit_upload_preserves_other_facade_inputs(ctx):
+def test_edit_upload_preserves_other_facade_inputs(ctx, app_ctx):
     from helpers import jpeg_bytes
-    client = TestClient(create_app(ctx, viewer_dist=None))
+    client = TestClient(create_app(app_ctx, viewer_dist=None))
     files = [("files", ("a.jpg", jpeg_bytes(), "image/jpeg"))]
     project = built_project(ctx)
     previous = project.load_spec()
     old_ids = set(previous.photos)
     for side in ("front", "left", "right"):
-        response = client.post("/api/uploads", data={"projectId": project.id, "facadeSide": side}, files=files)
+        response = client.post(MODELS, data={"projectId": project.id, "facadeSide": side}, files=files)
         assert response.status_code == 200
         spec = project.load_spec()
         assert spec.facade.side == side

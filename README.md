@@ -16,7 +16,7 @@ Open the address Vite prints (usually http://localhost:5173). `Ctrl+C` stops bot
 | --- | --- |
 | `npm run dev` | Vite dev server + Python service (`/api`, `/files`, `/data` are proxied to it) |
 | `npm start` | Build once, then the Python service serves everything at http://127.0.0.1:8765 |
-| `npm run dev:web` | Front end only; built-in typologies work, photo typologies and intake need the service |
+| `npm run dev:web` | Front end only; the built-in typologies render, but Your projects, saving, photo typologies and intake all need the service |
 | `npm test` / `npm run test:service` | Front-end tests / Python service tests |
 
 Environment variables: `FACADE_HTTP_PORT` (default 8765), `FACADE_DATA_DIR` (default `./data`), `FACADE_AUTORUN=0` (no automatic modelling), `FACADE_CLAUDE_BIN` (path to `claude` if it is not found automatically).
@@ -28,9 +28,21 @@ export PATH="/opt/homebrew/opt/node/bin:$PATH"
 node -v
 ```
 
+## Your projects
+
+`/` is the **Your projects** home page: one card per project (thumbnail of its house, name, last updated), with New project, rename and delete (deleting also removes the project's photo models). A project is a complete design: which house, the four yard clearances, placed products and the display settings (representation, trees, fence, dimensions). Opening a card goes to `/?project=<id>`.
+
+Edits are saved automatically; there is no save button. The row above the panel shows the project name (click to rename), the save status (Saved / Saving… / Not saved · Retry) and a link back to Your projects. Saves are debounced by 800 ms; after a failure they are retried after 2 s, 5 s and 15 s, then every 30 s, while editing continues from the in-memory state. Each save carries the project's `revision`. If the project was changed elsewhere (for example in another tab) the service answers 409, autosave stops and the page offers **Reload** (take the server's version) or **Keep mine** (save the local state over it). Closing the page with unsaved edits sends a last save and otherwise asks for confirmation.
+
+On open the editor restores the house, then the yard, display settings and products. Products that no longer fit (the wall is gone or validation fails) are skipped with a note in the status bar. If the project's photo house was deleted it falls back to the Fairy house with no products, and the corrected state is saved once. Switching house clears the placed products.
+
+Pages: `/` (home), `/?project=<id>` (editor), `/?project=<id>&photo=new` and `/?project=<id>&photo=<model-id>` (photo intake for a new or existing photo model). The former `?typology=` URL parameter has been removed; the browser back button no longer switches houses.
+
+A project the service cannot read (`project.json` corrupt or an unknown `schemaVersion`) is shown as unavailable and is never overwritten. If the service is not running the home page says so; start it with `npm run dev`. Existing data from before projects (`data/intake/`, `data/typologies/`) is copied once into a project called "My first project" (`p-0001`) on first start; see `data/README.md`.
+
 ## New typology from photo
 
-The Typology section has two groups: **Preset** (round icons, bundled in `public/`) and **From photo**; each group scrolls sideways when it overflows. **New from photo** (or the edit button on a photo card) opens photo intake inside the same page, in place of site setup (`/?photo=new`, `/?project=<id>`; the former `/intake.html` page has been removed). Upload photos of one facade (the wall width is optional). Modelling starts automatically and the model appears in the scene; when it is submitted, the latest build is published as a typology and appears in the typology list. Choosing another typology swaps the house in place (same fade as representation changes): camera, lighting, landscape and yard dimensions stay; placed products are cleared because they belong to the previous house's walls. The URL follows (`?typology=`), and the browser back button returns to the previous house. Thumbnails: presets use static `preview.png` files; a photo typology's thumbnail is rendered from its render model when it is opened and stored by the service.
+The Typology section has two groups: **Preset** (round icons, bundled in `public/`) and **From photo**; each group scrolls sideways when it overflows. **New from photo** (or the edit button on a photo card) opens photo intake inside the same page, in place of site setup (`/?project=<pid>&photo=new` or `&photo=<model-id>`; the former `/intake.html` page has been removed). Upload photos of one facade (the wall width is optional). Modelling starts automatically and the model appears in the scene; when it is submitted, the latest build is published as a typology and appears in the typology list. Choosing another typology swaps the house in place (same fade as representation changes): camera, lighting, landscape and yard dimensions stay; placed products are cleared because they belong to the previous house's walls. The choice is saved in the project. Thumbnails: presets use static `preview.png` files; a photo typology's thumbnail (stored in the project) is rendered from its render model when it is opened and stored by the service.
 
 Photo typologies use the same contract as the built-in ones (`scene.json` + white / color-block / render GLBs, millimetres, front = +Z) with one installation face, `facade-main`. The upload panel has one entry per facade (Front / Back / Left / Right; one facade is modelled at a time, photos and widths are kept per facade). The modelled facade is placed on that side of the house (installation face `side`), so a back-garden photo faces the back yard and the other walls are plain. Modelling details, tools and limits: `services/facade-modeler/README.md`.
 
@@ -42,12 +54,29 @@ public/              Static assets bundled with the app, including the built-in 
 services/
   facade-modeler/    Python modelling service (uv project): HTTP API, MCP tools, GLB builder
 data/                Local data store standing in for a database; not in git (see data/README.md)
-  intake/<project>/  Photo intake workspaces: photos, spec, builds/vN, job logs
-  typologies/        Published photo typologies + index.json (what the viewer reads)
+  projects/
+    index.json       Catalogue of projects (what the home page lists)
+    <pid>/           One project: project.json (the saved design, revision-checked)
+      photo-models/<mid>/  Photo intake workspaces: photos, spec, builds/vN, job logs
+      typologies/          This project's published photo typologies + index.json
+  intake/ typologies/  Legacy layout, copied into p-0001 on first start, then unused
 scripts/dev.mjs      The one-command launcher behind npm run dev / npm start
 ```
 
-The front end never writes files. It reads built-in typologies from `public/` and photo typologies through the service (`GET /api/typologies`, `/data/typologies/<id>/…`). Only the service writes to `data/`.
+The front end never writes files. It reads built-in typologies from `public/` and everything else through the service; only the service writes to `data/`.
+
+| Purpose | Endpoint |
+| --- | --- |
+| List / create projects | `GET` / `POST /api/projects` |
+| Read / save / delete a project | `GET` / `PUT` / `DELETE /api/projects/<pid>` (a save carries `revision`; stale gives 409 with the current document) |
+| Rename (used by the home page; the editor renames through autosave) | `PUT /api/projects/<pid>/name` |
+| Photo models: list / upload | `GET` / `POST /api/projects/<pid>/photo-models` |
+| Photo model: detail, rename, run, publish | `GET …/photo-models/<mid>`, `PUT …/name`, `POST …/run`, `POST …/publish` |
+| Photo model files | `GET /files/<pid>/<mid>/<path>` |
+| Published photo typologies | `GET /api/projects/<pid>/typologies`, `DELETE …/<mid>`, `PUT …/<mid>/preview` |
+| Published typology files | `GET /data/projects/<pid>/typologies/<mid>/<path>` |
+
+The earlier global endpoints (`/api/uploads`, `/api/typologies…`, `/data/typologies/…`) have been removed.
 
 ## Controls
 
@@ -87,6 +116,7 @@ src/
     rendering/                # Site terrain, lighting and environment
   product-placement/          # Product placement, editing, production list and selection
   typology/                 # Typology catalogue (presets + photo typologies), validation and the active typology
+  projects/                 # Your projects: home page, project document, API client, autosave, project bar
   photo-intake/             # Embedded photo intake: controller, service API, panels, photo dimensions
   products/
     parametric-engine/varenda/ # Parameters, catalog, datums and engineering relationships
@@ -101,7 +131,7 @@ src/
     lifetime.ts               # Abort and resource disposal
 ```
 
-`/` (the only page) loads `src/main.ts`, which resolves the typology (`?typology=`, default Fairy house) and then imports and calls `startSiteDefinition()`. Photo intake runs inside the same page: `src/photo-intake/controller.ts` is created by `start.ts` and reuses its scene, camera and typology switching. The main workflow includes site setup, product placement, parameter editing and production-list navigation. Unknown page URLs return 404. The former independent customization page and lab route have been removed.
+`/` (the only page) loads `src/main.ts`: without `?project=` it shows the Your projects home (`src/projects/home.ts`); with it, it loads the project (`src/projects/`: document types and validation, API client, autosave), resolves its house (Fairy house if missing) and then imports and calls `startSiteDefinition()`, which restores and autosaves the project. Photo intake runs inside the same page: `src/photo-intake/controller.ts` is created by `start.ts` and reuses its scene, camera and typology switching. The main workflow includes site setup, product placement, parameter editing and production-list navigation. Unknown page URLs return 404. The former independent customization page and lab route have been removed.
 
 `products/` owns product definitions and rendering metadata. Its `parametric-engine/` contains product-specific engineering modules and can later support other products alongside Varenda. Engineering has no DOM, PlayCanvas or GLB dependency. The view consumes engineering results and maps their coordinates into the scene. `products/varenda/view/assets.ts` lists model URLs and source sample lengths; downloadable GLBs remain at stable URLs in `public/models/varenda/`.
 
@@ -137,7 +167,7 @@ Tests use Node's native test runner and TypeScript stripping, with no extra test
 
 ## Scope and limitations
 
-The main workflow defines the site and supports Varenda placement, parameter editing and production-part inspection. It does not persist edits across reloads, modify the house mesh, support sloped terrain or irregular boundaries, place furniture, or provide panning. Measurement lines are drawn over geometry so they stay legible; they are explanatory overlays, not visibility/occlusion measurements. Ground colors are configured in `src/site-definition/ground.ts`. Remote Google Fonts enhance typography; system sans-serif fonts remain usable offline.
+The main workflow defines the site and supports Varenda placement, parameter editing and production-part inspection. Edits are saved per project (see Your projects). It does not modify the house mesh, support sloped terrain or irregular boundaries, place furniture, or provide panning. Measurement lines are drawn over geometry so they stay legible; they are explanatory overlays, not visibility/occlusion measurements. Ground colors are configured in `src/site-definition/ground.ts`. Remote Google Fonts enhance typography; system sans-serif fonts remain usable offline.
 
 See [the implementation plan](docs/plans/2026-09-28-house-scene-configuration.md) and [execution notes](docs/plans/2026-09-28-house-scene-configuration-progress.md).
 

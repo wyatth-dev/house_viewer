@@ -16,7 +16,7 @@ from facade_modeler.build.model import build_model, place_on_side
 from facade_modeler.build.typology import MODEL_FILES, annotations, scene_json
 from facade_modeler.build.verify import verify_build
 from facade_modeler.config import Defaults
-from facade_modeler.project.store import Project
+from facade_modeler.photo_model.store import PhotoModel
 from facade_modeler.spec.model import HouseSpec
 from facade_modeler.spec.validate import Issue, validate
 
@@ -30,7 +30,7 @@ class BuildResult:
     dir: Optional[Path]
 
 
-def run_build(project: Project, catalog: Catalog, defaults: Defaults) -> BuildResult:
+def run_build(project: PhotoModel, catalog: Catalog, defaults: Defaults) -> BuildResult:
     spec = project.load_spec()
     issues = validate(spec, catalog)
     if any(issue.code in BLOCKING for issue in issues):

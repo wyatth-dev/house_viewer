@@ -1,17 +1,18 @@
 /** 状态面板：宽度、版本、LM 提交说明、问题清单。 */
-import type { JobState, ProjectSummary } from '../api.ts';
+import type { JobState, PhotoModelSummary } from '../api.ts';
 
 import { el } from './dom.ts';
 
 const SOURCES: Record<string, string> = { user: 'entered by user', 'photo-estimate': 'estimated by LM', 'photo-measured': 'measured from photo', default: 'default' };
 
-export type StatusActions = { runAgain: (projectId: string) => Promise<void>; publish: (projectId: string) => Promise<void> };
+/** Actions take the photo model id; the controller supplies the user project. */
+export type StatusActions = { runAgain: (photoModelId: string) => Promise<void>; publish: (photoModelId: string) => Promise<void> };
 
 export function createStatusPanel(host: HTMLElement, actions: StatusActions) {
     const body = el('div', { className: 'status-body' });
-    host.append(el('h2', {}, el('span', {}, '03'), ' Model status'), body);
+    host.append(el('h2', {}, el('span', {}, '03'), ' Model info'), body);
     return {
-        update(summary: ProjectSummary | null) {
+        update(summary: PhotoModelSummary | null) {
             if (!summary) {
                 body.replaceChildren(el('p', { className: 'muted' }, 'Upload photos of the front of a house. Modelling starts automatically; when it is submitted, the house is saved as a typology.'));
                 return;
@@ -23,7 +24,7 @@ export function createStatusPanel(host: HTMLElement, actions: StatusActions) {
                   ? 'Skipped by user; waiting for the LM estimate'
                   : 'Unknown';
             body.replaceChildren(
-                row('Project', summary.id),
+                row('Photo model', summary.id),
                 row(summary.facadeSide === 'front' ? 'Facade width' : `${summary.facadeSide.charAt(0).toUpperCase() + summary.facadeSide.slice(1)} wall width`, widthText),
                 row('Facade side', summary.facadeSide.charAt(0).toUpperCase() + summary.facadeSide.slice(1)),
                 row('Version', latestBuild ? `v${latestBuild}` : 'Not built yet'),
@@ -40,7 +41,7 @@ export function createStatusPanel(host: HTMLElement, actions: StatusActions) {
 }
 
 /** 已发布：链接到 house-viewer；有 build 但没发布（例如 LM 没有提交）：给一个手动保存按钮。 */
-function typologyDetails(summary: ProjectSummary, onPublish: (projectId: string) => Promise<void>): HTMLElement[] {
+function typologyDetails(summary: PhotoModelSummary, onPublish: (photoModelId: string) => Promise<void>): HTMLElement[] {
     const { typology, latestBuild } = summary;
     if (typology) {
         const stale = typology.buildVersion !== latestBuild;
@@ -53,12 +54,12 @@ function typologyDetails(summary: ProjectSummary, onPublish: (projectId: string)
     return [publishButton(summary.id, 'Save as typology', onPublish)];
 }
 
-function publishButton(projectId: string, label: string, onPublish: (projectId: string) => Promise<void>) {
+function publishButton(photoModelId: string, label: string, onPublish: (photoModelId: string) => Promise<void>) {
     const button = el('button', { type: 'button', className: 'secondary' }, label);
     button.onclick = async () => {
         button.disabled = true;
         button.textContent = 'Saving…';
-        await onPublish(projectId).catch(() => undefined);
+        await onPublish(photoModelId).catch(() => undefined);
     };
     return button;
 }
@@ -74,7 +75,7 @@ const STEP_NAMES: Record<string, string> = {
 };
 
 /** 状态文字：自动建模任务优先，其次是 LM 是否已提交。 */
-export function statusText(summary: ProjectSummary): string {
+export function statusText(summary: PhotoModelSummary): string {
     const job = summary.job;
     if (job?.state === 'queued') return 'Starting the LM…';
     if (job?.state === 'running') {
@@ -87,7 +88,7 @@ export function statusText(summary: ProjectSummary): string {
 }
 
 /** 失败时显示原因、日志末尾和 Run again 按钮；这是除上传外唯一的手动操作。 */
-function jobDetails(summary: ProjectSummary, onRunAgain: (projectId: string) => Promise<void>): HTMLElement[] {
+function jobDetails(summary: PhotoModelSummary, onRunAgain: (photoModelId: string) => Promise<void>): HTMLElement[] {
     const job: JobState | null = summary.job;
     if (!job || job.state !== 'failed') return [];
     const button = el('button', { type: 'button', className: 'primary' }, 'Run again');

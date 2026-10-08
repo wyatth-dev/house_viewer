@@ -4,9 +4,9 @@ index.json 相当于一张表，每一行是一个 typology：
     {"id", "name", "source": "photo", "projectId", "buildVersion", "manifest", "publishedAt"}
 <id>/ 下是 house-viewer 读取的契约文件（scene.json、model.glb、color-block/、render/、annotations.json）。
 
-发布 = 用建模项目最新成功 build 的 spec 快照，按 facade.side 在发布坐标里重新生成契约文件并登记
+发布 = 用照片模型最新成功 build 的 spec 快照，按 facade.side 在发布坐标里重新生成契约文件并登记
 （后立面会转到 −Z 一侧，见 build/frame.py）。先写到临时目录、校验通过后整体换上，
-所以 house-viewer 不会读到一半旧、一半新的文件。同一项目重新发布会覆盖原 typology。
+所以 house-viewer 不会读到一半旧、一半新的文件。同一照片模型重新发布会覆盖原 typology。
 """
 from __future__ import annotations
 
@@ -21,8 +21,8 @@ from typing import Optional
 from facade_modeler.assets.catalog import Catalog
 from facade_modeler.build.pipeline import write_typology
 from facade_modeler.config import Defaults
-from facade_modeler.project.lock import project_lock
-from facade_modeler.project.store import Project
+from facade_modeler.photo_model.lock import project_lock
+from facade_modeler.photo_model.store import PhotoModel
 from facade_modeler.spec.model import HouseSpec
 
 SCHEMA_VERSION = 1
@@ -63,7 +63,7 @@ class TypologyStore:
         return self.root / typology_id
 
     # ---- 发布 ------------------------------------------------------------------------
-    def publish(self, project: Project, catalog: Catalog, defaults: Defaults, name: Optional[str] = None) -> dict:
+    def publish(self, project: PhotoModel, catalog: Catalog, defaults: Defaults, name: Optional[str] = None) -> dict:
         version = project.latest_build()
         if version is None:
             raise NotPublishable(f"Project {project.id} has no successful build yet")

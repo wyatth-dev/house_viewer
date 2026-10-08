@@ -5,6 +5,10 @@ doors and windows, materials) at the level of detail of house-viewer's Sunningda
 The system closes the rest of the house with a white box. Uploading photos is the user's only manual
 action; rectification, measurement and corrections are all done by you.
 
+`project_id`, the parameter of every tool, is the ID of the **photo model** you are working on (for
+example `house-001`): the folder that holds this facade's photos, spec and builds. It is not the
+user's design project; this server only sees the photo models of one user project.
+
 ## Coordinates
 - Facade coordinates: u runs left to right as seen from outside, v runs upward, origin at the facade's
   bottom-left corner at ground level, in millimetres.
@@ -14,7 +18,7 @@ action; rectification, measurement and corrections are all done by you.
   facade (its top edge is the eave); "perpendicular" means the facade is a gable end.
 
 ## Recommended workflow
-1. get_context(project_id): photos, width (given by the user or skipped), current model and issues.
+1. get_context(project_id): the photo model's photos, width (given by the user or skipped), current model and issues.
 2. view_photo: pick the most frontal, clearest photo. Whichever photo you call rectify_photo on becomes
    the primary photo (used by the overlay preview).
 3. rectify_photo: mark the facade wall's four corners in the original photo (bottom-left, bottom-right,

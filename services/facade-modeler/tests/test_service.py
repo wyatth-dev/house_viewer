@@ -4,7 +4,7 @@ import pytest
 
 from facade_modeler.assets.catalog import Catalog
 from facade_modeler.config import load_defaults
-from facade_modeler.project.store import ProjectStore
+from facade_modeler.photo_model.store import PhotoModelStore
 from facade_modeler.service import modeling, perception, user_actions
 from facade_modeler.service.context import ServiceContext
 from synthetic import synthetic_photo
@@ -12,7 +12,7 @@ from synthetic import synthetic_photo
 
 @pytest.fixture
 def ctx(tmp_path):
-    return ServiceContext(ProjectStore(tmp_path), Catalog.load(), load_defaults())
+    return ServiceContext(PhotoModelStore(tmp_path), Catalog.load(), load_defaults())
 
 
 def upload(ctx, width_mm=8000.0):
@@ -20,7 +20,7 @@ def upload(ctx, width_mm=8000.0):
     ok, encoded = cv2.imencode(".png", photo)
     result = user_actions.upload_photos(ctx, None, [(encoded.tobytes(), "back.png")], width_mm)
     assert result.ok
-    return result.result["projectId"], corners
+    return result.result["photoModelId"], corners
 
 
 def window_box(rect, u0, u1, v0, v1, width=8000.0):
@@ -93,7 +93,7 @@ def test_rectify_rejects_degenerate_corners(ctx):
 
 def test_upload_without_width_marks_skipped(ctx):
     pid, _ = upload(ctx, width_mm=None)
-    summary = user_actions.project_summary(ctx, pid).result
+    summary = user_actions.photo_model_summary(ctx, pid).result
     assert summary["width"] == {"widthMm": None, "source": None, "skipped": True}
 
 
@@ -107,7 +107,7 @@ def test_view_photo_returns_grid_image(ctx):
 def test_submit_sets_status(ctx):
     pid, _ = upload(ctx)
     assert modeling.submit(ctx, pid, note="完成第一版").ok
-    assert user_actions.project_summary(ctx, pid).result["status"] == {"state": "submitted", "note": "完成第一版"}
+    assert user_actions.photo_model_summary(ctx, pid).result["status"] == {"state": "submitted", "note": "完成第一版"}
 
 
 @pytest.mark.parametrize("value", [float("inf"), float("nan")])
@@ -178,6 +178,6 @@ def test_rectify_marks_photo_primary(ctx):
 
 def test_summary_reports_last_step(ctx):
     pid, corners = upload(ctx)
-    assert user_actions.project_summary(ctx, pid).result["lastStep"] is None
+    assert user_actions.photo_model_summary(ctx, pid).result["lastStep"] is None
     perception.rectify_photo(ctx, pid, "p1", corners_px=corners)
-    assert user_actions.project_summary(ctx, pid).result["lastStep"]["tool"] == "rectify_photo"
+    assert user_actions.photo_model_summary(ctx, pid).result["lastStep"]["tool"] == "rectify_photo"

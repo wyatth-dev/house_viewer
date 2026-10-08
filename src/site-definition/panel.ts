@@ -1,12 +1,17 @@
-import { getProject, listProjects, fileUrl } from '../photo-intake/api.ts';
-import type { ProjectSummary } from '../photo-intake/api.ts';
-import { statusText } from '../photo-intake/panels/status-panel.ts';
-import { deletePhotoTypology, listTypologies, typologyUrl } from '../typology/catalog.ts';
+import { getPhotoModel, listPhotoModels } from '../photo-intake/api.ts';
+import type { PhotoModelSummary } from '../photo-intake/api.ts';
+import { listTypologies } from '../typology/catalog.ts';
 import type { TypologyEntry } from '../typology/catalog.ts';
 
 export type WorkflowStep = 'site' | 'placement' | 'rendering';
 
-export function createPanel(host: HTMLElement) {
+/**
+ * `projectId` is the user project being edited; photo creation stays inside this project.
+ * Existing houses are opened through the project home, not listed as sibling typologies. Null lists presets only (the editor always passes the opened project).
+ */
+export function createPanel(host: HTMLElement, projectId: string | null) {
+    const projectUrl = (photo?: string) => projectId === null ? '/'
+        : `/?project=${encodeURIComponent(projectId)}${photo ? `&photo=${encodeURIComponent(photo)}` : ''}`;
     host.innerHTML = `
         <div class="panel-heading">
             <span class="eyebrow" id="step-heading">STEP 01 / SITE SETUP</span>
@@ -29,20 +34,17 @@ export function createPanel(host: HTMLElement) {
                 <section class="typology-section">
                     <h2><span>01</span> Typology</h2>
                     <p class="hint">Your house base model.</p>
+                    <div class="typology-group">
+                        <div class="typology-strip" id="typology-photo" role="group" aria-label="Create a house from a photo"></div>
+                    </div>
                     <div class="typology-group preset">
                         <h3>Preset</h3>
                         <div class="typology-rail">
                             <div class="typology-strip" id="typology-builtin" role="group" aria-label="Preset base models"></div>
                         </div>
                     </div>
-                    <div class="typology-group">
-                        <h3>From photo</h3>
-                        <div class="typology-rail">
-                            <div class="typology-strip" id="typology-photo" role="group" aria-label="Base models from photos"></div>
-                        </div>
-                    </div>
                 </section>
-                <section>
+                <section id="yard-dimensions-section">
                     <h2><span>02</span> Yard dimensions</h2>
                     <p class="hint">Distances from the outer wall envelope.</p>
                     <div id="dimension-controls"></div>
@@ -119,12 +121,15 @@ export function createPanel(host: HTMLElement) {
         photo: host.querySelector<HTMLElement>('#typology-photo')!
     };
     const removeRails = [...host.querySelectorAll<HTMLElement>('.typology-rail')].map(createRail);
-    const photoListeners = new Set<(projectId: string | null) => void>();
-    const openPhoto = (projectId: string | null) => { for (const listener of photoListeners) listener(projectId); };
+    const photoListeners = new Set<(photoModelId: string | null) => void>();
+    const openPhoto = (photoModelId: string | null) => { for (const listener of photoListeners) listener(photoModelId); };
     const typologyListeners = new Set<(entry: TypologyEntry) => void>();
     let activeTypologyId = '';
     const cards = () => host.querySelectorAll<HTMLAnchorElement>('.typology-card[data-typology]');
     const markActive = () => {
+        const current = catalog.find(entry => entry.id === activeTypologyId && entry.source === 'photo');
+        strips.photo.closest<HTMLElement>('.typology-group')!.hidden = Boolean(current);
+
         for (const card of cards()) {
             if (card.dataset.typology === activeTypologyId) {
                 card.setAttribute('aria-current', 'true');
@@ -144,7 +149,7 @@ export function createPanel(host: HTMLElement) {
         if (entry.id === activeTypologyId) return;
         for (const listener of typologyListeners) listener(entry);
     };
-    const pending = new Map<string, ProjectSummary>();
+    const pending = new Map<string, PhotoModelSummary>();
     let catalog: TypologyEntry[] = [];
     let disposed = false;
     let projectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -156,83 +161,32 @@ export function createPanel(host: HTMLElement) {
         }
         catalog = entries;
         const card = (entry: TypologyEntry) => {
-            const element = typologyCard({ ...entry, previewUrl: previewUrls.get(entry.id) ?? entry.previewUrl });
-            const job = pending.get(entry.projectId ?? entry.id);
-            element.addEventListener('click', job ? event => { event.preventDefault(); openPhoto(job.id); } : select(entry));
-            if (job) {
-                element.classList.add('generating');
-                element.title = statusText(job);
-                const spinner = document.createElement('span');
-                spinner.className = 'generation-spinner';
-                spinner.setAttribute('aria-label', statusText(job));
-                element.querySelector('.typology-thumb')!.append(spinner);
-            }
-            if (entry.source !== 'photo') return element;
-            const wrapper = document.createElement('div');
-            wrapper.className = 'photo-typology-card';
-            const edit = document.createElement('a');
-            edit.className = 'typology-action edit';
-            edit.href = `/?project=${encodeURIComponent(entry.projectId ?? entry.id)}`;
-            edit.onclick = (event) => { event.preventDefault(); openPhoto(entry.projectId ?? entry.id); };
-            edit.title = 'Edit';
-            edit.setAttribute('aria-label', `Edit ${entry.name}`);
-            edit.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 4 4M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z"/></svg>';
-            const remove = document.createElement('button');
-            remove.type = 'button';
-            remove.className = 'typology-action delete';
-            remove.title = 'Delete';
-            remove.setAttribute('aria-label', `Delete ${entry.name}`);
-            remove.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg>';
-            remove.onclick = async () => {
-                remove.disabled = true;
-                try {
-                    await deletePhotoTypology(entry.id);
-                    if (entry.id === activeTypologyId) {
-                        const fallback = entries.find(candidate => candidate.source === 'builtin');
-                        if (fallback) for (const listener of typologyListeners) listener(fallback);
-                    }
-                    entries = entries.filter(candidate => candidate.id !== entry.id);
-                    renderTypologies(entries);
-                } catch (error) {
-                    remove.disabled = false;
-                    window.alert((error as Error).message);
-                }
-            };
-            remove.hidden = Boolean(job);
-            wrapper.append(element, edit, remove);
-            return wrapper;
+            const element = typologyCard({ ...entry, previewUrl: previewUrls.get(entry.id) ?? entry.previewUrl }, projectUrl());
+            element.addEventListener('click', select(entry));
+            return element;
         };
         strips.builtin.replaceChildren(...entries.filter(({ source }) => source === 'builtin').map(card));
-        const add = newFromPhotoCard();
+        const add = newFromPhotoCard(projectUrl('new'));
         add.onclick = (event) => { event.preventDefault(); openPhoto(null); };
-        const photos = entries.filter(({ source }) => source === 'photo').slice().reverse();
-        for (const summary of pending.values()) {
-            if (!photos.some(entry => (entry.projectId ?? entry.id) === summary.id)) photos.unshift({
-                id: summary.id, projectId: summary.id, name: summary.name ?? summary.id, source: 'photo', baseUrl: '',
-                previewUrl: summary.photos[0] ? fileUrl(summary.id, summary.photos[0].file) : null
-            });
-        }
-        photos.sort((a, b) => Number(pending.has(b.projectId ?? b.id)) - Number(pending.has(a.projectId ?? a.id)));
-        strips.photo.replaceChildren(add, ...photos.map(card));
-        if (pending.size) strips.photo.scrollLeft = 0;
-        else markActive();
+        strips.photo.replaceChildren(...(projectId === null ? [] : [add]));
+        markActive();
         for (const strip of Object.values(strips)) {
             strip.dispatchEvent(new Event('scroll'));
         }
     };
-    const loadingTypologies = listTypologies().then(renderTypologies);
-    const pollProjects = async () => {
+    const loadingTypologies = listTypologies(projectId).then(renderTypologies);
+    const pollPhotoModels = async (pid: string) => {
         try {
-            const summaries = await Promise.all((await listProjects()).map(getProject));
+            const summaries = await Promise.all((await listPhotoModels(pid)).map(mid => getPhotoModel(pid, mid)));
             if (disposed) return;
             const before = [...pending.keys()].join(',');
             pending.clear();
             for (const summary of summaries) if (summary.job?.state === 'queued' || summary.job?.state === 'running') pending.set(summary.id, summary);
-            if (before !== [...pending.keys()].join(',')) renderTypologies(await listTypologies());
+            if (before !== [...pending.keys()].join(',')) renderTypologies(await listTypologies(pid));
         } catch { /* The preset catalogue remains available when the service is offline. */ }
-        if (!disposed) projectTimer = setTimeout(() => void pollProjects(), 2000);
+        if (!disposed) projectTimer = setTimeout(() => void pollPhotoModels(pid), 2000);
     };
-    void loadingTypologies.then(() => pollProjects());
+    if (projectId !== null) { const pid = projectId; void loadingTypologies.then(() => pollPhotoModels(pid)); }
     const siteStep = host.querySelector<HTMLElement>('#site-step')!;
     const placementStep = host.querySelector<HTMLElement>('#placement-step')!;
     const next = host.querySelector<HTMLButtonElement>('#placement-next')!;
@@ -291,13 +245,13 @@ export function createPanel(host: HTMLElement) {
         setTypologyBusy(busy: boolean) {
             for (const strip of Object.values(strips)) strip.toggleAttribute('aria-busy', busy);
         },
-        setGenerating(summary: ProjectSummary) {
+        setGenerating(summary: PhotoModelSummary) {
             const exists = pending.has(summary.id);
             pending.set(summary.id, summary);
             if (!exists) renderTypologies(catalog);
         },
-        async refreshTypologies() { renderTypologies(await listTypologies()); },
-        onPhotoIntake(listener: (projectId: string | null) => void) {
+        async refreshTypologies() { renderTypologies(await listTypologies(projectId)); },
+        onPhotoIntake(listener: (photoModelId: string | null) => void) {
             photoListeners.add(listener);
             return () => { photoListeners.delete(listener); };
         },
@@ -334,11 +288,11 @@ export function createPanel(host: HTMLElement) {
 
 const PLACEHOLDER = `<svg viewBox="0 0 64 48" aria-hidden="true"><path d="M14 40 V22 L32 9 L50 22 V40 Z M26 40 V29 H38 V40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/></svg>`;
 
-/** One typology as a preview card. The link also works on its own (new tab, no script). */
-function typologyCard(entry: TypologyEntry) {
+/** One typology as a preview card. The link opens the project (new tab, no script). */
+function typologyCard(entry: TypologyEntry, href: string) {
     const card = document.createElement('a');
     card.className = 'typology-card';
-    card.href = typologyUrl(entry.id);
+    card.href = href;
     card.title = entry.name;
     card.dataset.typology = entry.id;
     const thumb = document.createElement('span');
@@ -358,10 +312,10 @@ function typologyCard(entry: TypologyEntry) {
     return card;
 }
 
-function newFromPhotoCard() {
+function newFromPhotoCard(href: string) {
     const card = document.createElement('a');
     card.className = 'typology-card typology-new';
-    card.href = '/?photo=new';
+    card.href = href;
     card.innerHTML = '<span class="typology-thumb"><span aria-hidden="true">+</span></span><span class="typology-name">New from photo</span>';
     return card;
 }

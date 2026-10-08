@@ -14,6 +14,12 @@ import {
 
 import { createPhotoIntake } from '../photo-intake/controller.ts';
 import { createPlacementController } from '../product-placement/controller.ts';
+import { saveProject } from '../projects/api.ts';
+import { createAutosave } from '../projects/autosave.ts';
+import { createEditorState } from '../projects/editor-state.ts';
+import { createProjectBar } from '../projects/project-bar.ts';
+import { houseOf, planSwitch, previewExit, recordForSwitch, restoreProject } from '../projects/restore.ts';
+import type { ProjectDocument } from '../projects/state.ts';
 import { fadeHouseModel } from '../scene/house/fade.ts';
 import type { HouseRepresentation } from '../scene/house/house-config.ts';
 import { loadHouse } from '../scene/house/house.ts';
@@ -22,7 +28,7 @@ import { createModelPreview } from '../scene/model-preview/index.ts';
 import { createProductAssetStore } from '../shared/assets/containers.ts';
 import { createCameraController, createCameraControls, createOrbitControls } from '../shared/camera/index.ts';
 import { createLifetime } from '../shared/lifetime.ts';
-import { loadTypology, storePreview, typologyUrl } from '../typology/catalog.ts';
+import { loadTypology, storePreview } from '../typology/catalog.ts';
 import type { TypologyEntry } from '../typology/catalog.ts';
 import { activeTypology, setActiveTypology } from '../typology/index.ts';
 import type { Typology } from '../typology/index.ts';
@@ -34,14 +40,38 @@ import { createRendering, daylightConfig } from './rendering/index.ts';
 import { createSceneCoordinator } from './scene-controller.ts';
 import './style.css';
 
-/** `initial` is the typology already made active by main.ts. */
-export function startSiteDefinition(initial: TypologyEntry) {
+/**
+ * `initial` is the typology already made active by main.ts (resolveTypology: the project's house,
+ * or Fairy when that house no longer exists). `project` is the saved project document; the scene
+ * is restored from it and every edit is written back through autosave.
+ */
+export function startSiteDefinition(initial: TypologyEntry, project: ProjectDocument) {
+    const projectId = project.id;
     const canvas = document.querySelector<HTMLCanvasElement>('#application-canvas')!;
     const viewport = document.querySelector<HTMLElement>('#viewport')!;
     const status = document.querySelector<HTMLElement>('#status')!;
-    const panel = createPanel(document.querySelector<HTMLElement>('#panel')!);
+    const panelHost = document.querySelector<HTMLElement>('#panel')!;
+    const panel = createPanel(panelHost, projectId);
     const lifetime = createLifetime();
     lifetime.add(() => panel.destroy());
+
+    // Persistence: one autosave per opened project; all editor writes go through `editor.record`.
+    const autosave = createAutosave(project, saveProject);
+    lifetime.add(() => autosave.destroy());
+    const editor = createEditorState(autosave);
+    const projectBar = createProjectBar(autosave, (name) => editor.record(doc => ({ ...doc, name })));
+    panelHost.prepend(projectBar.element);
+    lifetime.add(() => projectBar.destroy());
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+        // A failed keepalive save stays pending; hasPendingChanges() below asks the user to stay.
+        void autosave.flush(true).catch(() => undefined);
+        if (autosave.hasPendingChanges()) {
+            event.preventDefault();
+            event.returnValue = '';
+        }
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    lifetime.add(() => window.removeEventListener('beforeunload', beforeUnload));
     const renderModes = document.createElement('div');
     renderModes.className = 'render-mode-controls';
     renderModes.setAttribute('role', 'group');
@@ -117,7 +147,8 @@ export function startSiteDefinition(initial: TypologyEntry) {
         let modeChanges = Promise.resolve();
         const setSceneMode = (mode: HouseRepresentation) => {
             currentMode = mode;
-            modeChanges = modeChanges.catch(() => {}).then(async () => {
+            // The previous change's failure was reported to its caller; the queue continues.
+            modeChanges = modeChanges.catch(() => undefined).then(async () => {
                 if (isDisposed()) return;
                 await house.setRepresentation(mode, true);
                 if (isDisposed()) return;
@@ -143,6 +174,7 @@ export function startSiteDefinition(initial: TypologyEntry) {
                     for (const [id, candidate] of modeButtons)
                         candidate.setAttribute('aria-pressed', String(id === mode));
                     status.hidden = true;
+                    recordDisplay();
                 } catch (error) {
                     if (!isDisposed()) {
                         console.error(error);
@@ -167,6 +199,7 @@ export function startSiteDefinition(initial: TypologyEntry) {
             rendering.setHedgeVisible(hedgeVisible);
             hedgeToggle.setAttribute('aria-pressed', String(hedgeVisible));
             hedgeToggle.textContent = hedgeVisible ? 'Fence · On' : 'Fence · Off';
+            recordDisplay();
         };
         lifetime.add(() => { hedgeToggle.onclick = null; });
         let treesVisible = true;
@@ -179,9 +212,19 @@ export function startSiteDefinition(initial: TypologyEntry) {
             treesVisible = !treesVisible;
             rendering.setTreesVisible(treesVisible);
             syncTreeToggle();
+            recordDisplay();
         };
         lifetime.add(() => { treeToggle.onclick = null; });
         let editSnapshot: { mode: HouseRepresentation; trees: boolean; fence: boolean } | undefined;
+        // The user's display preferences. While a product is edited the scene is temporarily
+        // white without landscape; the saved preferences are the ones it returns to.
+        const recordDisplay = () => {
+            const shown = editSnapshot ?? { mode: currentMode, trees: treesVisible, fence: hedgeVisible };
+            editor.record(doc => ({
+                ...doc,
+                display: { representation: shown.mode, trees: shown.trees, fence: shown.fence, dimensions: dimensionsVisible }
+            }));
+        };
         const setLandscape = (trees: boolean, fence: boolean) => {
             treesVisible = trees;
             hedgeVisible = fence;
@@ -235,7 +278,8 @@ export function startSiteDefinition(initial: TypologyEntry) {
         };
         let visibilityChanges = Promise.resolve();
         const setHouseVisible = (visible: boolean, model = house, valid: () => boolean = () => true) => {
-            visibilityChanges = visibilityChanges.catch(() => {}).then(async () => {
+            // The previous change's failure was reported to its caller; the queue continues.
+            visibilityChanges = visibilityChanges.catch(() => undefined).then(async () => {
                 if (isDisposed() || !valid()) return;
                 const wasVisible = model.entity.enabled;
                 const animate = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -276,8 +320,21 @@ export function startSiteDefinition(initial: TypologyEntry) {
                 site.setVisible(visible);
                 rendering.setContextVisible(visible);
             },
-            editModeChanged
+            editModeChanged,
+            () => {
+                // Products on a temporary preview build do not belong to the project's house:
+                // say so instead of showing Saved for a change that is not stored.
+                if (previewing) {
+                    status.textContent = 'This build is not published yet: product changes on it are not saved.';
+                    status.hidden = false;
+                    return;
+                }
+                const products = placement.snapshot();
+                editor.record(doc => ({ ...doc, products }));
+            }
         );
+        /** The scene shows a not yet published photo build, which is not saved as the house. */
+        let previewing = false;
         // Recreated when the typology changes: placed products belong to the previous house's walls.
         let placement = createPlacement();
         lifetime.add(() => placement.destroy());
@@ -327,6 +384,10 @@ export function startSiteDefinition(initial: TypologyEntry) {
         let dimensionsVisible = true;
         const coordinator = createSceneCoordinator(site, camera, () => house.bounds, () => site.getBounds(), () => true);
         lifetime.add(camera.onMove(coordinator.refresh));
+        const recordDimensions = () => {
+            const dimensionsMm = site.getState().dimensions;
+            editor.record(doc => ({ ...doc, site: { dimensionsMm } }));
+        };
         // Controls: site dimensions and camera presets
         const dimensionControls = createSiteControls(
             panel.dimensions,
@@ -338,6 +399,7 @@ export function startSiteDefinition(initial: TypologyEntry) {
                     dimensionControls.update(site.getLayout());
                     updateSiteContext();
                     placement.refresh();
+                    recordDimensions();
                 }
                 return errors;
             }
@@ -351,6 +413,7 @@ export function startSiteDefinition(initial: TypologyEntry) {
             dimensionControls.update(site.getLayout());
             updateSiteContext();
             placement.refresh();
+            recordDimensions();
             return undefined;
         });
         const viewControls = createCameraControls(panel.views, cameraPresets, (id) => {
@@ -424,16 +487,18 @@ export function startSiteDefinition(initial: TypologyEntry) {
         // installation walls, placed products). App, camera, lighting, landscape and yard
         // dimensions are kept.
         let switching = Promise.resolve();
-        const switchTypology = (entry: TypologyEntry, pushHistory = true, supplied?: Typology) => {
+        const switchTypology = (entry: TypologyEntry, supplied?: Typology) => {
             switching = switching.then(async () => {
-                if (isDisposed() || (entry.id === activeTypology().id && !supplied)) return;
+                if (isDisposed()) return;
+                const plan = planSwitch(autosave.get(), activeTypology(), entry, Boolean(supplied));
+                if (plan.skip) return;
                 panel.setTypologyBusy(true);
                 panel.setActiveTypology(entry.id);
                 status.textContent = `Loading ${entry.name}…`;
                 status.hidden = false;
                 const previous = activeTypology();
                 try {
-                    const typology = supplied ?? (await loadTypology(entry.id)).typology;
+                    const typology = supplied ?? (await loadTypology(entry.id, projectId)).typology;
                     setActiveTypology(typology);
                     const next = await loadHouse(app, lifetime.signal);
                     next.entity.enabled = false; // hidden until its representation is ready
@@ -465,8 +530,21 @@ export function startSiteDefinition(initial: TypologyEntry) {
                     house.entity.enabled = false;
                     await setHouseVisible(true);
                     if (!supplied) renderPreview(entry);
-                    if (pushHistory) window.history.pushState({ typology: entry.id }, '', typologyUrl(entry.id));
                     status.hidden = true;
+                    // The old house's products were dropped with the old placement controller. A new
+                    // listed house is saved without products; a preview build is not saved at all,
+                    // and returning to the saved house shows its saved products again.
+                    previewing = plan.previewing;
+                    if (plan.record) editor.record(doc => recordForSwitch(doc, entry) ?? doc);
+                    else if (plan.replaceSaved) {
+                        editor.beginRestore();
+                        try {
+                            await placement.restore(autosave.get().products);
+                            if (!isDisposed()) placement.refresh();
+                        } finally {
+                            editor.endRestore();
+                        }
+                    }
                 } catch (error) {
                     if (isDisposed()) return;
                     console.error(error);
@@ -479,7 +557,41 @@ export function startSiteDefinition(initial: TypologyEntry) {
             });
             return switching;
         };
+        const setDimensionsShown = (visible: boolean) => {
+            dimensionsVisible = visible;
+            dimensionToggle.textContent = visible ? 'Dimensions · On' : 'Dimensions · Off';
+            dimensionToggle.setAttribute('aria-pressed', String(visible));
+        };
+        // Restore the saved project: house (main.ts) → yard → display → products. Changes made
+        // while applying it are not recorded; a corrected state is saved once afterwards.
+        const restored = await restoreProject(autosave.get(), houseOf(initial), editor, {
+            setDimensions(dimensionsMm) {
+                if (Object.keys(coordinator.setDimensions(dimensionsMm)).length) return false;
+                dimensionControls.syncDimensions(site.getState().dimensions);
+                dimensionControls.update(site.getLayout());
+                updateSiteContext();
+                return true;
+            },
+            async applyDisplay({ representation, trees, fence, dimensions }) {
+                setLandscape(trees, fence);
+                setDimensionsShown(dimensions);
+                site.setMeasurementsVisible(preserveSiteView && dimensions);
+                if (representation !== currentMode) await setSceneMode(representation);
+            },
+            async restoreProducts(records) {
+                const { skipped } = await placement.restore(records);
+                if (!isDisposed()) placement.refresh();
+                return { skipped };
+            },
+            state: () => ({ dimensionsMm: site.getState().dimensions, products: placement.snapshot() }),
+            isDisposed
+        });
+        lifetime.signal.throwIfAborted();
+        const restoreNotice = restored?.notice ?? null;
+
         const intake = createPhotoIntake({
+            projectId,
+            integratedPhotoModelId: initial.source === 'photo' ? (initial.photoModelId ?? initial.id) : undefined,
             app,
             viewport,
             panelHost: document.querySelector<HTMLElement>('#panel')!,
@@ -491,6 +603,13 @@ export function startSiteDefinition(initial: TypologyEntry) {
             syncSiteDimensions: () => site.setMeasurementsVisible(preserveSiteView && dimensionsVisible),
             scene: {
                 switchTypology,
+                async leavePreview() {
+                    await switching;
+                    const id = previewExit(autosave.get(), previewing);
+                    if (id === null || isDisposed()) return;
+                    const { entry } = await loadTypology(id, projectId);
+                    await switchTypology(entry);
+                },
                 whenSwitched: () => switching,
                 setHouseVisible,
                 house: () => house,
@@ -503,22 +622,25 @@ export function startSiteDefinition(initial: TypologyEntry) {
             dimensionToggle.textContent = dimensionsVisible ? 'Dimensions · On' : 'Dimensions · Off';
             dimensionToggle.setAttribute('aria-pressed', String(dimensionsVisible));
             intake.setDimensionsVisible(dimensionsVisible); // also re-applies the site labels
+            recordDisplay();
         };
         lifetime.add(() => { dimensionToggle.onclick = null; });
 
         lifetime.add(panel.onSelectTypology((entry) => void switchTypology(entry)));
-        const onHistory = () => {
-            const id = new URLSearchParams(window.location.search).get('typology') ?? initial.id;
-            void loadTypology(id)
-                .then(({ entry }) => switchTypology(entry, false))
-                .catch((error) => console.error(error));
-        };
-        window.addEventListener('popstate', onHistory);
-        lifetime.add(() => window.removeEventListener('popstate', onHistory));
         // Startup
         app.start();
         panel.enable();
         status.hidden = true;
+        if (restoreNotice) {
+            const message = document.createElement('p');
+            message.textContent = restoreNotice;
+            const dismiss = document.createElement('button');
+            dismiss.type = 'button';
+            dismiss.textContent = 'OK';
+            dismiss.onclick = () => { status.hidden = true; };
+            status.replaceChildren(message, dismiss);
+            status.hidden = false;
+        }
         requestAnimationFrame(() => {
             if (!isDisposed()) coordinator.refresh();
         });
