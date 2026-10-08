@@ -1,3 +1,4 @@
+import type { Frame } from './framing.ts';
 import type { Bounds3, Point3, ProjectPoint, Viewport } from '../geometry/types.ts';
 export type CameraPreset = {
     id: string;
@@ -7,6 +8,7 @@ export type CameraPreset = {
     fov?: number;
 };
 export type CameraBasis = { right: Point3; up: Point3; front: Point3 };
+export type CameraSnapshot = { activePresetId: string; frame: Frame; bounds: Bounds3 };
 export type CameraState = { activePresetId: string };
 export type CameraController = {
     setView(id: string): void;
@@ -14,6 +16,8 @@ export type CameraController = {
     orbit(yawDelta: number, pitchDelta: number): void;
     zoom(factor: number): void;
     getState(): CameraState;
+    snapshot(): CameraSnapshot | undefined;
+    restore(snapshot: CameraSnapshot): void;
     project: ProjectPoint;
     screenToGround(x: number, y: number, groundYMm?: number): Point3 | undefined;
     onMove(listener: () => void): () => void;

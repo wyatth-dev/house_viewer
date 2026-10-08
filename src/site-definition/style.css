@@ -1263,23 +1263,17 @@ h2 span {
     border-bottom: 1px solid #e3e9e1;
     font-size: 11px;
 }
-.project-home-navigation {
-    flex: 0 0 100%;
-    padding-bottom: 14px;
-    margin-bottom: 8px;
-    border-bottom: 1px solid #e3e9e1;
-}
 .project-back {
     display: inline-flex;
     align-items: center;
-    gap: 9px;
-    min-height: 44px;
-    padding: 9px 16px;
+    gap: 5px;
+    min-height: 28px;
+    padding: 4px 7px;
     border: 1px solid #233e34;
     border-radius: 8px;
     background: #233e34;
     color: #fff;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: 600;
     text-decoration: none;
     white-space: nowrap;
@@ -1357,3 +1351,102 @@ h2 span {
 
 
 .typology-group[hidden] { display: none; }
+
+.rendering-photo {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    background: #000;
+}
+.rendering-photo img {
+    display: block;
+    width: 100%;
+    height: auto;
+    transition: opacity 160ms ease;
+}
+.rendering-photo:hover img,
+.rendering-photo:has(:focus-visible) img { opacity: 0.55; }
+.rendering-photo-camera {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid #dce5db;
+    border-radius: 8px;
+    background: #fff;
+    color: #233e34;
+    opacity: 0;
+    transition: opacity 160ms ease;
+    cursor: pointer;
+}
+.rendering-photo:hover .rendering-photo-camera,
+.rendering-photo:has(:focus-visible) .rendering-photo-camera { opacity: 1; }
+.rendering-photo-camera:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+
+#reference-captures { display: flex; flex-direction: column; gap: 12px; }
+#reference-captures > img { display: block; width: 100%; height: auto; border-radius: 8px; }
+.reference-capture-empty {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border: 1px dashed #b5c5b7;
+    border-radius: 8px;
+    background: transparent;
+    color: #315b43;
+    cursor: pointer;
+}
+.reference-capture-empty:hover { background: #edf3e9; border-color: #315b43; }
+.reference-capture-empty:disabled { opacity: 0.45; cursor: wait; }
+
+.reference-capture { margin-bottom: 0; }
+.reference-capture-render { width: auto; padding: 0 14px; font: inherit; font-size: 13px; }
+.reference-capture-delete {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid #dce5db;
+    border-radius: 6px;
+    background: #fff;
+    color: #a33c2e;
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 160ms ease;
+}
+.reference-capture-delete:hover,
+.reference-capture-delete:focus-visible { opacity: 1; }
+.reference-capture-delete:focus-visible { outline: 2px solid #315b43; outline-offset: 2px; }
+
+.capture-flash {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    background: #fff;
+    pointer-events: none;
+}
+
+.reference-capture-photo { display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
+
+.render-comparison-dialog { width: min(1000px, 90vw); padding: 16px; border: 0; border-radius: 12px; background: #f8faf5; }
+.render-comparison-dialog::backdrop { background: #0009; }
+.render-comparison-dialog > button { margin-bottom: 12px; padding: 8px 14px; cursor: pointer; }
+.render-comparison-stage { --split: 50%; position: relative; overflow: hidden; border-radius: 8px; }
+.render-comparison-stage > img { display: block; width: 100%; }
+.render-comparison-stage .render-comparison-before { position: absolute; inset: 0; height: 100%; object-fit: fill; clip-path: inset(0 calc(100% - var(--split)) 0 0); }
+.render-comparison-divider { position: absolute; top: 0; bottom: 0; left: var(--split); width: 3px; background: #fff; pointer-events: none; }
+.render-comparison-divider::after { content: '‹ ›'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #fff; color: #233e34; }
+.render-comparison-labels { position: absolute; inset: 12px 12px auto; display: flex; justify-content: space-between; pointer-events: none; }
+.render-comparison-labels span { padding: 5px 8px; border-radius: 4px; background: #fff; color: #233e34; }
+.render-comparison-slider { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; }
+.render-comparison-stage:has(:focus-visible) { outline: 2px solid #315b43; outline-offset: 3px; }

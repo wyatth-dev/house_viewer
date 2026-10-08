@@ -1,3 +1,6 @@
+import { generateRender } from '../rendering/contract.ts';
+import type { RenderJob } from '../rendering/contract.ts';
+import { openRenderComparison } from '../rendering/comparison.ts';
 import {
     AppBase,
     Entity,
@@ -12,6 +15,7 @@ import {
     createGraphicsDevice
 } from 'playcanvas';
 
+import { fileUrl, getPhotoModel } from '../photo-intake/api.ts';
 import { createPhotoIntake } from '../photo-intake/controller.ts';
 import { createPlacementController } from '../product-placement/controller.ts';
 import { saveProject } from '../projects/api.ts';
@@ -36,6 +40,7 @@ import type { Typology } from '../typology/index.ts';
 import { cameraPresets } from './camera-presets.ts';
 import { createSiteController, createSiteControls } from './index.ts';
 import { createPanel } from './panel.ts';
+import type { ReferenceCapture } from './panel.ts';
 import { createRendering, daylightConfig } from './rendering/index.ts';
 import { createSceneCoordinator } from './scene-controller.ts';
 import './style.css';
@@ -145,6 +150,87 @@ export function startSiteDefinition(initial: TypologyEntry, project: ProjectDocu
         lifetime.signal.throwIfAborted();
         let currentMode: HouseRepresentation = 'render';
         let modeChanges = Promise.resolve();
+        panel.configureReferenceCaptures(async () => {
+            await modeChanges;
+            if (isDisposed()) throw new Error('Editor closed');
+            const cameraSnapshot = camera.snapshot();
+            app.render();
+            const snapshot = document.createElement('canvas');
+            const scale = Math.min(1, 1600 / Math.max(canvas.width, canvas.height));
+            snapshot.width = Math.max(1, Math.round(canvas.width * scale));
+            snapshot.height = Math.max(1, Math.round(canvas.height * scale));
+            snapshot.getContext('2d')!.drawImage(canvas, 0, 0, snapshot.width, snapshot.height);
+            const url = snapshot.toDataURL('image/jpeg', 0.9);
+            const flash = document.createElement('div');
+            flash.className = 'capture-flash';
+            flash.setAttribute('aria-hidden', 'true');
+            viewport.append(flash);
+            const animation = flash.animate([{ opacity: 0.45 }, { opacity: 0 }], {
+                duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 : 240,
+                easing: 'ease-out'
+            });
+            animation.onfinish = () => flash.remove();
+            animation.oncancel = () => flash.remove();
+            return { url, camera: cameraSnapshot };
+        }, capture => {
+            autosave.update(doc => ({ ...doc, media: { ...doc.media,
+                references: [...doc.media.references, { kind: 'model-capture', ...capture }]
+            } }));
+        }, autosave.get().media.references.flatMap(value => {
+            if (!value || typeof value !== 'object') return [];
+            const item = value as ReferenceCapture & { kind?: string };
+            return item.kind === 'model-capture' && typeof item.url === 'string' ? [item] : [];
+        }), index => {
+            autosave.update(doc => {
+                let captureIndex = 0;
+                return { ...doc, media: { ...doc.media, references: doc.media.references.filter(value => {
+                    if (!value || typeof value !== 'object') return true;
+                    const item = value as { kind?: string; url?: string };
+                    if (item.kind !== 'model-capture' || typeof item.url !== 'string') return true;
+                    return captureIndex++ !== index;
+                }) } };
+            });
+        }, capture => {
+            if (capture.camera) camera.restore(capture.camera);
+        });
+
+        const pendingRenders = new Set<string>();
+        const jobs = () => autosave.get().media.renders.filter((value): value is RenderJob =>
+            Boolean(value && typeof value === 'object' && typeof (value as RenderJob).sourceUrl === 'string'));
+        const storeJob = (job: RenderJob) => autosave.update(doc => ({ ...doc, media: { ...doc.media,
+            renders: [...doc.media.renders.filter(value => !(value && typeof value === 'object' && (value as RenderJob).id === job.id)), job]
+        } }));
+        panel.configureRenderingActions(capture => {
+            if (pendingRenders.has(capture.url)) return;
+            const previous = jobs().find(job => job.sourceUrl === capture.url);
+            if (previous?.status === 'done' && previous.resultUrl) {
+                openRenderComparison(previous.basePhotoUrl ?? capture.url, previous.resultUrl);
+                return;
+            }
+            // Manual queue currently uses the model screenshot. Photo-overlay needs an explicit matched base photo.
+            const job: RenderJob = {
+                id: previous?.id ?? crypto.randomUUID(), sourceUrl: capture.url, camera: capture.camera,
+                mode: 'model', referencePhotoUrls: [], status: 'queued'
+            };
+            pendingRenders.add(capture.url); storeJob(job);
+            panel.setRenderingMessage('Rendering…');
+            void generateRender({ projectId, job }).then(result => {
+                if (isDisposed()) return;
+                storeJob({ ...job, status: 'done', resultUrl: result.resultUrl });
+                panel.setRenderingMessage('Render ready. Click the photo to compare.');
+            }).catch(error => {
+                if (isDisposed()) return;
+                const message = error instanceof Error ? error.message : 'Rendering failed.';
+                storeJob({ ...job, status: 'awaiting-integration', error: message });
+                panel.setRenderingMessage(message);
+            }).finally(() => pendingRenders.delete(capture.url));
+        }, capture => {
+            const job = jobs().find(job => job.sourceUrl === capture.url && job.status === 'done' && job.resultUrl);
+            if (!job?.resultUrl) return false;
+            openRenderComparison(job.basePhotoUrl ?? capture.url, job.resultUrl);
+            return true;
+        });
+
         const setSceneMode = (mode: HouseRepresentation) => {
             currentMode = mode;
             // The previous change's failure was reported to its caller; the queue continues.
@@ -344,11 +430,43 @@ export function startSiteDefinition(initial: TypologyEntry, project: ProjectDocu
         lifetime.add(() => productChoice.removeEventListener('click', selectProduct));
 
         lifetime.add(camera.onMove(() => placement.refreshLabels()));
+        let renderingPhotosRequest = 0;
         lifetime.add(
             panel.onStepChange((step) => {
                 preserveSiteView = step === 'site';
                 placement.setPlacementActive(step === 'placement');
                 const isRendering = step === 'rendering';
+                if (isRendering) {
+                    const products = placement.snapshot();
+                    panel.setRenderingFocusObjects([
+                        { id: 'site', label: 'Site' },
+                        ...products.map((product, index) => ({ id: product.instanceId,
+                            label: products.length === 1 ? 'Product' : `Product ${index + 1}` }))
+                    ], id => {
+                        const size = { width: viewport.clientWidth, height: viewport.clientHeight };
+                        if (id === 'site') {
+                            const bounds = site.getBounds();
+                            camera.fit({ min: { ...bounds.min }, max: { ...bounds.max, y: house.bounds.max.y } }, size, true, undefined, true);
+                        } else {
+                            const bounds = placement.getProductBounds(id);
+                            if (bounds) camera.fit(bounds, size, true, undefined, true);
+                        }
+                    });
+                }
+                const photoRequest = ++renderingPhotosRequest;
+                panel.setRenderingPhotos([]);
+                const projectHouse = autosave.get().house;
+                if (isRendering && projectHouse?.source === 'photo') {
+                    const modelId = projectHouse.typologyId;
+                    void getPhotoModel(project.id, modelId).then(model => {
+                        if (isDisposed() || photoRequest !== renderingPhotosRequest) return;
+                        const photos = [...model.photos, ...Object.values(model.facadePhotos ?? {}).flat()];
+                        const unique = [...new Map(photos.map(photo => [photo.file, photo])).values()];
+                        panel.setRenderingPhotos(unique.map(photo => ({
+                            url: fileUrl(project.id, modelId, photo.file), name: 'Uploaded house photo'
+                        })));
+                    }).catch(error => console.error('Could not load rendering photos', error));
+                }
                 renderModes.hidden = isRendering;
                 dimensionToggle.hidden = isRendering;
                 if (isRendering) {

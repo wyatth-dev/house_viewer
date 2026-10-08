@@ -261,6 +261,25 @@ export function createCameraController(
             });
         },
         getState: () => ({ activePresetId: active }),
+        snapshot: () => current && bounds ? structuredClone({ activePresetId: active, frame: current, bounds }) : undefined,
+        restore(snapshot) {
+            if (!cameras.has(snapshot.activePresetId)) return;
+            const from = current;
+            const target = structuredClone(snapshot.frame);
+            manuallyChanged = true;
+            active = snapshot.activePresetId;
+            bounds = structuredClone(snapshot.bounds);
+            for (const [id, entity] of cameras) entity.enabled = id === active;
+            if (from && duration > 0) {
+                transition = { from: structuredClone(from), to: target, elapsed: 0, containBounds: false };
+                apply(active, from, true);
+            } else {
+                transition = undefined;
+                current = target;
+                apply(active, current, current.projectionMix !== undefined);
+            }
+            for (const listener of listeners) listener();
+        },
         project: (point) => (current ? projectPoint(point, current, viewport) : { x: 0, y: 0, visible: false }),
         screenToGround(x, y, groundYMm = 0) {
             if (
