@@ -19,6 +19,10 @@ data/
         index.json                This project's published photo typologies (one row per typology)
         <mid>/                    Published typology: what house-viewer loads
           scene.json  model.glb  color-block/model.glb  render/model.glb  annotations.json  preview.png
+      media/                      Rendering step files
+        captures/<id>.jpg         Rendering Queue captures (model screenshots)
+        context/<id>.jpg          Context photos uploaded by the user
+        renders/<rid>/            One AI render: job.json, prompt.txt (what was sent), result.jpg (same size as the capture)
   intake/  typologies/            Legacy (pre-projects) layout: copied into p-0001 on first start, then unused
 ```
 

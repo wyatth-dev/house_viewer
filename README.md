@@ -46,6 +46,16 @@ The Typology section has two groups: **Preset** (round icons, bundled in `public
 
 Photo typologies use the same contract as the built-in ones (`scene.json` + white / color-block / render GLBs, millimetres, front = +Z) with one installation face, `facade-main`. The upload panel has one entry per facade (Front / Back / Left / Right; one facade is modelled at a time, photos and widths are kept per facade). The modelled facade is placed on that side of the house (installation face `side`), so a back-garden photo faces the back yard and the other walls are plain. Modelling details, tools and limits: `services/facade-modeler/README.md`.
 
+## Rendering (AI render)
+
+Step 03 (Rendering) turns model views into photorealistic images with the OpenAI image API.
+
+- **Setup**: copy `.env.example` to `.env` in the repository root and set `OPENAI_API_KEY` (model: `OPENAI_IMAGE_MODEL`, default `gpt-image-2.5-flare`). The service reads `.env` when it starts; restart `npm run dev` after changes. `.env` is ignored by git.
+- **Context** (the bar above 01): photos of the real house and garden, sent with every render as material and mood references. A photo-built house puts its original photo in by default; deleting it only removes it from Context (the house model is unchanged) and it is not added back until a different photo house is chosen. Upload more by clicking or dropping files.
+- **Rendering Queue**: the camera tile captures the current view. Hover a card for **Render** and for delete (top right). While rendering the card shows a spinner; when done it shows the render, and clicking it opens the before/after comparison (drag the handle; other rendered views are listed below). **Render again** sits in the card's corner.
+- **Look & atmosphere** (below Context): style (default Commercial), time of day, weather and season. The choice is saved in the project and applies to the next render; the comparison shows which settings a render used. The buttons come from `prompts/options.toml`.
+- **Prompt**: plain text files in `prompts/` at the repository root: `render.txt` (always sent) and `render-context.txt` (added when there are Context photos). Refer to the images with the parameters `{capture}` and `{context}` (see `prompts/README.md`); the service fills in the image numbers. Edit freely; they are read for every render, no restart needed. The prompt actually sent is kept in `data/projects/<pid>/media/renders/<rid>/prompt.txt`.
+
 ## Files and data
 
 ```text

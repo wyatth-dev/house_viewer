@@ -36,3 +36,6 @@ data/*
 # Python service environment
 .venv/
 .pytest_cache/
+
+# Local secrets (OPENAI_API_KEY for AI rendering)
+.env

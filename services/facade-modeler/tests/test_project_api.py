@@ -154,3 +154,28 @@ def test_app_context_from_env_migrates_legacy_data(monkeypatch, tmp_path):
     [row] = app_ctx.projects.list()
     assert row["id"] == "p-0001" and row["name"] == "My first project"
     assert (app_ctx.projects.photo_models_dir("p-0001") / "house-001").is_dir()
+
+
+def test_project_list_reports_generating(app_ctx):
+    class Runner:
+        def __init__(self):
+            self.states = {}
+
+        def start(self, pid, mid):
+            self.states[(pid, mid)] = "running"
+            return {"state": "running"}
+
+        def status(self, pid, mid):
+            state = self.states.get((pid, mid))
+            return {"state": state} if state else None
+
+    runner = Runner()
+    client = TestClient(create_app(app_ctx, viewer_dist=None, runner=runner))
+    busy = client.post("/api/projects", json={"name": "Busy"}).json()["result"]["id"]
+    idle = client.post("/api/projects", json={"name": "Idle"}).json()["result"]["id"]
+    mid = upload(client, busy).json()["result"]["photoModelId"]
+    rows = {row["id"]: row for row in client.get("/api/projects").json()["result"]["projects"]}
+    assert rows[busy]["generating"] is True and rows[idle]["generating"] is False
+    runner.states[(busy, mid)] = "done"
+    rows = {row["id"]: row for row in client.get("/api/projects").json()["result"]["projects"]}
+    assert rows[busy]["generating"] is False

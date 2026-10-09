@@ -1,0 +1,86 @@
+# Render options: one group per {parameter} in render.txt.
+# - label / default: shown in the Rendering panel.
+# - each option: label (button text), icon (optional, see src/rendering/options-panel.ts), text (goes into the prompt).
+# Add an option: add a block. Add a parameter: add a group here and write {its_id} in render.txt.
+# Read again for every render and every time the Rendering step opens; no restart needed.
+
+[style]
+label = "Style"
+default = "commercial"
+
+[style.options.commercial]
+label = "Commercial"
+icon = "sparkle"
+text = "a photorealistic commercial architectural rendering, crisp and bright, magazine quality, everything clean and well kept"
+
+[style.options.photo]
+label = "Photo"
+icon = "camera"
+text = "a natural real-estate photograph taken with a full-frame camera"
+
+[style.options.illustration]
+label = "Illustration"
+icon = "brush"
+text = "a soft hand-painted architectural illustration"
+
+[time_of_day]
+label = "Time of day"
+default = "day"
+
+[time_of_day.options.day]
+label = "Day"
+icon = "sun"
+text = "late morning daylight with soft shadows"
+
+[time_of_day.options.golden]
+label = "Golden hour"
+icon = "sunset"
+text = "golden hour, warm low sun"
+
+[time_of_day.options.dusk]
+label = "Dusk"
+icon = "moon"
+text = "blue-hour dusk with warm interior and veranda lights on"
+
+[weather]
+label = "Weather"
+default = "clear"
+
+[weather.options.clear]
+label = "Clear"
+icon = "sun"
+text = "clear blue sky with a few light clouds"
+
+[weather.options.overcast]
+label = "Overcast"
+icon = "cloud"
+text = "bright overcast sky, soft even light"
+
+[weather.options.after-rain]
+label = "After rain"
+icon = "rain"
+text = "just after rain, wet paving with reflections"
+
+[season]
+label = "Season"
+default = "summer"
+
+[season.options.spring]
+label = "Spring"
+icon = "flower"
+text = "spring, fresh green leaves and blossom"
+
+[season.options.summer]
+label = "Summer"
+icon = "leaf"
+text = "summer, lush green lawn and planting in flower"
+
+[season.options.autumn]
+label = "Autumn"
+icon = "maple"
+text = "autumn, warm-coloured leaves and a few fallen leaves on the lawn"
+
+[season.options.winter]
+label = "Winter"
+icon = "snow"
+text = "winter, bare trees and a light frost"

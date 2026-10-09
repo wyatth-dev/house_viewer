@@ -1,0 +1,7 @@
+Edit {capture} directly. It is a screenshot of a 3D model: a house with a veranda in its garden. When instructions conflict, follow this priority: the model view first, real details second, style last.
+
+Style: {style}. Light and atmosphere: {time_of_day}; {weather}; {season}. Apply these only to materials, lighting, sky and planting.
+
+{details}
+
+Constraints (highest priority): keep the camera angle, framing and perspective of {capture} exactly. Keep the house shape, roof, every window and door, and the veranda's position, size, slope, posts and rafters exactly as drawn, at the same place in the frame. Do not move, add, remove or resize anything. Do not add people, cars, text or watermarks.

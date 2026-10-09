@@ -1,6 +1,3 @@
-import { generateRender } from '../rendering/contract.ts';
-import type { RenderJob } from '../rendering/contract.ts';
-import { openRenderComparison } from '../rendering/comparison.ts';
 import {
     AppBase,
     Entity,
@@ -24,6 +21,8 @@ import { createEditorState } from '../projects/editor-state.ts';
 import { createProjectBar } from '../projects/project-bar.ts';
 import { houseOf, planSwitch, previewExit, recordForSwitch, restoreProject } from '../projects/restore.ts';
 import type { ProjectDocument } from '../projects/state.ts';
+import { createCaptureButton } from '../rendering/capture-button.ts';
+import { createRenderingController } from '../rendering/controller.ts';
 import { fadeHouseModel } from '../scene/house/fade.ts';
 import type { HouseRepresentation } from '../scene/house/house-config.ts';
 import { loadHouse } from '../scene/house/house.ts';
@@ -40,7 +39,6 @@ import type { Typology } from '../typology/index.ts';
 import { cameraPresets } from './camera-presets.ts';
 import { createSiteController, createSiteControls } from './index.ts';
 import { createPanel } from './panel.ts';
-import type { ReferenceCapture } from './panel.ts';
 import { createRendering, daylightConfig } from './rendering/index.ts';
 import { createSceneCoordinator } from './scene-controller.ts';
 import './style.css';
@@ -150,86 +148,45 @@ export function startSiteDefinition(initial: TypologyEntry, project: ProjectDocu
         lifetime.signal.throwIfAborted();
         let currentMode: HouseRepresentation = 'render';
         let modeChanges = Promise.resolve();
-        panel.configureReferenceCaptures(async () => {
-            await modeChanges;
-            if (isDisposed()) throw new Error('Editor closed');
-            const cameraSnapshot = camera.snapshot();
-            app.render();
-            const snapshot = document.createElement('canvas');
-            const scale = Math.min(1, 1600 / Math.max(canvas.width, canvas.height));
-            snapshot.width = Math.max(1, Math.round(canvas.width * scale));
-            snapshot.height = Math.max(1, Math.round(canvas.height * scale));
-            snapshot.getContext('2d')!.drawImage(canvas, 0, 0, snapshot.width, snapshot.height);
-            const url = snapshot.toDataURL('image/jpeg', 0.9);
-            const flash = document.createElement('div');
-            flash.className = 'capture-flash';
-            flash.setAttribute('aria-hidden', 'true');
-            viewport.append(flash);
-            const animation = flash.animate([{ opacity: 0.45 }, { opacity: 0 }], {
-                duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 : 240,
-                easing: 'ease-out'
-            });
-            animation.onfinish = () => flash.remove();
-            animation.oncancel = () => flash.remove();
-            return { url, camera: cameraSnapshot };
-        }, capture => {
-            autosave.update(doc => ({ ...doc, media: { ...doc.media,
-                references: [...doc.media.references, { kind: 'model-capture', ...capture }]
-            } }));
-        }, autosave.get().media.references.flatMap(value => {
-            if (!value || typeof value !== 'object') return [];
-            const item = value as ReferenceCapture & { kind?: string };
-            return item.kind === 'model-capture' && typeof item.url === 'string' ? [item] : [];
-        }), index => {
-            autosave.update(doc => {
-                let captureIndex = 0;
-                return { ...doc, media: { ...doc.media, references: doc.media.references.filter(value => {
-                    if (!value || typeof value !== 'object') return true;
-                    const item = value as { kind?: string; url?: string };
-                    if (item.kind !== 'model-capture' || typeof item.url !== 'string') return true;
-                    return captureIndex++ !== index;
-                }) } };
-            });
-        }, capture => {
-            if (capture.camera) camera.restore(capture.camera);
-        });
-
-        const pendingRenders = new Set<string>();
-        const jobs = () => autosave.get().media.renders.filter((value): value is RenderJob =>
-            Boolean(value && typeof value === 'object' && typeof (value as RenderJob).sourceUrl === 'string'));
-        const storeJob = (job: RenderJob) => autosave.update(doc => ({ ...doc, media: { ...doc.media,
-            renders: [...doc.media.renders.filter(value => !(value && typeof value === 'object' && (value as RenderJob).id === job.id)), job]
-        } }));
-        panel.configureRenderingActions(capture => {
-            if (pendingRenders.has(capture.url)) return;
-            const previous = jobs().find(job => job.sourceUrl === capture.url);
-            if (previous?.status === 'done' && previous.resultUrl) {
-                openRenderComparison(previous.basePhotoUrl ?? capture.url, previous.resultUrl);
-                return;
+        const renderingController = createRenderingController({
+            projectId,
+            autosave,
+            elements: panel.rendering,
+            async captureView() {
+                await modeChanges;
+                if (isDisposed()) throw new Error('Editor closed');
+                const cameraSnapshot = camera.snapshot();
+                app.render();
+                const snapshot = document.createElement('canvas');
+                const scale = Math.min(1, 1600 / Math.max(canvas.width, canvas.height));
+                snapshot.width = Math.max(1, Math.round(canvas.width * scale));
+                snapshot.height = Math.max(1, Math.round(canvas.height * scale));
+                snapshot.getContext('2d')!.drawImage(canvas, 0, 0, snapshot.width, snapshot.height);
+                const blob = await new Promise<Blob>((resolve, reject) => snapshot.toBlob(
+                    result => (result ? resolve(result) : reject(new Error('The view could not be captured.'))), 'image/jpeg', 0.92));
+                const flash = document.createElement('div');
+                flash.className = 'capture-flash';
+                flash.setAttribute('aria-hidden', 'true');
+                viewport.append(flash);
+                // Camera flash over the whole viewport.
+                const animation = flash.animate([{ opacity: 0.85 }, { opacity: 0 }], {
+                    duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 100 : 320,
+                    easing: 'ease-out'
+                });
+                animation.onfinish = () => flash.remove();
+                animation.oncancel = () => flash.remove();
+                return { blob, camera: cameraSnapshot };
+            },
+            restoreCamera: snapshot => camera.restore(snapshot),
+            async loadHousePhoto(modelId) {
+                const model = await getPhotoModel(projectId, modelId);
+                const photo = model.photos.find(candidate => candidate.primary) ?? model.photos[0];
+                return photo ? { url: fileUrl(projectId, modelId, photo.file), name: model.name ?? 'House photo' } : null;
             }
-            // Manual queue currently uses the model screenshot. Photo-overlay needs an explicit matched base photo.
-            const job: RenderJob = {
-                id: previous?.id ?? crypto.randomUUID(), sourceUrl: capture.url, camera: capture.camera,
-                mode: 'model', referencePhotoUrls: [], status: 'queued'
-            };
-            pendingRenders.add(capture.url); storeJob(job);
-            panel.setRenderingMessage('Rendering…');
-            void generateRender({ projectId, job }).then(result => {
-                if (isDisposed()) return;
-                storeJob({ ...job, status: 'done', resultUrl: result.resultUrl });
-                panel.setRenderingMessage('Render ready. Click the photo to compare.');
-            }).catch(error => {
-                if (isDisposed()) return;
-                const message = error instanceof Error ? error.message : 'Rendering failed.';
-                storeJob({ ...job, status: 'awaiting-integration', error: message });
-                panel.setRenderingMessage(message);
-            }).finally(() => pendingRenders.delete(capture.url));
-        }, capture => {
-            const job = jobs().find(job => job.sourceUrl === capture.url && job.status === 'done' && job.resultUrl);
-            if (!job?.resultUrl) return false;
-            openRenderComparison(job.basePhotoUrl ?? capture.url, job.resultUrl);
-            return true;
         });
+        lifetime.add(() => renderingController.destroy());
+        const captureButton = createCaptureButton(viewport, () => renderingController.capture());
+        lifetime.add(() => captureButton.destroy());
 
         const setSceneMode = (mode: HouseRepresentation) => {
             currentMode = mode;
@@ -437,6 +394,7 @@ export function startSiteDefinition(initial: TypologyEntry, project: ProjectDocu
                 placement.setPlacementActive(step === 'placement');
                 const isRendering = step === 'rendering';
                 if (isRendering) {
+                    renderingController.refresh();
                     const products = placement.snapshot();
                     panel.setRenderingFocusObjects([
                         { id: 'site', label: 'Site' },
@@ -468,6 +426,7 @@ export function startSiteDefinition(initial: TypologyEntry, project: ProjectDocu
                     }).catch(error => console.error('Could not load rendering photos', error));
                 }
                 renderModes.hidden = isRendering;
+                captureButton.setVisible(isRendering);
                 dimensionToggle.hidden = isRendering;
                 if (isRendering) {
                     void setSceneMode('render').catch(error => {

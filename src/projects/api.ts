@@ -7,6 +7,8 @@ export type ProjectRow = {
     createdAt: string;
     updatedAt: string;
     house: ProjectDocument['house'];
+    /** A photo model of this project is being modelled right now. */
+    generating?: boolean;
 };
 
 export class ConflictError extends Error {

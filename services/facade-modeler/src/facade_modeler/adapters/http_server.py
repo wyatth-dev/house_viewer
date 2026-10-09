@@ -4,7 +4,7 @@
 上传成功后自动启动建模任务（jobs/runner.py）；设置 FACADE_AUTORUN=0 可关闭。
 
 接口（<pid> 是用户项目 p-0001，<mid> 是项目里的照片模型 house-001）：
-  GET/POST /api/projects                               项目列表 / 新建 {name?}
+  GET/POST /api/projects                               项目列表（每行带 generating：是否正在自动建模）/ 新建 {name?}
   GET/PUT/DELETE /api/projects/<pid>                   读取 / 保存（带 revision，不一致 409）/ 删除
   PUT /api/projects/<pid>/name                         项目改名 {name}
   GET/POST /api/projects/<pid>/photo-models            照片模型列表 / 上传照片（multipart）
@@ -14,6 +14,12 @@
   GET /api/projects/<pid>/typologies                   本项目已发布的照片 typology（每行带 baseUrl）
   DELETE …/typologies/<mid>、PUT …/typologies/<mid>/preview   删除、保存缩略图
   GET /data/projects/<pid>/typologies/<mid>/<path>     已发布 typology 的文件
+  POST /api/projects/<pid>/media/<kind>                上传素材（kind = captures | context，multipart files）
+  DELETE /api/projects/<pid>/media/<path>              删除上传的截图或 Context 照片
+  GET /data/projects/<pid>/media/<path>                素材文件（截图、Context 照片、效果图）
+  GET /api/render-options                              氛围参数（prompts/options.toml：风格、时间、天气、季节）
+  POST /api/projects/<pid>/renders                     出图 {sourceUrl, contextUrls, options}；未配置 OPENAI_API_KEY 时 409
+  GET /api/projects/<pid>/renders/<rid>                出图任务状态（done 时带 resultUrl）
 
 项目不存在、照片模型不存在：404；保存时 revision 冲突：409 {"result": {"current": 服务器上的文档}}；
 项目文档不合法或磁盘上的 project.json 损坏：422。
@@ -27,15 +33,20 @@ import math
 import os
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import unquote
 
 import uvicorn
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from facade_modeler.env import load_env_file
 from facade_modeler.jobs.runner import JobRunner
 from facade_modeler.paths import REPO_ROOT
 from facade_modeler.projects.store import InvalidProject, ProjectNotFound, ProjectUnreadable, RevisionConflict
+from facade_modeler.rendering.media import KINDS, media_url
+from facade_modeler.rendering.prompt import InvalidRenderOptions, load_options, resolve_options
+from facade_modeler.rendering.runner import NOT_CONFIGURED, RenderRunner
 from facade_modeler.service import user_actions
 from facade_modeler.service.context import AppContext, ServiceContext
 from facade_modeler.service.results import Result
@@ -65,8 +76,9 @@ def _valid_name(payload: Any) -> str:
     return name.strip()
 
 
-def create_app(app_ctx: AppContext, viewer_dist: Optional[Path] = VIEWER_DIST, runner: Optional[Any] = None) -> FastAPI:
-    """runner：自动建模任务（JobRunner）；为 None 时上传后不自动建模。"""
+def create_app(app_ctx: AppContext, viewer_dist: Optional[Path] = VIEWER_DIST, runner: Optional[Any] = None,
+               renders: Optional[RenderRunner] = None) -> FastAPI:
+    """runner：自动建模任务（JobRunner）；为 None 时上传后不自动建模。renders：AI 出图任务；为 None 时出图返回 409。"""
     app = FastAPI(title="Facade Modeler")
     projects = app_ctx.projects
 
@@ -99,9 +111,19 @@ def create_app(app_ctx: AppContext, viewer_dist: Optional[Path] = VIEWER_DIST, r
         return entry
 
     # ---- 用户项目 ----------------------------------------------------------------------
+    def generating(pid: str) -> bool:
+        """有照片模型正在自动建模（排队或运行中）：首页卡片显示转圈。"""
+        if runner is None:
+            return False
+        try:
+            ctx = service(pid)
+            return any((runner.status(pid, mid) or {}).get("state") in ("queued", "running") for mid in ctx.store.list())
+        except (ProjectNotFound, KeyError, OSError, ValueError):
+            return False
+
     @app.get("/api/projects")
     def list_projects():
-        return _envelope({"projects": projects.list()})
+        return _envelope({"projects": [{**row, "generating": generating(row["id"])} for row in projects.list()]})
 
     @app.post("/api/projects")
     def create_project(payload: Optional[dict] = None):
@@ -251,6 +273,89 @@ def create_app(app_ctx: AppContext, viewer_dist: Optional[Path] = VIEWER_DIST, r
         typology_or_404(ctx, mid)
         return _safe_file(ctx.typologies.directory(mid), path)
 
+    # ---- 项目素材与 AI 出图 -------------------------------------------------------------
+    def image_path(pid: str, url: Any) -> Path:
+        """把浏览器里的图片地址换成本项目里的文件；只接受本项目的素材和照片模型文件。"""
+        if not isinstance(url, str):
+            raise HTTPException(400, "Image URL must be a string")
+        url = unquote(url.split("?", 1)[0])
+        media_prefix, files_prefix = f"/data/projects/{pid}/media/", f"/files/{pid}/"
+        try:
+            if url.startswith(media_prefix):
+                return app_ctx.media(pid).resolve(url[len(media_prefix):])
+            if url.startswith(files_prefix) and "/" in url[len(files_prefix):]:
+                mid, path = url[len(files_prefix):].split("/", 1)
+                root = photo_model_or_404(service(pid), mid).root.resolve()
+                target = (root / path).resolve()
+                if root in target.parents and target.is_file() and target.name not in HIDDEN:
+                    return target
+        except FileNotFoundError:
+            pass
+        raise HTTPException(400, f"Image not found in this project: {url}")
+
+    @app.post("/api/projects/{pid}/media/{kind}")
+    async def upload_media(pid: str, kind: str, files: list[UploadFile] = File(...)):
+        if kind not in KINDS:
+            raise HTTPException(404, "Unknown media kind")
+        media = app_ctx.media(pid)
+        saved = []
+        for upload in files:
+            try:
+                relative = media.save(kind, await upload.read())
+            except ValueError as error:
+                raise HTTPException(400, str(error)) from None
+            saved.append({"path": relative, "url": media_url(pid, relative), "name": upload.filename or ""})
+        return _envelope({"files": saved})
+
+    @app.delete("/api/projects/{pid}/media/{path:path}")
+    def delete_media(pid: str, path: str):
+        try:
+            app_ctx.media(pid).delete(path)
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from None
+        return _envelope({})
+
+    @app.get("/data/projects/{pid}/media/{path:path}")
+    def media_file(pid: str, path: str):
+        return _safe_file(app_ctx.media(pid).root, path)
+
+    @app.get("/api/render-options")
+    def render_options():
+        """给渲染面板的按钮用：不含提示词文字。"""
+        try:
+            groups = load_options()
+        except InvalidRenderOptions as error:
+            return _envelope({"error": str(error)}, False, 422)
+        return _envelope({"groups": [{**group, "options": [{k: v for k, v in option.items() if k != "text"}
+                                                            for option in group["options"]]} for group in groups]})
+
+    @app.post("/api/projects/{pid}/renders")
+    def start_render(pid: str, payload: dict):
+        app_ctx.media(pid)  # 项目不存在 → 404
+        if renders is None or not renders.configured():
+            return _envelope({"error": NOT_CONFIGURED}, False, 409)
+        source_url = payload.get("sourceUrl")
+        if not isinstance(source_url, str) or not unquote(source_url).startswith(f"/data/projects/{pid}/media/captures/"):
+            raise HTTPException(400, "sourceUrl must be a capture of this project")
+        context_urls = payload.get("contextUrls") or []
+        if not isinstance(context_urls, list):
+            raise HTTPException(400, "contextUrls must be a list")
+        try:
+            options = resolve_options(payload.get("options"), load_options())
+        except InvalidRenderOptions as error:
+            raise HTTPException(400, str(error)) from None
+        source = image_path(pid, source_url)
+        context = [image_path(pid, url) for url in context_urls]
+        return _envelope({"render": renders.start(pid, source, context, source_url, context_urls, options)})
+
+    @app.get("/api/projects/{pid}/renders/{rid}")
+    def render_status(pid: str, rid: str):
+        app_ctx.media(pid)
+        job = renders.status(pid, rid) if renders is not None else None
+        if job is None:
+            raise HTTPException(404, "Render not found")
+        return _envelope({"render": job})
+
     if viewer_dist is not None and viewer_dist.is_dir():
         app.mount("/", StaticFiles(directory=viewer_dist, html=True), name="viewer")
     return app
@@ -265,10 +370,11 @@ def _safe_file(root: Path, path: str) -> FileResponse:
 
 
 def main() -> None:
+    load_env_file(REPO_ROOT / ".env")  # OPENAI_API_KEY 等；已有的环境变量优先
     port = int(os.environ.get("FACADE_HTTP_PORT", "8765"))
     app_ctx = AppContext.from_env()
     runner = JobRunner(app_ctx.service) if os.environ.get("FACADE_AUTORUN", "1") != "0" else None
-    uvicorn.run(create_app(app_ctx, runner=runner), host="127.0.0.1", port=port)
+    uvicorn.run(create_app(app_ctx, runner=runner, renders=RenderRunner(app_ctx.media)), host="127.0.0.1", port=port)
 
 
 if __name__ == "__main__":

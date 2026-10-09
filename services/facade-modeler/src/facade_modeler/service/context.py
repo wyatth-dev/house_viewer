@@ -15,6 +15,7 @@ from facade_modeler.paths import data_dir, photo_models_dir_env, projects_dir, t
 from facade_modeler.photo_model.store import PhotoModel, PhotoModelStore
 from facade_modeler.projects.migrate import migrate_legacy, split_legacy_photo_projects
 from facade_modeler.projects.store import ProjectNotFound, ProjectRegistry
+from facade_modeler.rendering.media import MediaStore
 from facade_modeler.typologies.store import TypologyStore
 
 
@@ -61,3 +62,9 @@ class AppContext:
             raise ProjectNotFound(pid)
         return ServiceContext(PhotoModelStore(self.projects.photo_models_dir(pid), self.defaults), self.catalog,
                               self.defaults, TypologyStore(self.projects.typologies_dir(pid)))
+
+    def media(self, pid: str) -> MediaStore:
+        """项目的素材目录（截图、Context 照片、出图任务）；项目不存在时抛 ProjectNotFound。"""
+        if not (self.projects.directory(pid) / "project.json").is_file():
+            raise ProjectNotFound(pid)
+        return MediaStore(self.projects.directory(pid) / "media")
