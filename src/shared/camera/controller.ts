@@ -57,7 +57,7 @@ export function createCameraController(
         const entity = cameras.get(id)!,
             camera = entity.camera!;
         entity.setPosition(frame.position.x, frame.position.y, frame.position.z);
-        entity.lookAt(frame.center.x, frame.center.y, frame.center.z);
+        entity.lookAt(frame.center.x, frame.center.y, frame.center.z, frame.up.x, frame.up.y, frame.up.z);
         camera.orthoHeight = frame.halfHeight;
         // Keep foreground ground in front of the near plane at low elevations.
         // Higher views retain a useful near distance for depth-buffer precision.

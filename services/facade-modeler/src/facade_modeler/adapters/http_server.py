@@ -145,7 +145,14 @@ def create_app(app_ctx: AppContext, viewer_dist: Optional[Path] = VIEWER_DIST, r
 
     @app.delete("/api/projects/{pid}")
     def delete_project(pid: str):
-        projects.delete(pid)
+        projects.directory(pid)  # 非法 id → 404，不去动任何任务
+        if runner is not None and hasattr(runner, "cancel_project"):
+            runner.cancel_project(pid)  # 先停掉正在跑的建模，避免它往被删的目录里写文件
+        try:
+            projects.delete(pid)
+        except OSError as error:
+            return _envelope({"error": f"The project files could not be deleted ({error.strerror or error}). "
+                                       "Close any program using them and try again."}, False, 500)
         return _envelope({})
 
     # ---- 照片模型 ----------------------------------------------------------------------

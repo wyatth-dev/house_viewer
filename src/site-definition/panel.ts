@@ -123,7 +123,7 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
             </button>
             <section id="rendering-options" class="render-options" aria-label="Look and atmosphere" hidden></section>
             <section id="rendering-photos-section" hidden>
-                <h2><span>01</span> Main Perspective</h2>
+                <h2><span>01</span> From photos</h2>
                 <div class="rendering-photos" id="rendering-photos"></div>
             </section>
             <section>
@@ -261,6 +261,8 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
         /** Elements the rendering controller (src/rendering/controller.ts) fills. */
         rendering: {
             queue: host.querySelector<HTMLElement>('#reference-captures')!,
+            photos: host.querySelector<HTMLElement>('#rendering-photos')!,
+            photosSection: host.querySelector<HTMLElement>('#rendering-photos-section')!,
             contextButton: host.querySelector<HTMLButtonElement>('#rendering-context')!,
             contextCount: host.querySelector<HTMLElement>('#rendering-context-count')!,
             options: host.querySelector<HTMLElement>('#rendering-options')!,
@@ -275,9 +277,9 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
                 card.className = 'rendering-photo';
                 const camera = document.createElement('button');
                 camera.type = 'button';
-                camera.className = 'rendering-photo-camera';
-                camera.setAttribute('aria-label', 'Use this photo as camera reference');
-                camera.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h4l2-3h4l2 3h4v14H4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
+                camera.className = 'render-card-render';
+                camera.setAttribute('aria-label', `Render ${photo.name}`);
+                camera.textContent = 'Render';
                 card.append(image, camera);
                 return card;
             });

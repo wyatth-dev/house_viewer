@@ -1253,6 +1253,19 @@ h2 span {
 .project-actions button.danger {
     color: #8a3d1f;
 }
+.project-actions button:disabled { opacity: .5; cursor: default; }
+.project-card.deleting { opacity: .5; pointer-events: none; }
+.confirm-delete-dialog { width: min(420px, calc(100vw - 32px)); padding: 24px; border: 1px solid #d5ddd2; border-radius: 12px; background: #fafcf7; color: #233e34; box-shadow: 0 16px 60px #233e3433; }
+.confirm-delete-dialog::backdrop { background: #233e3466; }
+.confirm-delete-dialog h2 { margin: 0 0 10px; font-size: 18px; line-height: 1.4; color: #233e34; overflow-wrap: anywhere; }
+.confirm-delete-dialog p { margin: 0 0 10px; font-size: 13px; line-height: 1.6; }
+.confirm-delete-dialog .confirm-delete-warning { color: #8a3d1f; }
+.confirm-delete-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
+.confirm-delete-actions button { padding: 8px 14px; border-radius: 6px; font: inherit; font-size: 13px; cursor: pointer; }
+.confirm-delete-cancel { border: 1px solid #c9d1c8; background: transparent; color: #233e34; }
+.confirm-delete-cancel:hover { background: #eef2ec; }
+.confirm-delete-confirm { border: 0; background: #b4463c; color: white; }
+.confirm-delete-confirm:hover { background: #9a3a31; }
 .project-bar {
     display: flex;
     flex-wrap: wrap;
@@ -1367,27 +1380,6 @@ h2 span {
 }
 .rendering-photo:hover img,
 .rendering-photo:has(:focus-visible) img { opacity: 0.55; }
-.rendering-photo-camera {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    display: grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    padding: 0;
-    border: 1px solid #dce5db;
-    border-radius: 8px;
-    background: #fff;
-    color: #233e34;
-    opacity: 0;
-    transition: opacity 160ms ease;
-    cursor: pointer;
-}
-.rendering-photo:hover .rendering-photo-camera,
-.rendering-photo:has(:focus-visible) .rendering-photo-camera { opacity: 1; }
-.rendering-photo-camera:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
 #reference-captures { display: flex; flex-direction: column; gap: 12px; }
 #reference-captures > img { display: block; width: 100%; height: auto; border-radius: 8px; }
@@ -1519,6 +1511,8 @@ h2 span {
     transition: opacity 160ms ease;
 }
 .render-card:hover .render-card-render,
+.rendering-photo:hover .render-card-render,
+.rendering-photo:has(:focus-visible) .render-card-render,
 .render-card-render:focus-visible { opacity: 1; }
 .render-card-render:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 /* Once rendered, a click on the image compares; Render again moves to the corner. */
@@ -1538,9 +1532,25 @@ h2 span {
 .render-comparison-dialog { width: min(1040px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 24px; border: 0; border-radius: 12px; background: #fff; color: #14213d; }
 .render-comparison-dialog::backdrop { background: #000a; }
 .render-comparison-dialog h2 { margin: 0; font-family: 'Manrope', sans-serif; font-size: clamp(22px, 3vw, 32px); font-weight: 800; letter-spacing: -0.5px; }
-.render-comparison-stage { --split: 50%; position: relative; width: fit-content; max-width: 100%; margin: 18px auto 0; overflow: hidden; border-radius: 10px; touch-action: none; cursor: ew-resize; user-select: none; }
-.render-comparison-after { display: block; max-width: 100%; max-height: calc(100vh - 260px); }
-.render-comparison-before { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; clip-path: inset(0 calc(100% - var(--split)) 0 0); }
+/* The stage takes the images' aspect ratio (--aspect, set from the render) and fits the dialog in both
+   directions, so the whole picture is always visible and Before / After stay on top of each other. */
+.render-comparison-stage {
+    --split: 50%;
+    --aspect: 1.35;
+    position: relative;
+    width: min(100%, calc((100vh - 280px) * var(--aspect)));
+    aspect-ratio: var(--aspect);
+    margin: 18px auto 0;
+    overflow: hidden;
+    border-radius: 10px;
+    background: #eef1f0;
+    touch-action: none;
+    cursor: ew-resize;
+    user-select: none;
+}
+.render-comparison-after,
+.render-comparison-before { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+.render-comparison-before { clip-path: inset(0 calc(100% - var(--split)) 0 0); }
 .render-comparison-divider { position: absolute; top: 0; bottom: 0; left: var(--split); width: 3px; margin-left: -1.5px; background: #14213d; pointer-events: none; }
 .render-comparison-handle { position: absolute; top: 50%; left: 50%; display: grid; place-items: center; width: 52px; height: 52px; transform: translate(-50%, -50%); border: 3px solid #14213d; border-radius: 50%; background: #fff; color: #14213d; }
 .render-comparison-tags { position: absolute; inset: 14px 14px auto; display: flex; justify-content: space-between; pointer-events: none; }

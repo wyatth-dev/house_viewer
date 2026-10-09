@@ -30,6 +30,54 @@ function isOffline(error: unknown): boolean {
     return error instanceof TypeError || /\(HTTP 5\d\d\)$/.test((error as Error)?.message ?? '');
 }
 
+/**
+ * Asks before deleting a project (an in-page dialog: the browser's own confirm() can be
+ * suppressed or auto-accepted in embedded browsers). Resolves true only on "Delete".
+ * Cancel, Escape and clicking the backdrop all keep the project.
+ */
+function confirmDelete(host: HTMLElement, row: ProjectRow): Promise<boolean> {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'confirm-delete-dialog';
+    dialog.setAttribute('aria-labelledby', 'confirm-delete-title');
+    const title = document.createElement('h2');
+    title.id = 'confirm-delete-title';
+    title.textContent = `Delete “${row.name}”?`;
+    const body = document.createElement('p');
+    body.textContent = 'The project and all of its files are deleted: photo models, houses built from photos, '
+        + 'uploaded photos and renders. This cannot be undone.';
+    dialog.append(title, body);
+    if (row.generating) {
+        const busy = document.createElement('p');
+        busy.className = 'confirm-delete-warning';
+        busy.textContent = 'A model is being generated for this project. It will be stopped.';
+        dialog.append(busy);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'confirm-delete-actions';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'confirm-delete-cancel';
+    cancel.textContent = 'Cancel';
+    const confirm = document.createElement('button');
+    confirm.type = 'button';
+    confirm.className = 'confirm-delete-confirm';
+    confirm.textContent = 'Delete project';
+    actions.append(cancel, confirm);
+    dialog.append(actions);
+    host.append(dialog);
+
+    return new Promise((resolve) => {
+        let answer = false;
+        cancel.onclick = () => dialog.close();
+        confirm.onclick = () => { answer = true; dialog.close(); };
+        // A click on the backdrop lands on the dialog element itself.
+        dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+        dialog.addEventListener('close', () => { dialog.remove(); resolve(answer); }, { once: true });
+        dialog.showModal();
+        cancel.focus(); // the safe choice has focus, so Enter does not delete
+    });
+}
+
 export async function renderHome(host: HTMLElement): Promise<void> {
     document.title = 'House & Ground — Your projects';
     host.hidden = false;
@@ -162,8 +210,10 @@ export async function renderHome(host: HTMLElement): Promise<void> {
         };
 
         remove.onclick = async () => {
-            if (!window.confirm(`Delete “${row.name}”? Its photo models are deleted too. This cannot be undone.`)) return;
+            if (!(await confirmDelete(host, row))) return;
             remove.disabled = true;
+            rename.disabled = true;
+            item.classList.add('deleting');
             try {
                 await deleteProject(row.id);
                 item.remove();
@@ -172,6 +222,8 @@ export async function renderHome(host: HTMLElement): Promise<void> {
             } catch (error) {
                 showError(failure(error));
                 remove.disabled = false;
+                rename.disabled = false;
+                item.classList.remove('deleting');
             }
         };
 

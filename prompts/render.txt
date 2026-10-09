@@ -1,7 +1,12 @@
-Edit {capture} directly. It is a screenshot of a 3D model: a house with a veranda in its garden. When instructions conflict, follow this priority: the model view first, real details second, style last.
-
-Style: {style}. Light and atmosphere: {time_of_day}; {weather}; {season}. Apply these only to materials, lighting, sky and planting.
-
+Edit {capture} in place. Change only the surfaces: real brick, roof tiles, window glass and frames, aluminium and glass, lawn and sky.
+Surface appearance: {style}. Light the existing surfaces with {time_of_day}. These choices change appearance and light only.
+Weather treatment: {weather}.
+Seasonal treatment of lawn and background planting only: {season}.
 {details}
 
-Constraints (highest priority): keep the camera angle, framing and perspective of {capture} exactly. Keep the house shape, roof, every window and door, and the veranda's position, size, slope, posts and rafters exactly as drawn, at the same place in the frame. Do not move, add, remove or resize anything. Do not add people, cars, text or watermarks.
+In the empty background areas only, add distant trees, garden planting and a garden fence to meet the existing lawn. Continue the ground beyond the rectangular model-base boundary so no platform edge or empty void is visible. Finish the surroundings as a natural residential garden, while keeping the house and veranda untouched in their exact image positions.
+
+The final image will be overlaid directly on {capture}. Highest priority: preserve BOTH its exact camera perspective AND every built structure.
+Use {capture} as the sole source for viewpoint, camera height, camera tilt, focal length, framing and all projected geometry of the house and veranda. Keep the roof ridge, eaves, wall corners, window and door outlines, and every veranda post, beam and roof edge at the same image coordinates. Preserve their slopes, visible faces, dimensions, proportions and attachment points. For these built structures, change surface appearance only; do not redesign or reposition them. The blank background and model ground-plane boundary are placeholders, not built structures to preserve.
+Do not rotate, level, zoom, crop, shift, enlarge or shrink the view or any structure. Do not add or remove buildings, openings, veranda components, people, text or watermarks.
+The output must use the exact perspective and structure of {capture}, even when a reference photo suggests a different camera angle or building detail.

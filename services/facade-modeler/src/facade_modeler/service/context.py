@@ -52,6 +52,7 @@ class AppContext:
     def from_env(cls) -> "AppContext":
         """HTTP 服务用：data/projects；第一次启动时把旧的 data/intake、data/typologies 迁移进 p-0001。"""
         registry = ProjectRegistry(projects_dir())
+        registry.purge_deleted()
         migrate_legacy(data_dir(), registry)
         split_legacy_photo_projects(registry)
         return cls(registry, Catalog.load(), load_defaults())

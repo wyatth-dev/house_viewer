@@ -7,7 +7,10 @@ export type ComparisonView = {
     afterUrl: string;
     label: string;
     camera?: CameraSnapshot;
+    /** The capture this view belongs to (the caller's key). */
+    url?: string;
     /** Look & atmosphere used for this render, shown under the title. */
+    beforeLabel?: string;
     details?: { group: string; label: string; icon?: string | null }[];
 };
 
@@ -99,9 +102,15 @@ export function openRenderComparison(views: ComparisonView[], startIndex = 0, on
     const strip = document.createElement('div');
     strip.className = 'render-comparison-views';
     strip.hidden = views.length < 2;
+    // Size the stage to the picture (render and capture have the same size).
+    after.addEventListener('load', () => {
+        if (after.naturalWidth && after.naturalHeight)
+            stage.style.setProperty('--aspect', String(after.naturalWidth / after.naturalHeight));
+    });
     const show = (index: number) => {
         after.src = views[index].afterUrl;
         before.src = views[index].beforeUrl;
+        before.alt = views[index].beforeLabel ?? 'Before: model view';
         setSplit(50);
         details.replaceChildren(...(views[index].details ?? []).map((item) => {
             const chip = document.createElement('li');

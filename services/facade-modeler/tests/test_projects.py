@@ -182,3 +182,35 @@ def test_legacy_photo_houses_become_independent_projects_without_losing_sources(
     assert (model / 'spec.json').exists()
     split_legacy_photo_projects(registry)
     assert len(registry.list()) == 2
+
+
+def test_delete_removes_every_file_of_the_project(tmp_path):
+    registry = ProjectRegistry(tmp_path / "projects")
+    registry.create("A")
+    keep = registry.create("B")
+    renders = registry.directory("p-0001") / "media" / "renders" / "r-1"
+    renders.mkdir(parents=True)
+    (renders / "result.jpg").write_bytes(b"x")
+    registry.delete("p-0001")
+    assert sorted(p.name for p in registry.root.iterdir() if not p.name.startswith(".")) == ["index.json", keep.id]
+    assert not list(registry.root.glob(".deleting-*"))
+
+
+def test_failed_delete_keeps_the_project(tmp_path, monkeypatch):
+    import os
+    registry = ProjectRegistry(tmp_path / "projects")
+    registry.create("A")
+    monkeypatch.setattr(os, "replace", lambda *a: (_ for _ in ()).throw(PermissionError("busy")))
+    with pytest.raises(OSError):
+        registry.delete("p-0001")
+    monkeypatch.undo()
+    assert registry.get("p-0001").name == "A"
+    assert [row["id"] for row in registry.list()] == ["p-0001"]
+
+
+def test_leftovers_of_an_interrupted_delete_are_purged(tmp_path):
+    registry = ProjectRegistry(tmp_path / "projects")
+    leftover = registry.root / ".deleting-p-0009-1" / "photo-models"
+    leftover.mkdir(parents=True)
+    registry.purge_deleted()
+    assert not (registry.root / ".deleting-p-0009-1").exists()

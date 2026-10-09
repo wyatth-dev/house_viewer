@@ -120,12 +120,21 @@ export function jobFor(doc: ProjectDocument, sourceUrl: string): RenderJob | und
     return renderJobs(doc).find(job => job.sourceUrl === sourceUrl);
 }
 
+export function photoJobFor(doc: ProjectDocument, photoUrl: string): RenderJob | undefined {
+    return renderJobs(doc).find(job => job.mode === 'photo' && job.basePhotoUrl === photoUrl);
+}
+
+export function comparisonSource(job: RenderJob): string {
+    return job.mode === 'photo' && job.basePhotoUrl ? job.basePhotoUrl : job.sourceUrl;
+}
+
 /** One job per capture: a new render replaces the previous one. */
 export function storeJob(doc: ProjectDocument, job: RenderJob): ProjectDocument {
     return withMedia(doc, {
         renders: [...doc.media.renders.filter((value) => {
             const item = record(value);
-            return !(item && (item.sourceUrl === job.sourceUrl || item.id === job.id));
+            return !(item && (item.sourceUrl === job.sourceUrl || item.id === job.id ||
+                (job.mode === 'photo' && job.basePhotoUrl && item.mode === 'photo' && item.basePhotoUrl === job.basePhotoUrl)));
         }), job]
     });
 }
@@ -155,4 +164,15 @@ export function setRenderSetting(doc: ProjectDocument, group: string, value: str
     return withMedia(doc, {
         references: [...doc.media.references.filter(item => record(item)?.kind !== 'render-options'), { kind: 'render-options', values }]
     });
+}
+
+/** Puts a render's recorded choices back into the panel (only groups that still exist). */
+export function applyRenderSettings(doc: ProjectDocument, groups: RenderOptionGroup[], values: Record<string, string> | undefined): ProjectDocument {
+    if (!values) return doc;
+    let next = doc;
+    for (const group of groups) {
+        const value = values[group.id];
+        if (value && group.options.some(option => option.id === value)) next = setRenderSetting(next, group.id, value);
+    }
+    return next;
 }

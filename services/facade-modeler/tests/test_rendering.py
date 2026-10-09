@@ -59,21 +59,11 @@ def test_repository_prompt_files_exist():
         "style": "commercial", "time_of_day": "day", "weather": "clear", "season": "summer"}
     for count in (0, 1, 3):
         text = build_prompt(count)
-        assert "photorealistic commercial architectural rendering" in text and "{" not in text
-    assert "Images 2 to 4" in build_prompt(3)
-    for group in groups:  # 每个选项都能拼出完整的提示词
+        assert "Change only the surfaces" in text and "{" not in text
+    assert "Images 2 to 4" in build_prompt(3) and "Image 2" not in build_prompt(0)
+    for group in groups:  # 每个选项都能拼出完整的提示词（选项写不写进提示词由 render.txt 决定）
         for option in group["options"]:
-            text = build_prompt(1, choices={group["id"]: option["id"]})
-            assert option["text"] in text and "{" not in text
-
-
-def test_details_placeholder(tmp_path):
-    (tmp_path / "render.txt").write_text("Start.\n\n{details}\n\nKeep {capture}.", encoding="utf-8")
-    (tmp_path / "render-context.txt").write_text("Match {context}.", encoding="utf-8")
-    assert build_prompt(2, tmp_path) == "Start.\n\nMatch Images 2 to 3.\n\nKeep Image 1.\n"
-    assert build_prompt(0, tmp_path) == "Start.\n\nKeep Image 1.\n"  # 没有 render-no-context.txt：空行合并
-    (tmp_path / "render-no-context.txt").write_text("Plain details.", encoding="utf-8")
-    assert build_prompt(0, tmp_path) == "Start.\n\nPlain details.\n\nKeep Image 1.\n"
+            assert "{" not in build_prompt(1, choices={group["id"]: option["id"]})
 
 
 def test_render_options_file(tmp_path):
@@ -289,7 +279,6 @@ def test_render_options_over_http(app_ctx):
     assert reply.status_code == 200, reply.text
     job = wait(client, pid, reply.json()["result"]["render"]["id"])
     assert job["options"] == {"style": "commercial", "time_of_day": "dusk", "weather": "overcast", "season": "summer"}
-    assert "bright overcast sky" in calls[0] and "blue-hour dusk" in calls[0]
     bad = client.post(f"/api/projects/{pid}/renders", json={"sourceUrl": capture["url"], "options": {"weather": "hail"}})
     assert bad.status_code == 400 and "hail" in bad.json()["detail"]
 

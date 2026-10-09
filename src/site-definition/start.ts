@@ -22,7 +22,12 @@ import { createProjectBar } from '../projects/project-bar.ts';
 import { houseOf, planSwitch, previewExit, recordForSwitch, restoreProject } from '../projects/restore.ts';
 import type { ProjectDocument } from '../projects/state.ts';
 import { createCaptureButton } from '../rendering/capture-button.ts';
+import type { PhotoRenderRef } from '../rendering/contract.ts';
 import { createRenderingController } from '../rendering/controller.ts';
+import { captureMatchedScene } from '../rendering/photo-capture.ts';
+import { createCaptureQueue } from '../rendering/photo-flow.ts';
+import { buildPhotoMatchInput } from '../rendering/photo-landmarks.ts';
+import { matchPhotoCamera } from '../rendering/photo-match.ts';
 import { fadeHouseModel } from '../scene/house/fade.ts';
 import type { HouseRepresentation } from '../scene/house/house-config.ts';
 import { loadHouse } from '../scene/house/house.ts';
@@ -148,11 +153,32 @@ export function startSiteDefinition(initial: TypologyEntry, project: ProjectDocu
         lifetime.signal.throwIfAborted();
         let currentMode: HouseRepresentation = 'render';
         let modeChanges = Promise.resolve();
+        const serializeCapture=createCaptureQueue();
+        async function solvePhotoView(photo:PhotoRenderRef) {
+                await switching;lifetime.signal.throwIfAborted();
+                const typology=activeTypology();
+                if(photo.url!==fileUrl(projectId,typology.id,photo.file))throw new Error('This photo belongs to a different house.');
+                const response=await fetch(typology.baseUrl+'spec.json',{ signal:lifetime.signal,cache:'no-store' });
+                if(!response.ok)throw new Error('The measured house photo data could not be loaded.');
+                const spec:unknown=await response.json();
+                const image=new Image();image.src=photo.url;await image.decode();
+                lifetime.signal.throwIfAborted();
+                if(activeTypology()!==typology)throw new Error('The house changed while matching the photo.');
+                const input=buildPhotoMatchInput(spec,typology,photo.file,{ width:image.naturalWidth,height:image.naturalHeight });
+                const solved=matchPhotoCamera(input);
+                if(solved.errorPx>Math.max(image.naturalWidth,image.naturalHeight)*.04)
+                    throw new Error('This photo could not be aligned reliably. Try another measured photo.');
+                await modeChanges;lifetime.signal.throwIfAborted();
+                if(activeTypology()!==typology)throw new Error('The house changed while matching the photo.');
+                const current=camera.snapshot();if(!current)throw new Error('The model camera is not ready.');
+                const snapshot={ ...current,activePresetId:typology.installationFaces[0]?.side??current.activePresetId,frame:solved.frame };
+                return { typology,input,snapshot };
+        }
         const renderingController = createRenderingController({
             projectId,
             autosave,
             elements: panel.rendering,
-            async captureView() {
+            captureView() { return serializeCapture(async()=>{
                 await modeChanges;
                 if (isDisposed()) throw new Error('Editor closed');
                 const cameraSnapshot = camera.snapshot();
@@ -176,7 +202,22 @@ export function startSiteDefinition(initial: TypologyEntry, project: ProjectDocu
                 animation.onfinish = () => flash.remove();
                 animation.oncancel = () => flash.remove();
                 return { blob, camera: cameraSnapshot };
-            },
+            }); },
+            matchPhotoView(photo){return serializeCapture(async()=>{
+                const { snapshot }=await solvePhotoView(photo);
+                camera.restore(snapshot);
+            });},
+            capturePhotoView(photo){return serializeCapture(async()=>{
+                const { typology,input,snapshot }=await solvePhotoView(photo);
+                const pointerEvents=viewport.style.pointerEvents;viewport.style.pointerEvents='none';
+                try {
+                    const blob=await captureMatchedScene(app,canvas,snapshot.frame,input);
+                    lifetime.signal.throwIfAborted();
+                    if(activeTypology()!==typology)throw new Error('The house changed while matching the photo.');
+                    camera.restore(snapshot);
+                    return { blob,camera:snapshot };
+                } finally {viewport.style.pointerEvents=pointerEvents;}
+            });},
             restoreCamera: snapshot => camera.restore(snapshot),
             async loadHousePhoto(modelId) {
                 const model = await getPhotoModel(projectId, modelId);
@@ -412,7 +453,7 @@ export function startSiteDefinition(initial: TypologyEntry, project: ProjectDocu
                     });
                 }
                 const photoRequest = ++renderingPhotosRequest;
-                panel.setRenderingPhotos([]);
+                renderingController.setPhotos([]);
                 const projectHouse = autosave.get().house;
                 if (isRendering && projectHouse?.source === 'photo') {
                     const modelId = projectHouse.typologyId;
@@ -420,8 +461,8 @@ export function startSiteDefinition(initial: TypologyEntry, project: ProjectDocu
                         if (isDisposed() || photoRequest !== renderingPhotosRequest) return;
                         const photos = [...model.photos, ...Object.values(model.facadePhotos ?? {}).flat()];
                         const unique = [...new Map(photos.map(photo => [photo.file, photo])).values()];
-                        panel.setRenderingPhotos(unique.map(photo => ({
-                            url: fileUrl(project.id, modelId, photo.file), name: 'Uploaded house photo'
+                        renderingController.setPhotos(unique.map(photo => ({
+                            url: fileUrl(project.id, modelId, photo.file), name: 'Uploaded house photo', file:photo.file
                         })));
                     }).catch(error => console.error('Could not load rendering photos', error));
                 }

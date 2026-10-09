@@ -13,15 +13,18 @@ import type { CameraSnapshot } from '../shared/camera/types.ts';
 import { deleteMedia, getRender, getRenderOptions, startRender, uploadMedia } from './api.ts';
 import { openRenderComparison } from './comparison.ts';
 import { openContextDialog } from './context-dialog.ts';
-import type { CaptureRef, RenderJob, RenderOptionGroup } from './contract.ts';
+import type { CaptureRef, RenderJob, RenderOptionGroup, PhotoRenderRef } from './contract.ts';
 import { describeOptions, renderOptionsPanel } from './options-panel.ts';
+import { preparePhotoRender } from './photo-flow.ts';
 import {
-    addCapture, addContext, captures, contextPhotos, jobFor, needsContextSeed, removeCapture, removeContext,
-    renderJobs, renderSettings, replaceCaptureUrl, seedContext, setRenderSetting, storeJob
+    addCapture, addContext, captures, comparisonSource, contextPhotos, jobFor, photoJobFor, needsContextSeed, removeCapture, removeContext,
+    applyRenderSettings, renderJobs, renderSettings, replaceCaptureUrl, seedContext, setRenderSetting, storeJob
 } from './references.ts';
 
 export type RenderingElements = {
     queue: HTMLElement;
+    photos: HTMLElement;
+    photosSection: HTMLElement;
     contextButton: HTMLButtonElement;
     contextCount: HTMLElement;
     /** Look & atmosphere choices (style, time of day, weather, season). */
@@ -36,6 +39,8 @@ export type RenderingControllerOptions = {
     /** Screenshot of the current model view (JPEG) and the camera that produced it. */
     captureView(): Promise<{ blob: Blob; camera?: CameraSnapshot }>;
     restoreCamera(camera: CameraSnapshot): void;
+    matchPhotoView(photo: PhotoRenderRef): Promise<void>;
+    capturePhotoView(photo: PhotoRenderRef): Promise<{blob:Blob;camera:CameraSnapshot}>;
     /** The photo house's original photo, or null when it has none. Throws when it cannot be loaded. */
     loadHousePhoto(typologyId: string): Promise<{ url: string; name: string } | null>;
     pollMs?: number;
@@ -54,6 +59,8 @@ export function createRenderingController(options: RenderingControllerOptions) {
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
     let seeding: Promise<void> | undefined;
     const starting = new Set<string>();
+    const matching = new Set<string>();
+    let photos: PhotoRenderRef[] = [];
     let justAdded: string | undefined; // drops in on the next render
     let groups: RenderOptionGroup[] = [];
 
@@ -71,40 +78,60 @@ export function createRenderingController(options: RenderingControllerOptions) {
     const stateOf = (capture: CaptureRef): RenderJob['status'] | 'idle' =>
         starting.has(capture.url) ? 'queued' : jobFor(doc(), capture.url)?.status ?? 'idle';
 
-    const doneViews = () => captures(doc()).flatMap((capture, index) => {
-        const job = jobFor(doc(), capture.url);
-        return job?.status === 'done' && job.resultUrl
-            ? [{ beforeUrl: capture.url, afterUrl: job.resultUrl, label: `View ${index + 1}`, url: capture.url, camera: capture.camera,
-                details: describeOptions(groups, job.options) }] : [];
-    });
+    const doneViews = () => [
+        ...captures(doc()).flatMap((capture, index) => {
+            const job=jobFor(doc(),capture.url);
+            return job?.status==='done' && job.resultUrl ? [{ beforeUrl:capture.url,afterUrl:job.resultUrl,
+                label:`View ${index+1}`,url:capture.url,camera:capture.camera,details:describeOptions(groups,job.options) }] : [];
+        }),
+        ...renderJobs(doc()).filter(job=>job.mode==='photo' && job.status==='done' && job.resultUrl && photos.some(p=>p.url===job.basePhotoUrl)).map(job=>({
+            beforeUrl:comparisonSource(job),beforeLabel:'Before: original photograph',afterUrl:job.resultUrl!,label:'From photos',url:job.sourceUrl,camera:job.camera,
+            details:describeOptions(groups,job.options) }))
+    ];
 
     /** Opens the before/after dialog on this capture's render; switching views moves the model too. */
+    /** Look & atmosphere follows the selected view: shows the choices its render was made with. */
+    function showSettingsOf(sourceUrl: string) {
+        const used = jobFor(doc(), sourceUrl)?.options;
+        if (used) update(current => applyRenderSettings(current, groups, used));
+    }
+
     function showComparison(sourceUrl: string) {
         const views = doneViews();
         const at = views.findIndex(view => view.url === sourceUrl);
-        if (at >= 0) openRenderComparison(views, at, view => { if (view.camera) options.restoreCamera(view.camera); });
+        if (at >= 0) openRenderComparison(views, at, (view) => {
+            if (view.camera) options.restoreCamera(view.camera);
+            if (view.url) showSettingsOf(view.url);
+        });
         return at >= 0;
     }
 
     /** A render just finished: show it right away, unless another dialog is open. */
     async function presentFinished(sourceUrl: string, resultUrl: string | null) {
+        const job=jobFor(doc(),sourceUrl);
+        if(job?.mode==='photo' && !photos.some(photo=>photo.url===job.basePhotoUrl))return;
         if (resultUrl) {
             const image = new Image();
             image.src = resultUrl;
             await image.decode().catch(() => undefined); // drop in with the image already loaded
         }
-        if (disposed || document.querySelector('dialog[open]')) return;
+        if (disposed || document.querySelector('dialog[open]') ||
+            (job?.mode==='photo' && !photos.some(photo=>photo.url===job.basePhotoUrl))) return;
         const capture = captures(doc()).find(item => item.url === sourceUrl);
-        if (capture?.camera) options.restoreCamera(capture.camera);
+        const camera = capture?.camera ?? jobFor(doc(),sourceUrl)?.camera;
+        if (camera) options.restoreCamera(camera);
         showComparison(sourceUrl);
     }
 
     // ---- Queue ----------------------------------------------------------------------------
-    function card(capture: CaptureRef, index: number) {
-        const job = jobFor(doc(), capture.url);
-        const state = stateOf(capture);
+    function card(capture: CaptureRef, index: number, original?:PhotoRenderRef) {
+        const job = original ? photoJobFor(doc(), original.url) : jobFor(doc(), capture.url);
+        const state = original ? (starting.has(original.url) ? 'queued' : job?.status ?? 'idle') : stateOf(capture);
+        const sourceUrl = job?.sourceUrl ?? capture.url;
+        const savedCamera = original ? job?.camera : capture.camera;
         const element = document.createElement('div');
         element.className = capture.url === justAdded ? 'render-card dropping' : 'render-card';
+        if(original)element.classList.add('rendering-photo');
         element.dataset.state = state;
 
         const photo = document.createElement('button');
@@ -115,10 +142,25 @@ export function createRenderingController(options: RenderingControllerOptions) {
         image.alt = '';
         photo.append(image);
         photo.setAttribute('aria-label', state === 'done' ? `Compare before and after for view ${index + 1}` : `Go back to view ${index + 1}`);
-        photo.onclick = () => {
-            // The model always returns to this view's camera, rendered or not.
-            if (capture.camera) options.restoreCamera(capture.camera);
-            showComparison(capture.url);
+        if(original)photo.setAttribute('aria-label', `Match camera to photo ${index+1}`);
+        photo.disabled=!!original && (state==='queued' || state==='running');
+        photo.onclick = async () => {
+            if(original){
+                if(disposed || matching.has(original.url) || starting.has(original.url) || state==='queued' || state==='running')return;
+                matching.add(original.url);
+                photo.disabled=true;
+                try {
+                    await options.matchPhotoView(original);
+                    if(disposed || !photos.some(item=>item.url===original.url))return;
+                    showSettingsOf(sourceUrl);
+                    showComparison(sourceUrl);
+                } catch(cause){if(!disposed)say(errorText(cause,'The photo camera could not be matched.'));}
+                finally {matching.delete(original.url);photo.disabled=false;}
+                return;
+            }
+            if (savedCamera) options.restoreCamera(savedCamera);
+            showSettingsOf(sourceUrl);
+            showComparison(sourceUrl);
         };
 
         const badge = document.createElement('span');
@@ -130,21 +172,32 @@ export function createRenderingController(options: RenderingControllerOptions) {
         renderButton.type = 'button';
         renderButton.className = 'render-card-render';
         renderButton.textContent = state === 'done' ? 'Render again' : 'Render';
-        renderButton.setAttribute('aria-label', `${renderButton.textContent} view ${index + 1}`);
+        renderButton.setAttribute('aria-label', `${renderButton.textContent} ${original ? 'photo' : 'view'} ${index + 1}`);
         renderButton.hidden = state === 'queued' || state === 'running';
-        renderButton.onclick = () => void requestRender(capture);
+        renderButton.onclick = () => original ? void requestPhotoRender(original) : void requestRender(capture);
 
         const remove = document.createElement('button');
         remove.type = 'button';
         remove.className = 'render-card-delete';
         remove.setAttribute('aria-label', `Delete view ${index + 1}`);
         remove.innerHTML = deleteIcon;
+        if(original){
+            remove.setAttribute('aria-label',`Delete rendered result for photo ${index+1}`);
+            remove.hidden=!job || state==='queued' || state==='running';
+        }
         remove.onclick = () => {
-            update(current => removeCapture(current, capture.url));
-            void deleteMedia(projectId, capture.url).catch(() => undefined);
+            if(original){
+                update(current=>({ ...current,media:{ ...current.media,renders:current.media.renders.filter(value=>
+                    !(value && typeof value==='object' && 'basePhotoUrl' in value && value.basePhotoUrl===original.url)) } }));
+                if(job)void deleteMedia(projectId,job.sourceUrl).catch(()=>undefined);
+            } else {
+                update(current => removeCapture(current, capture.url));
+                void deleteMedia(projectId, capture.url).catch(() => undefined);
+            }
         };
 
-        element.append(photo, badge, renderButton, remove);
+        element.append(photo, badge, renderButton);
+        if(!original || (job && state!=='queued' && state!=='running'))element.append(remove);
         if (state === 'queued' || state === 'running') {
             const spinner = document.createElement('span');
             spinner.className = 'render-card-spinner';
@@ -218,8 +271,10 @@ export function createRenderingController(options: RenderingControllerOptions) {
 
     function render() {
         if (disposed) return;
+        elements.photos.replaceChildren(...photos.map((photo,index)=>card({ kind:'model-capture',url:photo.url },index,photo)));
+        elements.photosSection.hidden=photos.length===0;
         // Newest capture on top; numbering stays chronological (View 1 is the first capture).
-        list.replaceChildren(...captures(doc()).map(card).reverse());
+        list.replaceChildren(...captures(doc()).map((capture,index)=>card(capture,index)).reverse());
         justAdded = undefined;
         list.hidden = list.children.length === 0;
         empty.hidden = !list.hidden;
@@ -307,6 +362,33 @@ export function createRenderingController(options: RenderingControllerOptions) {
         }
     }
 
+    async function requestPhotoRender(photo:PhotoRenderRef) {
+        const prior=photoJobFor(doc(),photo.url);
+        if(starting.has(photo.url) || prior?.status==='queued' || prior?.status==='running')return;
+        const houseId=doc().house.typologyId;
+        const referencePhotoUrls=[...new Set([photo.url,...contextPhotos(doc()).map(item=>item.url)])];
+        const settings=renderSettings(doc(),groups);
+        starting.add(photo.url);say('');render();
+        let prepared:{sourceUrl:string;basePhotoUrl:string;camera?:CameraSnapshot;mode:'photo'}={ sourceUrl:photo.url,basePhotoUrl:photo.url,mode:'photo' };
+        try {
+            prepared=await preparePhotoRender(photo,options.capturePhotoView,async blob=>{
+                if(disposed || doc().house.typologyId!==houseId)throw new Error('The house changed while matching this photo.');
+                const [file]=await uploadMedia(projectId,'captures',[blob]);return file.url;
+            });
+            if(disposed || doc().house.typologyId!==houseId)return;
+            const job=await startRender(projectId,prepared.sourceUrl,referencePhotoUrls,settings);
+            if(disposed || doc().house.typologyId!==houseId)return;
+            update(current=>storeJob(current,{ ...prepared,id:job.id,referencePhotoUrls,status:job.state,options:job.options??settings }));
+            schedulePoll();
+        } catch(cause){
+            if(!disposed && doc().house.typologyId===houseId){
+                const error=errorText(cause,'This photo could not be matched and rendered.');
+                update(current=>storeJob(current,{ ...prepared,id:`failed-${crypto.randomUUID()}`,referencePhotoUrls,status:'failed',error,options:settings }));
+                say(error);
+            }
+        } finally {starting.delete(photo.url);render();}
+    }
+
     async function poll() {
         pollTimer = undefined;
         const active = renderJobs(doc()).filter(job => job.status === 'queued' || job.status === 'running');
@@ -382,6 +464,7 @@ export function createRenderingController(options: RenderingControllerOptions) {
     return {
         /** Captures the current model view into the list (the lens button on the canvas). */
         capture,
+        setPhotos(next:PhotoRenderRef[]){photos=next;render();},
         /** Call when the Rendering step opens: the house may have changed since. */
         refresh() {
             render();

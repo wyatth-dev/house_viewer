@@ -84,6 +84,8 @@ class JobRunner:
         self.context_for = context_for
         self._guard = threading.RLock()
         self._threads: dict[str, threading.Thread] = {}
+        self._processes: dict[str, subprocess.Popen] = {}
+        self._cancelled: set[str] = set()  # 被 cancel_project 停掉的任务：不再写状态、不再重跑
         if command is not None:
             self._command = command
         else:
@@ -103,6 +105,22 @@ class JobRunner:
             thread.start()
             return job
 
+    def cancel_project(self, pid: str, timeout: float = 5.0) -> None:
+        """删除项目前调用：停掉这个项目所有正在运行的建模（结束 claude 进程），并等线程退出。"""
+        prefix = f"{pid}/"
+        with self._guard:
+            keys = [key for key in self._threads if key.startswith(prefix)]
+            self._cancelled.update(keys)
+            processes = [self._processes[key] for key in keys if key in self._processes]
+            threads = [self._threads[key] for key in keys]
+        for process in processes:
+            _stop(process)
+        deadline = time.time() + timeout
+        for thread in threads:
+            thread.join(max(0.0, deadline - time.time()))
+        with self._guard:
+            self._cancelled.difference_update(keys)
+
     def status(self, pid: str, mid: str) -> Optional[dict]:
         with self._guard:
             job = self._read(pid, mid)
@@ -119,13 +137,16 @@ class JobRunner:
             while True:
                 self._run_once(pid, mid)
                 with self._guard:
+                    if key in self._cancelled:
+                        self._threads.pop(key, None)
+                        return
                     job = self._read(pid, mid) or {}
                     if not job.get("rerunPending"):
                         # 判定和登记退出必须在同一段锁里：否则 start() 会看到线程还活着，只写 rerunPending，重跑就丢了
                         self._threads.pop(key, None)
                         return
                     self._update(pid, mid, rerunPending=False)
-        except (ProjectNotFound, KeyError):  # 项目或照片模型在运行期间被删除：任务随之结束
+        except (ProjectNotFound, KeyError, OSError):  # 项目或照片模型在运行期间被删除：任务随之结束
             return
         finally:  # 只给异常路径兜底；正常退出时上面已经移除，这里不会误删新启动的线程
             with self._guard:
@@ -149,12 +170,24 @@ class JobRunner:
             return
         log_path = jobs_dir / f"run-{run}.log"
         env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}  # 用订阅登录，不用 API key
+        key = f"{pid}/{mid}"
         try:
             with open(log_path, "w", encoding="utf-8") as log:
-                code = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                      cwd=model.root, env=env, check=False).returncode
+                with self._guard:
+                    if key in self._cancelled:
+                        return
+                    process = subprocess.Popen(command, stdout=log, stderr=subprocess.STDOUT,
+                                               stdin=subprocess.DEVNULL, cwd=model.root, env=env)
+                    self._processes[key] = process
+                try:
+                    code = process.wait()
+                finally:
+                    with self._guard:
+                        self._processes.pop(key, None)
         except OSError as error:
             self._finish(pid, mid, None, f"Could not start Claude Code: {error}", "")
+            return
+        if key in self._cancelled:  # 项目已删除：目录不在了，不写结果
             return
         tail = _tail(log_path)
         self._finish(pid, mid, code, None if code == 0 else f"Claude Code exited with code {code}.", tail)
@@ -187,6 +220,19 @@ class JobRunner:
         temporary.write_text(json.dumps(job, ensure_ascii=False, indent=2), encoding="utf-8")
         temporary.replace(path)
         return job
+
+
+def _stop(process: subprocess.Popen, grace: float = 3.0) -> None:
+    """先 terminate，等一会儿还在就 kill。"""
+    if process.poll() is not None:
+        return
+    try:
+        process.terminate()
+        process.wait(grace)
+    except subprocess.TimeoutExpired:
+        process.kill()
+    except OSError:
+        pass
 
 
 def _now() -> str:

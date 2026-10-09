@@ -184,3 +184,17 @@ def test_start_right_after_the_final_rerun_check_is_not_lost(app_ctx, store, mon
     job = runner.status(PID, project.id)
     assert fired and len(calls(tmp_path)) == 2, job
     assert job["run"] == 2 and job["state"] == "done" and not job.get("rerunPending")
+
+
+def test_cancel_project_stops_running_modelling(store, runner, monkeypatch):
+    monkeypatch.setenv("FAKE_CLAUDE_SLEEP", "30")
+    project = store.create()
+    runner.start(PID, project.id)
+    wait_for(runner, project.id, states=("running",))
+    deadline = time.time() + 5
+    while not runner._processes and time.time() < deadline:
+        time.sleep(0.05)
+    started = time.time()
+    runner.cancel_project(PID)
+    assert time.time() - started < 10
+    assert not runner._threads and not runner._processes

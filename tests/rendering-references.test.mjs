@@ -79,3 +79,27 @@ test('render settings fall back to defaults and keep one stored record', () => {
     d = refs.setRenderSetting(d, 'style', 'removed-option');
     assert.equal(refs.renderSettings(d, groups).style, 'commercial', 'an option removed from options.toml falls back to the default');
 });
+
+test('a render\'s recorded choices can be put back into the panel', () => {
+    const groups = [
+        { id: 'style', label: 'Style', default: 'commercial', options: [{ id: 'commercial', label: 'C' }, { id: 'photo', label: 'P' }] },
+        { id: 'season', label: 'Season', default: 'summer', options: [{ id: 'summer', label: 'S' }, { id: 'winter', label: 'W' }] }
+    ];
+    let d = refs.setRenderSetting(doc(), 'style', 'commercial');
+    d = refs.applyRenderSettings(d, groups, { style: 'photo', season: 'winter', removed: 'x' });
+    assert.deepEqual(refs.renderSettings(d, groups), { style: 'photo', season: 'winter' });
+    assert.equal(refs.applyRenderSettings(d, groups, undefined), d);
+});
+
+test('photo renders keep only the latest job for their original photo',()=>{
+ let d=doc();
+ d=refs.storeJob(d,{id:'first',sourceUrl:'hidden-1',basePhotoUrl:photo.url,mode:'photo',status:'done',referencePhotoUrls:[],resultUrl:'result-1'});
+ d=refs.storeJob(d,{id:'second',sourceUrl:'hidden-2',basePhotoUrl:photo.url,mode:'photo',status:'queued',referencePhotoUrls:[]});
+ assert.equal(refs.renderJobs(d).length,1);
+ assert.equal(refs.photoJobFor(d,photo.url).id,'second');
+ assert.equal(refs.comparisonSource(refs.photoJobFor(d,photo.url)),photo.url);
+ assert.deepEqual(refs.captures(d),[],'background photo screenshots do not become From model cards');
+});
+test('model comparisons continue to use their model capture',()=>{
+ assert.equal(refs.comparisonSource({mode:'model',sourceUrl:'model-capture'}),'model-capture');
+});

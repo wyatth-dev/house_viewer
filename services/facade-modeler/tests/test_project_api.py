@@ -179,3 +179,12 @@ def test_project_list_reports_generating(app_ctx):
     runner.states[(busy, mid)] = "done"
     rows = {row["id"]: row for row in client.get("/api/projects").json()["result"]["projects"]}
     assert rows[busy]["generating"] is False
+
+
+def test_delete_project_removes_its_files(client, tmp_path):
+    client.post("/api/projects", json={"name": "A"})
+    assert upload(client, "p-0001").status_code == 200
+    assert (tmp_path / "projects" / "p-0001" / "photo-models").exists()
+    assert client.delete("/api/projects/p-0001").status_code == 200
+    assert not (tmp_path / "projects" / "p-0001").exists()
+    assert not list((tmp_path / "projects").glob(".deleting-*"))

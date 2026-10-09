@@ -19,6 +19,7 @@ from facade_modeler.projects.model import PROJECT_SCHEMA_VERSION, ProjectDocumen
 
 PROJECT_ID = re.compile(r"^p-\d{4,}$")
 DEFAULT_NAME = "Untitled project"
+TRASH_PREFIX = ".deleting-"
 
 
 class ProjectNotFound(Exception):
@@ -57,6 +58,20 @@ def _atomic_write(path: Path, text: str) -> None:
     temporary = path.with_name(path.name + ".tmp")
     temporary.write_text(text, encoding="utf-8")
     os.replace(temporary, path)
+
+
+def _remove_tree(path: Path, attempts: int = 3) -> None:
+    """删除目录；后台进程刚写完的文件偶尔会让第一次删除失败，稍等重试。仍失败则留给下次启动清理。"""
+    for attempt in range(attempts):
+        try:
+            shutil.rmtree(path)
+            return
+        except FileNotFoundError:
+            return
+        except OSError:
+            if attempt == attempts - 1:
+                return
+            time.sleep(0.2 * (attempt + 1))
 
 
 class ProjectRegistry:
@@ -165,15 +180,32 @@ class ProjectRegistry:
             return renamed
 
     def delete(self, pid: str) -> None:
+        """删除项目和它的全部文件（照片模型、发布的房子、上传的照片、效果图）。
+
+        先把目录原子地改名为 .deleting-<pid>-<时间>，再改目录表，最后删文件：改名之后项目立即消失，
+        后台任务往旧路径写文件只会失败，不会把目录重新建出来；删到一半失败的残留在下次启动时清掉。
+        改名失败（例如文件被占用）时什么都不改，抛 OSError，项目保持原样。
+        """
         with project_lock(self._lock_path):
             directory = self.directory(pid)
             index = self._index()
             known = any(row["id"] == pid for row in index["projects"])
             if not directory.exists() and not known:
                 raise ProjectNotFound(pid)
+            trash = None
+            if directory.exists():
+                trash = self.root / f"{TRASH_PREFIX}{pid}-{time.time_ns()}"
+                os.replace(directory, trash)
             index["projects"] = [row for row in index["projects"] if row["id"] != pid]
             self._write_index(index)
-            shutil.rmtree(directory, ignore_errors=True)
+        if trash is not None:
+            _remove_tree(trash)
+
+    def purge_deleted(self) -> None:
+        """清理上次没删完的项目目录（.deleting-*）。"""
+        for leftover in self.root.glob(f"{TRASH_PREFIX}*"):
+            if leftover.is_dir():
+                _remove_tree(leftover)
 
     # ---- 内部 ------------------------------------------------------------------------
     @staticmethod

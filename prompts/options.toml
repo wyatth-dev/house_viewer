@@ -11,17 +11,17 @@ default = "commercial"
 [style.options.commercial]
 label = "Commercial"
 icon = "sparkle"
-text = "a photorealistic commercial architectural rendering, crisp and bright, magazine quality, everything clean and well kept"
+text = "a photorealistic commercial architectural rendering"
 
 [style.options.photo]
 label = "Photo"
 icon = "camera"
-text = "a natural real-estate photograph taken with a full-frame camera"
+text = "a natural real-estate photograph"
 
 [style.options.illustration]
 label = "Illustration"
 icon = "brush"
-text = "a soft hand-painted architectural illustration"
+text = "a soft architectural illustration of the existing surfaces"
 
 [time_of_day]
 label = "Time of day"
@@ -30,17 +30,17 @@ default = "day"
 [time_of_day.options.day]
 label = "Day"
 icon = "sun"
-text = "late morning daylight with soft shadows"
+text = "soft natural daylight"
 
 [time_of_day.options.golden]
 label = "Golden hour"
 icon = "sunset"
-text = "golden hour, warm low sun"
+text = "warm amber illumination on existing surfaces and warm sky colour; keep the existing projected edges and shadows' attachment points"
 
 [time_of_day.options.dusk]
 label = "Dusk"
 icon = "moon"
-text = "blue-hour dusk with warm interior and veranda lights on"
+text = "blue-hour dusk light and warm light through existing glazing"
 
 [weather]
 label = "Weather"
@@ -49,17 +49,17 @@ default = "clear"
 [weather.options.clear]
 label = "Clear"
 icon = "sun"
-text = "clear blue sky with a few light clouds"
+text = "clear sky with a few light clouds; dry existing surfaces"
 
 [weather.options.overcast]
 label = "Overcast"
 icon = "cloud"
-text = "bright overcast sky, soft even light"
+text = "cloud-covered sky and diffuse light on existing surfaces"
 
 [weather.options.after-rain]
 label = "After rain"
 icon = "rain"
-text = "just after rain, wet paving with reflections"
+text = "light moisture and subtle reflections on existing ground surfaces; keep the same ground layout"
 
 [season]
 label = "Season"
@@ -68,19 +68,19 @@ default = "summer"
 [season.options.spring]
 label = "Spring"
 icon = "flower"
-text = "spring, fresh green leaves and blossom"
+text = "fresh green foliage and light blossom on background plants"
 
 [season.options.summer]
 label = "Summer"
 icon = "leaf"
-text = "summer, lush green lawn and planting in flower"
+text = "green lawn and leafy background plants"
 
 [season.options.autumn]
 label = "Autumn"
 icon = "maple"
-text = "autumn, warm-coloured leaves and a few fallen leaves on the lawn"
+text = "warm-coloured background foliage and a few fallen leaves on existing lawn"
 
 [season.options.winter]
 label = "Winter"
 icon = "snow"
-text = "winter, bare trees and a light frost"
+text = "bare background branches and a light frost on existing lawn; no thick snow"

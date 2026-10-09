@@ -8,7 +8,9 @@ export type RenderJob = {
     id: string;
     sourceUrl: string;
     camera?: CameraSnapshot;
-    mode: 'model';
+    mode: 'model' | 'photo';
+    /** Original photo used to match the camera and as the comparison Before. */
+    basePhotoUrl?: string;
     /** Context photos sent with this render. */
     referencePhotoUrls: string[];
     status: 'queued' | 'running' | 'done' | 'failed';
@@ -31,6 +33,7 @@ export type RenderOptionGroup = {
 
 /** A model view in the Rendering Queue (media.references, kind 'model-capture'). */
 export type CaptureRef = { kind: 'model-capture'; url: string; camera?: CameraSnapshot };
+export type PhotoRenderRef = { url: string; name: string; file: string };
 
 /** A Context photo (media.references, kind 'context'). house-photo = the photo model's original photo. */
 export type ContextRef = { kind: 'context'; url: string; name: string; origin: 'upload' | 'house-photo' };
