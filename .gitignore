@@ -39,3 +39,7 @@ data/*
 
 # Local secrets (OPENAI_API_KEY for AI rendering)
 .env
+
+# Agent work output (plans, reports): local only
+.superpowers/
+.agents/
