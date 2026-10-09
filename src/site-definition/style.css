@@ -1393,7 +1393,11 @@ h2 span {
 #reference-captures > img { display: block; width: 100%; height: auto; border-radius: 8px; }
 .reference-capture-empty {
     display: grid;
-    place-items: center;
+    place-content: center;
+    justify-items: center;
+    gap: 6px;
+    font: inherit;
+    font-size: 12px;
     width: 100%;
     aspect-ratio: 4 / 3;
     border: 1px dashed #b5c5b7;
@@ -1405,12 +1409,67 @@ h2 span {
 .reference-capture-empty:hover { background: #edf3e9; border-color: #315b43; }
 .reference-capture-empty:disabled { opacity: 0.45; cursor: wait; }
 
-.reference-capture { margin-bottom: 0; }
-.reference-capture-render { width: auto; padding: 0 14px; font: inherit; font-size: 13px; }
-.reference-capture-delete {
+.capture-flash {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    background: #fff;
+    pointer-events: none;
+}
+
+/* ---- Rendering: Context bar ------------------------------------------------------- */
+.context-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    margin: 0 0 24px;
+    padding: 12px 14px;
+    border: 1px solid #d6dfd5;
+    border-radius: 8px;
+    background: #fff;
+    color: #233e34;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 160ms ease, background 160ms ease;
+}
+.context-bar:hover { border-color: #315b43; background: #f3f7f0; }
+.context-bar:focus-visible { outline: 2px solid #315b43; outline-offset: 2px; }
+.context-bar-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; background: #edf3e9; color: #315b43; flex: none; }
+.context-bar-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.context-bar-text strong { font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 700; }
+.context-bar-text small { font-size: 11px; color: #7a887e; }
+.context-bar-chevron { font-size: 22px; line-height: 1; color: #7b8e7f; }
+
+/* ---- Rendering: Context dialog ---------------------------------------------------- */
+.context-dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 24px; border: 0; border-radius: 12px; background: #fafbf7; color: #233e34; }
+.context-dialog::backdrop { background: #0009; }
+.context-dialog.dragging { outline: 2px dashed #315b43; outline-offset: -10px; }
+.context-dialog header,
+.render-comparison-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.context-dialog h2 { margin: 0; font-family: 'Manrope', sans-serif; font-size: 22px; font-weight: 700; }
+.context-dialog .hint { margin: 8px 0 18px; }
+.context-dialog-close,
+.render-comparison-close { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid #dce5db; border-radius: 8px; background: #fff; color: #233e34; cursor: pointer; }
+.context-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.context-photo { position: relative; margin: 0; aspect-ratio: 4 / 3; overflow: hidden; border-radius: 8px; background: #e8ede6; }
+.context-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.context-photo figcaption { position: absolute; left: 8px; bottom: 8px; padding: 3px 7px; border-radius: 4px; background: #fffe; font-size: 10px; font-weight: 700; color: #233e34; }
+.context-add { display: grid; place-content: center; justify-items: center; gap: 4px; aspect-ratio: 4 / 3; border: 1px dashed #b5c5b7; border-radius: 8px; background: transparent; color: #315b43; font: inherit; font-size: 12px; cursor: pointer; }
+.context-add:hover { background: #edf3e9; border-color: #315b43; }
+.context-add:disabled { cursor: wait; opacity: 0.7; }
+.context-add-plus { font-size: 32px; font-weight: 300; line-height: 1; }
+.context-error { margin: 12px 0 0; font-size: 12px; color: #a33c2e; }
+.context-done { margin-top: 20px; }
+
+/* Delete appears at the top right while hovering a photo or a queue card. */
+.context-photo-delete,
+.render-card-delete {
     position: absolute;
     top: 8px;
     right: 8px;
+    z-index: 2;
     display: grid;
     place-items: center;
     width: 32px;
@@ -1424,29 +1483,276 @@ h2 span {
     cursor: pointer;
     transition: opacity 160ms ease;
 }
-.reference-capture-delete:hover,
-.reference-capture-delete:focus-visible { opacity: 1; }
-.reference-capture-delete:focus-visible { outline: 2px solid #315b43; outline-offset: 2px; }
-
-.capture-flash {
-    position: absolute;
-    inset: 0;
-    z-index: 100;
-    background: #fff;
-    pointer-events: none;
+.context-photo:hover .context-photo-delete,
+.context-photo-delete:focus-visible,
+.render-card:hover .render-card-delete,
+.render-card-delete:focus-visible { opacity: 1; }
+.context-photo-delete:focus-visible,
+.render-card-delete:focus-visible { outline: 2px solid #315b43; outline-offset: 2px; }
+@media (hover: none) {
+    .context-photo-delete, .render-card-delete, .render-card-render { opacity: 1; }
 }
 
-.reference-capture-photo { display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
+/* ---- Rendering: queue cards ---------------------------------------------------------- */
+.render-card { position: relative; overflow: hidden; border-radius: 8px; background: #000; }
+.render-card-photo { display: block; width: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.render-card-photo img { display: block; width: 100%; height: auto; transition: opacity 160ms ease; }
+.render-card:hover .render-card-photo img { opacity: 0.7; }
+.render-card[data-state='queued'] .render-card-photo img,
+.render-card[data-state='running'] .render-card-photo img { opacity: 0.45; }
+.render-card-render {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 2;
+    transform: translate(-50%, -50%);
+    padding: 8px 16px;
+    border: 1px solid #dce5db;
+    border-radius: 8px;
+    background: #fff;
+    color: #233e34;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 160ms ease;
+}
+.render-card:hover .render-card-render,
+.render-card-render:focus-visible { opacity: 1; }
+.render-card-render:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+/* Once rendered, a click on the image compares; Render again moves to the corner. */
+.render-card[data-state='done'] .render-card-render { top: auto; left: auto; right: 8px; bottom: 8px; transform: none; padding: 5px 10px; font-size: 12px; }
+.render-card-badge { position: absolute; left: 8px; bottom: 8px; z-index: 1; padding: 3px 8px; border-radius: 4px; background: #fffe; font-size: 11px; font-weight: 700; color: #233e34; pointer-events: none; }
+.render-card[data-state='done'] .render-card-badge { background: #233e34; color: #fafbf7; }
+.render-card[data-state='failed'] .render-card-badge { color: #a33c2e; }
+.render-card-spinner,
+.context-spinner { width: 28px; height: 28px; border: 3px solid #fff6; border-top-color: #fff; border-radius: 50%; animation: render-spin 900ms linear infinite; }
+.render-card-spinner { position: absolute; top: 50%; left: 50%; margin: -14px 0 0 -14px; pointer-events: none; }
+.context-spinner { width: 20px; height: 20px; border-color: #315b4333; border-top-color: #315b43; }
+@keyframes render-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .render-card-spinner, .context-spinner { animation-duration: 3s; } }
+.render-card-error { margin: 0; padding: 8px 10px; background: #fff4f1; font-size: 11px; line-height: 1.5; color: #a33c2e; }
 
-.render-comparison-dialog { width: min(1000px, 90vw); padding: 16px; border: 0; border-radius: 12px; background: #f8faf5; }
-.render-comparison-dialog::backdrop { background: #0009; }
-.render-comparison-dialog > button { margin-bottom: 12px; padding: 8px 14px; cursor: pointer; }
-.render-comparison-stage { --split: 50%; position: relative; overflow: hidden; border-radius: 8px; }
-.render-comparison-stage > img { display: block; width: 100%; }
-.render-comparison-stage .render-comparison-before { position: absolute; inset: 0; height: 100%; object-fit: fill; clip-path: inset(0 calc(100% - var(--split)) 0 0); }
-.render-comparison-divider { position: absolute; top: 0; bottom: 0; left: var(--split); width: 3px; background: #fff; pointer-events: none; }
-.render-comparison-divider::after { content: '‹ ›'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: #fff; color: #233e34; }
-.render-comparison-labels { position: absolute; inset: 12px 12px auto; display: flex; justify-content: space-between; pointer-events: none; }
-.render-comparison-labels span { padding: 5px 8px; border-radius: 4px; background: #fff; color: #233e34; }
-.render-comparison-slider { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: ew-resize; }
-.render-comparison-stage:has(:focus-visible) { outline: 2px solid #315b43; outline-offset: 3px; }
+/* ---- Rendering: before / after ------------------------------------------------------- */
+.render-comparison-dialog { width: min(1040px, calc(100vw - 32px)); max-height: calc(100vh - 32px); padding: 24px; border: 0; border-radius: 12px; background: #fff; color: #14213d; }
+.render-comparison-dialog::backdrop { background: #000a; }
+.render-comparison-dialog h2 { margin: 0; font-family: 'Manrope', sans-serif; font-size: clamp(22px, 3vw, 32px); font-weight: 800; letter-spacing: -0.5px; }
+.render-comparison-stage { --split: 50%; position: relative; width: fit-content; max-width: 100%; margin: 18px auto 0; overflow: hidden; border-radius: 10px; touch-action: none; cursor: ew-resize; user-select: none; }
+.render-comparison-after { display: block; max-width: 100%; max-height: calc(100vh - 260px); }
+.render-comparison-before { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; clip-path: inset(0 calc(100% - var(--split)) 0 0); }
+.render-comparison-divider { position: absolute; top: 0; bottom: 0; left: var(--split); width: 3px; margin-left: -1.5px; background: #14213d; pointer-events: none; }
+.render-comparison-handle { position: absolute; top: 50%; left: 50%; display: grid; place-items: center; width: 52px; height: 52px; transform: translate(-50%, -50%); border: 3px solid #14213d; border-radius: 50%; background: #fff; color: #14213d; }
+.render-comparison-tags { position: absolute; inset: 14px 14px auto; display: flex; justify-content: space-between; pointer-events: none; }
+.render-comparison-tags span,
+.render-comparison-caption { padding: 6px 10px; border-radius: 6px; background: #fff; color: #14213d; font-size: 13px; font-weight: 700; }
+.render-comparison-caption { position: absolute; left: 14px; bottom: 14px; margin: 0; font-weight: 400; pointer-events: none; }
+.render-comparison-slider { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.render-comparison-stage:has(.render-comparison-slider:focus-visible) { outline: 3px solid #14213d; outline-offset: 3px; }
+.render-comparison-views { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; margin-top: 18px; }
+.render-comparison-views[hidden] { display: none; }
+.render-comparison-view { display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: transparent; color: #14213d; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.render-comparison-view img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border: 3px solid transparent; border-radius: 8px; }
+.render-comparison-view[aria-current='true'] { font-weight: 800; }
+.render-comparison-view[aria-current='true'] img { border-color: #14213d; }
+.render-comparison-view:focus-visible { outline: 2px solid #14213d; outline-offset: 3px; }
+
+/* ---- Rendering: look & atmosphere ------------------------------------------------ */
+.render-options {
+    display: grid;
+    gap: 16px;
+    margin: -8px 0 28px;
+    padding: 16px;
+    border: 1px solid #d6dfd5;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #fff 0%, #f6f9f3 100%);
+}
+.render-options[hidden] { display: none; }
+.render-options-header { display: flex; flex-direction: column; gap: 3px; }
+.render-options-header h2 { margin: 0; font-family: 'Manrope', sans-serif; font-size: 14px; font-weight: 700; color: #233e34; }
+.render-options-summary { margin: 0; font-size: 11px; color: #7a887e; }
+.render-option-group { display: grid; gap: 7px; }
+.render-option-label { font-size: 9px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: #7b8e7f; }
+.render-option-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.render-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 11px 6px 9px;
+    border: 1px solid #d6dfd5;
+    border-radius: 999px;
+    background: #fff;
+    color: #3d5547;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.2;
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+.render-option svg { flex: none; color: #6f8a77; transition: color 160ms ease; }
+.render-option:hover { border-color: #315b43; background: #f3f7f0; }
+.render-option[aria-checked='true'] { border-color: #233e34; background: #233e34; color: #fafbf7; box-shadow: 0 2px 6px #233e3433; }
+.render-option[aria-checked='true'] svg { color: #c9e2b8; }
+.render-option:focus-visible { outline: 2px solid #315b43; outline-offset: 2px; }
+/* Style: three large tiles. */
+.render-option-group.tiles .render-option-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; }
+.render-option-group.tiles .render-option {
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    min-height: 68px;
+    padding: 10px 6px;
+    border-radius: 8px;
+    font-weight: 700;
+    text-align: center;
+}
+@media (prefers-reduced-motion: reduce) { .render-option, .render-option svg { transition: none; } }
+
+/* Settings used for a render, under the comparison title. */
+.render-comparison-details { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; }
+.render-comparison-details[hidden] { display: none; }
+.render-comparison-details li { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; background: #eef2f7; color: #14213d; font-size: 12px; }
+.render-comparison-dialog header { align-items: flex-start; }
+
+/* Before/after opens with a small drop: falls in from above, settles with a light bounce. */
+.render-comparison-dialog[open] { animation: render-drop 460ms cubic-bezier(0.34, 1.4, 0.64, 1) both; }
+.render-comparison-dialog[open]::backdrop { animation: render-backdrop 240ms ease-out both; }
+@keyframes render-drop {
+    from { opacity: 0; transform: translateY(-36px) scale(0.98); }
+    60% { opacity: 1; }
+    to { opacity: 1; transform: none; }
+}
+@keyframes render-backdrop { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    .render-comparison-dialog[open] { animation: render-backdrop 160ms ease-out both; }
+}
+
+/* ---- Rendering: From model list ------------------------------------------------------- */
+/* The views scroll inside a fixed-height list with up/down buttons. */
+.render-rail { position: relative; }
+.render-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: min(520px, 58vh);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    border-radius: 8px;
+}
+.render-list::-webkit-scrollbar { display: none; }
+.render-list[hidden] { display: none; }
+.render-list > .render-card { flex: none; }
+/* Fade the edge that has more content, like the typology rail. */
+.render-rail.overflowing:has(.render-list-arrow.down:not([hidden])) .render-list { mask-image: linear-gradient(#000 82%, transparent); }
+.render-rail.overflowing:has(.render-list-arrow.up:not([hidden])) .render-list { mask-image: linear-gradient(transparent, #000 18%); }
+.render-rail.overflowing:has(.render-list-arrow.up:not([hidden])):has(.render-list-arrow.down:not([hidden])) .render-list {
+    mask-image: linear-gradient(transparent, #000 18%, #000 82%, transparent);
+}
+.render-list-arrow {
+    position: absolute;
+    left: 50%;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    transform: translateX(-50%);
+    border: 1px solid #d6dfd5;
+    border-radius: 50%;
+    background: #fff;
+    color: #233e34;
+    box-shadow: 0 2px 8px #233e3426;
+    cursor: pointer;
+    transition: background 160ms ease, border-color 160ms ease;
+}
+.render-list-arrow.up { top: 6px; }
+.render-list-arrow.down { bottom: 6px; }
+.render-list-arrow[hidden] { display: none; }
+.render-list-arrow:hover { border-color: #315b43; background: #f3f7f0; }
+.render-list-arrow:focus-visible { outline: 2px solid #315b43; outline-offset: 2px; }
+
+.render-batch { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 0; font: inherit; font-weight: 700; cursor: pointer; }
+.render-batch[hidden] { display: none; }
+.render-batch:disabled { cursor: default; opacity: 1; background: #3d5547; border-color: #3d5547; }
+.render-batch-spinner { width: 14px; height: 14px; border: 2px solid #fafbf766; border-top-color: #fafbf7; border-radius: 50%; animation: render-spin 900ms linear infinite; }
+
+.render-list-empty { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 14px; border: 1px dashed #b5c5b7; border-radius: 8px; color: #5e7064; }
+.render-list-empty[hidden] { display: none; }
+.render-list-empty svg { flex: none; color: #315b43; }
+
+/* ---- Rendering: capture button in the middle of the canvas ---------------------------- */
+.capture-button {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    width: 64px;
+    height: 64px;
+    padding: 0;
+    transform: translate(-50%, -50%);
+    border: 1.5px solid #ffffffb3;
+    border-radius: 50%;
+    background: #e9ecebb3;
+    color: #5f6866;
+    box-shadow: 0 4px 16px #0000001f;
+    backdrop-filter: blur(6px);
+    opacity: 0.72;
+    cursor: pointer;
+    transition: opacity 200ms ease, background 200ms ease, transform 200ms ease;
+}
+.capture-button[hidden] { display: none; }
+.capture-button:hover,
+.capture-button:focus-visible { opacity: 1; background: #f7f8f8e6; color: #3e4644; transform: translate(-50%, -50%) scale(1.06); }
+.capture-button:active { transform: translate(-50%, -50%) scale(0.96); }
+.capture-button:disabled { cursor: wait; }
+.capture-button:focus-visible { outline: 2px solid #fff; outline-offset: 4px; }
+
+/* Hovering the camera: the whole viewport becomes a viewfinder with a faint white veil. */
+.viewfinder { position: absolute; inset: 0; z-index: 19; color: #2a3230d9; pointer-events: none; opacity: 0; background: #ffffff1f; transition: opacity 220ms ease; }
+.viewfinder[hidden] { display: none; }
+#viewport.framing .viewfinder { opacity: 1; }
+.viewfinder-frame { position: absolute; inset: 28px; border: 1.5px solid #2a323080; filter: drop-shadow(0 0 1px #fffc); transition: inset 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+#viewport:not(.framing) .viewfinder-frame { inset: 44px; }
+.viewfinder-frame i { position: absolute; width: 48px; height: 48px; border: 0 solid currentColor; }
+.viewfinder-frame i:nth-child(1) { top: 10px; left: 10px; border-top-width: 3px; border-left-width: 3px; }
+.viewfinder-frame i:nth-child(2) { top: 10px; right: 10px; border-top-width: 3px; border-right-width: 3px; }
+.viewfinder-frame i:nth-child(3) { bottom: 10px; left: 10px; border-bottom-width: 3px; border-left-width: 3px; }
+.viewfinder-frame i:nth-child(4) { bottom: 10px; right: 10px; border-bottom-width: 3px; border-right-width: 3px; }
+/* Centre focus mark, sized to sit around the camera button. */
+.viewfinder-focus { position: absolute; top: 50%; left: 50%; width: 150px; height: 100px; transform: translate(-50%, -50%); filter: drop-shadow(0 0 1px #fffc); }
+
+/* A new capture drops into the top of the list. */
+.render-card.dropping { animation: card-drop 520ms cubic-bezier(0.34, 1.45, 0.64, 1) both; }
+@keyframes card-drop {
+    from { opacity: 0; transform: translateY(-28px) scale(0.96); }
+    55% { opacity: 1; }
+    to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .capture-button, .viewfinder, .viewfinder-frame { transition-duration: 1ms; }
+    .render-card.dropping { animation: render-backdrop 160ms ease-out both; }
+}
+
+/* ---- Model generation in progress (home cards, New from photo) ------------------------- */
+.spinner { display: inline-block; width: 22px; height: 22px; border: 2.5px solid #315b4333; border-top-color: #315b43; border-radius: 50%; animation: render-spin 900ms linear infinite; }
+.project-card .typology-thumb { position: relative; }
+.project-generating {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background: #fafbf7d9;
+    color: #315b43;
+    font-size: 12px;
+    font-weight: 700;
+}
+.typology-new.generating .typology-thumb { display: grid; place-items: center; }
+.typology-new.generating .typology-name { color: #315b43; }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }

@@ -1,5 +1,3 @@
-import type { CameraSnapshot } from '../shared/camera/types.ts';
-export type ReferenceCapture = { url: string; camera?: CameraSnapshot };
 import { getPhotoModel, listPhotoModels } from '../photo-intake/api.ts';
 import type { PhotoModelSummary } from '../photo-intake/api.ts';
 import { listTypologies } from '../typology/catalog.ts';
@@ -118,12 +116,18 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
             </fieldset>
         </div>
         <div id="rendering-step" hidden>
+            <button type="button" id="rendering-context" class="context-bar" aria-haspopup="dialog">
+                <span class="context-bar-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h5l2 2.5h8A1.5 1.5 0 0 1 21 9v9.5a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 18.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></span>
+                <span class="context-bar-text"><strong>Context</strong><small id="rendering-context-count">Add photos</small></span>
+                <span class="context-bar-chevron" aria-hidden="true">›</span>
+            </button>
+            <section id="rendering-options" class="render-options" aria-label="Look and atmosphere" hidden></section>
             <section id="rendering-photos-section" hidden>
                 <h2><span>01</span> Main Perspective</h2>
                 <div class="rendering-photos" id="rendering-photos"></div>
             </section>
             <section>
-                <h2><span>02</span> Rendering Queue</h2>
+                <h2><span>02</span> From model</h2>
                 <div id="reference-captures"></div>
                 <p id="reference-capture-error" class="hint" role="alert" hidden></p>
             </section>
@@ -179,8 +183,10 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
             return element;
         };
         strips.builtin.replaceChildren(...entries.filter(({ source }) => source === 'builtin').map(card));
-        const add = newFromPhotoCard(projectUrl('new'));
-        add.onclick = (event) => { event.preventDefault(); openPhoto(null); };
+        // While a photo model is being generated the card spins and opens that model's progress.
+        const generating = [...pending.keys()][0];
+        const add = newFromPhotoCard(projectUrl(generating ?? 'new'), Boolean(generating));
+        add.onclick = (event) => { event.preventDefault(); openPhoto(generating ?? null); };
         strips.photo.replaceChildren(...(projectId === null ? [] : [add]));
         markActive();
         for (const strip of Object.values(strips)) {
@@ -231,72 +237,6 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
         for (const listener of stepListeners) listener(step);
         (isSite ? next : isRendering ? renderingBack : back).focus();
     };
-    const cameraIcon = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M4 6h4l2-3h4l2 3h4v14H4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>';
-    let captureView: (() => Promise<ReferenceCapture>) | undefined;
-    let saveCapture: ((capture: ReferenceCapture) => void) | undefined;
-    let removeCapture: ((index: number) => void) | undefined;
-    let restoreCapture: ((capture: ReferenceCapture) => void) | undefined;
-    let requestRender: ((capture: ReferenceCapture, index: number) => void) | undefined;
-    let openRender: ((capture: ReferenceCapture, index: number) => boolean) | undefined;
-    const captures: ReferenceCapture[] = [];
-    const renderCaptures = () => {
-        const list = host.querySelector<HTMLElement>('#reference-captures')!;
-        list.replaceChildren(...captures.map((capture, index) => {
-            const image = document.createElement('img');
-            image.src = capture.url; image.alt = `Reference photo ${index + 1}`;
-            const card = document.createElement('div');
-            card.className = 'rendering-photo reference-capture';
-            const remove = document.createElement('button');
-            remove.type = 'button';
-            remove.className = 'reference-capture-delete';
-            remove.setAttribute('aria-label', `Delete reference photo ${index + 1}`);
-            remove.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-            remove.onclick = () => {
-                removeCapture?.(index);
-                captures.splice(index, 1);
-                renderCaptures();
-            };
-            const render = document.createElement('button');
-            render.type = 'button';
-            render.className = 'rendering-photo-camera reference-capture-render';
-            render.textContent = 'Render';
-            render.setAttribute('aria-label', `Render reference photo ${index + 1}`);
-            const photo = document.createElement('button');
-            photo.type = 'button'; photo.className = 'reference-capture-photo';
-            photo.setAttribute('aria-label', `Restore view for reference photo ${index + 1}`);
-            photo.onclick = () => { if (!openRender?.(capture, index)) restoreCapture?.(capture); };
-            photo.append(image);
-            render.onclick = () => requestRender?.(capture, index);
-            card.append(photo, render, remove);
-            return card;
-        }));
-        const empty = document.createElement('button');
-        empty.type = 'button'; empty.className = 'reference-capture-empty';
-        empty.setAttribute('aria-label', 'Capture current model view');
-        empty.innerHTML = cameraIcon;
-        empty.disabled = !captureView;
-        empty.onclick = async () => {
-            if (!captureView) return;
-            empty.disabled = true;
-            const error = host.querySelector<HTMLElement>('#reference-capture-error')!;
-            error.hidden = true;
-            try {
-                const url = await captureView();
-                if (disposed) return;
-                saveCapture?.(url);
-                captures.push(url);
-                renderCaptures();
-            } catch (cause) {
-                if (disposed) return;
-                empty.disabled = false;
-                error.textContent = 'Could not capture this view. Please try again.';
-                error.hidden = false;
-                console.error(cause);
-            }
-        };
-        list.append(empty);
-    };
-    renderCaptures();
     const goNext = () => showStep('placement');
     const goBack = () => showStep('site');
     const goRendering = () => showStep('rendering');
@@ -318,17 +258,13 @@ export function createPanel(host: HTMLElement, projectId: string | null) {
                 return button;
             }));
         },
-        configureRenderingActions(request: (capture: ReferenceCapture, index: number) => void, open: (capture: ReferenceCapture, index: number) => boolean) {
-            requestRender = request; openRender = open;
-        },
-        setRenderingMessage(message: string) {
-            const status = host.querySelector<HTMLElement>('#reference-capture-error')!;
-            status.textContent = message; status.hidden = !message;
-        },
-        configureReferenceCaptures(capture: () => Promise<ReferenceCapture>, save: (capture: ReferenceCapture) => void, existing: ReferenceCapture[], remove: (index: number) => void, restore: (capture: ReferenceCapture) => void) {
-            captureView = capture; saveCapture = save; removeCapture = remove; restoreCapture = restore;
-            captures.splice(0, captures.length, ...existing);
-            renderCaptures();
+        /** Elements the rendering controller (src/rendering/controller.ts) fills. */
+        rendering: {
+            queue: host.querySelector<HTMLElement>('#reference-captures')!,
+            contextButton: host.querySelector<HTMLButtonElement>('#rendering-context')!,
+            contextCount: host.querySelector<HTMLElement>('#rendering-context-count')!,
+            options: host.querySelector<HTMLElement>('#rendering-options')!,
+            message: host.querySelector<HTMLElement>('#reference-capture-error')!
         },
         setRenderingPhotos(photos: { url: string; name: string }[]) {
             const images = photos.map(photo => {
@@ -436,11 +372,14 @@ function typologyCard(entry: TypologyEntry, href: string) {
     return card;
 }
 
-function newFromPhotoCard(href: string) {
+function newFromPhotoCard(href: string, generating = false) {
     const card = document.createElement('a');
-    card.className = 'typology-card typology-new';
+    card.className = `typology-card typology-new${generating ? ' generating' : ''}`;
     card.href = href;
-    card.innerHTML = '<span class="typology-thumb"><span aria-hidden="true">+</span></span><span class="typology-name">New from photo</span>';
+    card.innerHTML = generating
+        ? '<span class="typology-thumb"><span class="spinner" aria-hidden="true"></span></span><span class="typology-name">Generating…</span>'
+        : '<span class="typology-thumb"><span aria-hidden="true">+</span></span><span class="typology-name">New from photo</span>';
+    if (generating) card.setAttribute('aria-busy', 'true');
     return card;
 }
 

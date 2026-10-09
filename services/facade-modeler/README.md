@@ -70,6 +70,8 @@ uv run python scripts/demo_sunningdale.py
 | 照片模型 | `GET` / `POST /api/projects/<pid>/photo-models`，`GET …/<mid>`，`PUT …/<mid>/name`，`POST …/<mid>/run`，`POST …/<mid>/publish` |
 | 照片模型文件 | `GET /files/<pid>/<mid>/<path>` |
 | 已发布的照片房子 | `GET /api/projects/<pid>/typologies`，`DELETE …/<mid>`，`PUT …/<mid>/preview`；文件在 `GET /data/projects/<pid>/typologies/<mid>/<path>` |
+| 项目素材 | `POST /api/projects/<pid>/media/<captures|context>`（multipart `files`），`DELETE /api/projects/<pid>/media/<path>`；文件在 `GET /data/projects/<pid>/media/<path>` |
+| AI 出图 | `GET /api/render-options`（氛围参数，来自 `prompts/options.toml`）；`POST /api/projects/<pid>/renders` `{sourceUrl, contextUrls, options}`（未配置 `OPENAI_API_KEY` 时 409），`GET …/renders/<rid>` 轮询状态，done 时带 `resultUrl` |
 
 旧接口 `/api/uploads`、`/api/typologies…`、`/data/typologies/…` 已删除，不保留兼容。
 
@@ -78,6 +80,9 @@ uv run python scripts/demo_sunningdale.py
 | `FACADE_HTTP_PORT` | HTTP 端口，默认 8765 |
 | `FACADE_DATA_DIR` | 数据根目录，默认仓库的 `./data` |
 | `FACADE_AUTORUN=0` | 关闭上传后的自动建模 |
+| `OPENAI_API_KEY` | AI 出图（仓库根目录 `.env`，服务启动时读取；已有环境变量优先） |
+| `OPENAI_IMAGE_MODEL` | 出图模型，默认 `gpt-image-2.5-flare`；另有 `OPENAI_IMAGE_QUALITY`（默认 high）、`OPENAI_IMAGE_INPUT_FIDELITY`（默认不发送） |
+| `FACADE_PROMPTS_DIR` | 换一个提示词目录（默认仓库根目录 `prompts/`：`render.txt`、`render-context.txt`） |
 | `FACADE_CLAUDE_BIN` | `claude` 的路径（找不到时设置） |
 | `FACADE_PHOTO_MODELS_DIR`、`FACADE_TYPOLOGIES_DIR` | 仅 MCP 子进程使用：某个项目的 `photo-models/` 和 `typologies/` 目录（自动建模会自动设置） |
 
@@ -93,6 +98,7 @@ uv run python scripts/demo_sunningdale.py
 | `build/` | 体块、洞口、GLB、typology 导出、校验 |
 | `preview/` | 正视图与叠加图 |
 | `service/` | 三组操作：用户、LM 感知、LM 建模 |
+| `rendering/` | 项目素材（截图、Context 照片）与 AI 出图任务（OpenAI images/edits，提示词在仓库根目录 `prompts/`） |
 | `adapters/` | MCP（给 LM）与 HTTP（给查看页） |
 
 默认数值集中在 `config/defaults.toml`。

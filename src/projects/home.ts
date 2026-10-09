@@ -104,6 +104,14 @@ export async function renderHome(host: HTMLElement): Promise<void> {
         updated.className = 'project-updated';
         updated.textContent = `Updated ${formatUpdated(row.updatedAt)}`;
         link.append(thumb, name, updated);
+        if (row.generating) {
+            item.classList.add('generating');
+            const busy = document.createElement('span');
+            busy.className = 'project-generating';
+            busy.innerHTML = '<span class="spinner" aria-hidden="true"></span><span>Generating model…</span>';
+            thumb.append(busy);
+            link.setAttribute('aria-busy', 'true');
+        }
 
         const actions = document.createElement('div');
         actions.className = 'project-actions';
@@ -187,4 +195,19 @@ export async function renderHome(host: HTMLElement): Promise<void> {
     rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     grid.replaceChildren(newButton, ...rows.map(card));
     if (!rows.length) showEmpty();
+
+    // While a model is being generated, refresh those cards until it is done (preview appears).
+    const poll = async () => {
+        if (!host.isConnected || host.hidden) return;
+        try {
+            const latest = await listProjects();
+            for (const row of latest) {
+                const current = grid.querySelector<HTMLElement>(`.project-card[data-project="${CSS.escape(row.id)}"]`);
+                if (current && current.classList.contains('generating') !== Boolean(row.generating)) current.replaceWith(card(row));
+            }
+            if (!latest.some(row => row.generating)) return;
+        } catch { /* service briefly unreachable: try again */ }
+        setTimeout(() => void poll(), 3000);
+    };
+    if (rows.some(row => row.generating)) setTimeout(() => void poll(), 3000);
 }
